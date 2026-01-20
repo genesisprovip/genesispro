@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh:*)",
+      "Bash(if [ -f ~/.ssh/id_ed25519.pub ])",
+      "Bash(then echo \"Clave existente:\")",
+      "Bash(else echo \"Generando nueva clave...\")",
+      "Bash(fi)",
+      "Bash(scp:*)",
+      "Bash(echo '✓ Nginx config creado' \")",
+      "Bash(ping:*)",
+      "Bash(sshpass -p \"1234\" ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no genesispro@15.1.1.30 \"echo ''test''\")",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
