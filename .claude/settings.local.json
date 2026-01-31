@@ -11,7 +11,32 @@
       "Bash(ping:*)",
       "Bash(sshpass -p \"1234\" ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no genesispro@15.1.1.30 \"echo ''test''\")",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git config:*)",
+      "Bash(sshpass -p \"1234\" ssh -o StrictHostKeyChecking=no genesispro@15.1.1.30 \"pm2 status\")",
+      "Bash(curl:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJiMDYxZTUyZS0wMmY1LTQyY2MtYTQ1NC00NzEwMWZmY2Q1NWMiLCJpYXQiOjE3Njg5NzY2OTAsImV4cCI6MTc2OTU4MTQ5MH0.vYpO2aDJpaGSSNE1Tl4YQWzZOGlMcp2R9uzAlSaNUDg\")",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(rsync:*)",
+      "Bash(sshpass -p '1234' ssh -o StrictHostKeyChecking=no genesispro@15.1.1.30:*)",
+      "Bash(tasklist:*)",
+      "Bash(where:*)",
+      "Bash(where npm)",
+      "Bash(npx expo start --tunnel --clear)",
+      "Bash(npx tsc:*)",
+      "Bash(npx expo start:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(~/.ssh/authorized_keys)",
+      "Bash(icacls:*)",
+      "Bash(netsh advfirewall firewall show rule:*)",
+      "Bash(netsh advfirewall firewall add rule:*)",
+      "Bash(net localgroup:*)",
+      "Bash(cmd //c 'icacls C:\\\\ProgramData\\\\ssh\\\\administrators_authorized_keys /grant SYSTEM:F /grant Administradores:F')",
+      "Bash(gh auth status:*)",
+      "Bash(git push:*)",
+      "Bash(plink:*)"
     ]
   }
 }

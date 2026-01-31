@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Bird Detailed Profile</title>
+<!-- Google Fonts: Inter -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#8b4513", // Saddle Brown
+                        "primary-light": "#a05a2c",
+                        "background-light": "#f8f7f6",
+                        "background-dark": "#211811", // Deep brownish charcoal
+                        "surface-dark": "#2f251e", // Slightly lighter for cards
+                        "accent-gold": "#D4AF37", // Premium Gold
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-filled {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            font-family: 'Material Symbols Outlined';
+        }
+        /* Hide scrollbar for tabs */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-white overflow-x-hidden antialiased">
+<div class="relative min-h-screen flex flex-col w-full max-w-md mx-auto shadow-2xl overflow-hidden bg-background-light dark:bg-background-dark">
+<!-- Hero Section -->
+<div class="relative w-full h-[420px] shrink-0">
+<!-- Background Image -->
+<div class="absolute inset-0 bg-cover bg-center" data-alt="Close up portrait of a majestic red rooster with glossy feathers" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuD8KwWje-FXJqmNqq9xdWVEesLT8Kw3a1x91YpCX2NbfWrlNOai5o3aMNn4UraVNF3MXCWbDQytt0uiyCdszSDZLe9bRR8Oze1_ov5HVq3eF1SGMqc9ZOLGsY1vcavQcQ017SHoEOk-URo_X7jn5ie9ep0xqAywI1GiQufibSL7kmbv-xKntIXadRfgKO-hN29YZ6GkeZgjJMBR1IQ_qpjSKlyRvaTeWgPlJeyQ_SCk9kdA85zR4iFkL09exbx7bfIhfSTLOgBoxP-4');">
+</div>
+<!-- Gradient Overlay -->
+<div class="absolute inset-0 bg-gradient-to-t from-background-dark via-background-dark/40 to-transparent"></div>
+<!-- Top Navigation (Absolute) -->
+<div class="absolute top-0 left-0 right-0 p-4 pt-6 flex items-center justify-between z-10">
+<button class="w-10 h-10 flex items-center justify-center rounded-full bg-black/20 backdrop-blur-md text-white hover:bg-black/30 transition-colors">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<div class="flex gap-2">
+<button class="w-10 h-10 flex items-center justify-center rounded-full bg-black/20 backdrop-blur-md text-white hover:bg-black/30 transition-colors">
+<span class="material-symbols-outlined">share</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-full bg-black/20 backdrop-blur-md text-white hover:bg-black/30 transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</div>
+<!-- Hero Content -->
+<div class="absolute bottom-0 left-0 right-0 p-5 pb-6">
+<div class="flex items-start justify-between">
+<div>
+<div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/90 backdrop-blur-sm border border-primary-light/30 mb-2">
+<span class="material-symbols-outlined text-[14px] text-white/90">fingerprint</span>
+<span class="text-xs font-mono font-bold tracking-wider text-white">GF-2023-X99</span>
+</div>
+<h1 class="text-4xl font-extrabold tracking-tight text-white mb-1 drop-shadow-sm">Red Fighter</h1>
+<div class="flex items-center gap-2 text-gray-300 text-sm">
+<span class="material-symbols-filled text-accent-gold text-[16px]">verified</span>
+<span class="font-medium">Semental Premium</span>
+<span class="w-1 h-1 rounded-full bg-gray-500"></span>
+<span>Gallo Fino</span>
+</div>
+</div>
+<!-- Current Status Badge -->
+<div class="flex flex-col items-end gap-1">
+<div class="w-12 h-12 rounded-full bg-surface-dark border-2 border-accent-gold flex items-center justify-center shadow-lg shadow-black/20">
+<span class="material-symbols-outlined text-accent-gold">health_and_safety</span>
+</div>
+<span class="text-[10px] uppercase font-bold text-accent-gold tracking-widest">Activo</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Sticky Tabs -->
+<div class="sticky top-0 z-20 bg-background-dark/95 backdrop-blur-xl border-b border-white/5">
+<div class="flex overflow-x-auto no-scrollbar px-4 pt-1">
+<button class="flex-1 min-w-[80px] pb-3 pt-3 text-center border-b-[3px] border-primary text-white font-bold text-sm tracking-wide uppercase">
+                    Info
+                </button>
+<button class="flex-1 min-w-[80px] pb-3 pt-3 text-center border-b-[3px] border-transparent text-gray-400 hover:text-gray-200 font-bold text-sm tracking-wide uppercase transition-colors">
+                    Combates
+                </button>
+<button class="flex-1 min-w-[80px] pb-3 pt-3 text-center border-b-[3px] border-transparent text-gray-400 hover:text-gray-200 font-bold text-sm tracking-wide uppercase transition-colors">
+                    Salud
+                </button>
+<button class="flex-1 min-w-[80px] pb-3 pt-3 text-center border-b-[3px] border-transparent text-gray-400 hover:text-gray-200 font-bold text-sm tracking-wide uppercase transition-colors">
+                    Genealogía
+                </button>
+</div>
+</div>
+<!-- Scrollable Content -->
+<div class="flex-1 p-5 space-y-8 pb-32">
+<!-- Key Stats Grid -->
+<section>
+<div class="grid grid-cols-3 gap-3">
+<!-- Weight -->
+<div class="flex flex-col items-center justify-center gap-1 rounded-xl p-4 bg-surface-dark border border-white/5 shadow-sm">
+<div class="bg-primary/20 p-2 rounded-full mb-1">
+<span class="material-symbols-outlined text-primary text-[20px]">scale</span>
+</div>
+<p class="text-gray-400 text-xs font-medium uppercase tracking-wider">Peso</p>
+<p class="text-white text-lg font-bold">2.4 <span class="text-sm font-normal text-gray-400">kg</span></p>
+</div>
+<!-- Age -->
+<div class="flex flex-col items-center justify-center gap-1 rounded-xl p-4 bg-surface-dark border border-white/5 shadow-sm">
+<div class="bg-primary/20 p-2 rounded-full mb-1">
+<span class="material-symbols-outlined text-primary text-[20px]">cake</span>
+</div>
+<p class="text-gray-400 text-xs font-medium uppercase tracking-wider">Edad</p>
+<p class="text-white text-lg font-bold">14 <span class="text-sm font-normal text-gray-400">Meses</span></p>
+</div>
+<!-- Plumage -->
+<div class="flex flex-col items-center justify-center gap-1 rounded-xl p-4 bg-surface-dark border border-white/5 shadow-sm">
+<div class="bg-primary/20 p-2 rounded-full mb-1">
+<span class="material-symbols-outlined text-primary text-[20px]">palette</span>
+</div>
+<p class="text-gray-400 text-xs font-medium uppercase tracking-wider">Pluma</p>
+<p class="text-white text-lg font-bold">Kelso</p>
+</div>
+</div>
+</section>
+<!-- Visual Identification -->
+<section>
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-lg font-bold text-white flex items-center gap-2">
+<span class="w-1 h-5 bg-accent-gold rounded-full"></span>
+                        Marcas de Identificación
+                    </h3>
+<button class="text-primary text-sm font-medium">Editar</button>
+</div>
+<div class="bg-surface-dark rounded-xl p-5 border border-white/5 shadow-sm">
+<div class="flex items-center justify-around relative">
+<!-- Connecting Line -->
+<div class="absolute top-1/2 left-10 right-10 h-[1px] bg-white/10 -z-0"></div>
+<!-- Left Leg -->
+<div class="flex flex-col items-center gap-3 z-10">
+<div class="w-14 h-14 rounded-full bg-background-dark border-2 border-dashed border-gray-600 flex items-center justify-center relative">
+<span class="material-symbols-outlined text-gray-500">arrow_back</span>
+<div class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-red-600 border-2 border-background-dark shadow-sm"></div>
+</div>
+<div class="text-center">
+<p class="text-white font-bold text-sm">Pata Izquierda</p>
+<p class="text-gray-400 text-xs">Anillo Rojo #42</p>
+</div>
+</div>
+<!-- Divider Icon -->
+<div class="w-8 h-8 rounded-full bg-background-dark border border-white/10 flex items-center justify-center z-10">
+<span class="material-symbols-outlined text-gray-500 text-[16px]">pets</span>
+</div>
+<!-- Right Leg -->
+<div class="flex flex-col items-center gap-3 z-10">
+<div class="w-14 h-14 rounded-full bg-background-dark border-2 border-dashed border-gray-600 flex items-center justify-center relative">
+<span class="material-symbols-outlined text-gray-500">arrow_forward</span>
+<div class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-500 border-2 border-background-dark shadow-sm"></div>
+</div>
+<div class="text-center">
+<p class="text-white font-bold text-sm">Pata Derecha</p>
+<p class="text-gray-400 text-xs">Anillo Azul</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Genealogy Preview -->
+<section>
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-lg font-bold text-white flex items-center gap-2">
+<span class="w-1 h-5 bg-accent-gold rounded-full"></span>
+                        Linaje (Padres)
+                    </h3>
+<button class="text-primary text-sm font-medium flex items-center gap-1">
+                        Ver árbol <span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+<div class="flex flex-col gap-3">
+<!-- Sire Card -->
+<div class="flex items-center gap-4 p-3 pr-4 rounded-xl bg-surface-dark border border-white/5 hover:border-primary/30 transition-colors cursor-pointer group">
+<div class="w-12 h-12 rounded-lg bg-gray-800 bg-cover bg-center shrink-0 border border-white/10" data-alt="Sire portrait" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBY1XnZZZjn_CJTvzlaAjUfEmyML0hDlKpCjlKLUpNe-AlQ5Ss0PhDhOTiVBkGI3yqU7Q1ckQP6-DIuAjSK0sOVDwzjQot7SOHCrCMJDX37WZB4AyggGc0dsQ1a06NMqzZbXd8fB7l2sZBcmy9kIQFl-lqkSuUQKGeJ6qDLVb2Vr-8fC4I-EqwBPQM-OIbdVxilbI2R5yuyMd9GCfGiSs5_zWdsK2nVCxSWkNtXoeDewcH9eZV71TUzyBSGOK8uOi8QNVTgdmTzZoYj');">
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-2">
+<p class="text-white font-bold truncate">Iron Beak</p>
+<span class="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[10px] font-bold border border-blue-500/20">PADRE</span>
+</div>
+<p class="text-gray-400 text-xs truncate">ID: IB-2021-001 • 5 Combates ganados</p>
+</div>
+<span class="material-symbols-outlined text-gray-600 group-hover:text-primary">arrow_forward_ios</span>
+</div>
+<!-- Dam Card -->
+<div class="flex items-center gap-4 p-3 pr-4 rounded-xl bg-surface-dark border border-white/5 hover:border-primary/30 transition-colors cursor-pointer group">
+<div class="w-12 h-12 rounded-lg bg-gray-800 bg-cover bg-center shrink-0 border border-white/10" data-alt="Dam portrait" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuB6WSXoGXIny9oWcUpNLvuClcmBznCBVTuXY1VxKc5YO1jz5Jgbw27EvEN_bQkcAO4DpD8J1ZNi2lOUoWQetFH8cHSA4qvArd8phy8v6EnMwijV5lfft8Ksh1iPK6Ef63cgscPsWbDW4DOIOZpFUgMWknHfvndCAqVdjGOGbPiK4Rn7FLIjM85e2QUJQ-ycrgof55Rn3ZffpayzcsL3Fd5xAzkiX0MVnFf8qtBhmYHUIjzbm5CE63sS4zoyIHwasqoKzrI7gcWhPq6A');">
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-2">
+<p class="text-white font-bold truncate">Lady Gold</p>
+<span class="px-1.5 py-0.5 rounded bg-pink-500/10 text-pink-400 text-[10px] font-bold border border-pink-500/20">MADRE</span>
+</div>
+<p class="text-gray-400 text-xs truncate">ID: LG-2022-X4 • Línea directa Kelso</p>
+</div>
+<span class="material-symbols-outlined text-gray-600 group-hover:text-primary">arrow_forward_ios</span>
+</div>
+</div>
+</section>
+</div>
+<!-- Fixed Action Footer -->
+<div class="fixed bottom-0 left-0 right-0 w-full max-w-md mx-auto p-4 pt-2 bg-gradient-to-t from-background-dark via-background-dark to-transparent z-50">
+<div class="flex gap-3">
+<button class="flex-1 h-14 bg-primary hover:bg-primary-light active:scale-[0.98] transition-all rounded-xl flex items-center justify-center gap-2 text-white font-bold text-base shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined">edit_square</span>
+                    Editar Perfil
+                </button>
+<button class="w-14 h-14 bg-surface-dark border border-red-500/30 hover:bg-red-500/10 active:scale-[0.98] transition-all rounded-xl flex items-center justify-center text-red-500">
+<span class="material-symbols-outlined">delete</span>
+</button>
+</div>
+</div>
+</div>
+</body></html>
