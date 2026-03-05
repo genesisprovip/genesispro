@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: genesispro-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-genesispro_db}
+      POSTGRES_USER: ${DB_USER:-genesispro_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/schema_v2.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./database/functions_v2.sql:/docker-entrypoint-initdb.d/02-functions.sql
+      - ./database/fix_functions.sql:/docker-entrypoint-initdb.d/03-fixes.sql
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-genesispro_user} -d ${DB_NAME:-genesispro_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - genesispro-net
+
+  # Express.js API
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: genesispro-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${DB_USER:-genesispro_user}:${DB_PASSWORD}@db:5432/${DB_NAME:-genesispro_db}
+    volumes:
+      - uploads:/app/uploads
+      - logs:/app/logs
+    networks:
+      - genesispro-net
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: genesispro-nginx
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/active.conf:/etc/nginx/conf.d/default.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - uploads:/var/www/uploads:ro
+      - ./dashboard:/var/www/dashboard:ro
+      - certbot-etc:/etc/letsencrypt
+      - certbot-var:/var/lib/letsencrypt
+      - certbot-www:/var/www/certbot
+    networks:
+      - genesispro-net
+
+  # Certbot for SSL
+  certbot:
+    image: certbot/certbot
+    container_name: genesispro-certbot
+    volumes:
+      - certbot-etc:/etc/letsencrypt
+      - certbot-var:/var/lib/letsencrypt
+      - certbot-www:/var/www/certbot
+    depends_on:
+      - nginx
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+volumes:
+  pgdata:
+    driver: local
+  uploads:
+    driver: local
+  logs:
+    driver: local
+  certbot-etc:
+    driver: local
+  certbot-var:
+    driver: local
+  certbot-www:
+    driver: local
+
+networks:
+  genesispro-net:
+    driver: bridge

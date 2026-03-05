@@ -5,7 +5,7 @@ export interface User {
   apellido: string;
   telefono?: string;
   foto_perfil?: string;
-  plan: 'gratuito' | 'basico' | 'profesional' | 'elite';
+  plan: 'basico' | 'pro' | 'premium';
   fecha_registro: string;
 }
 

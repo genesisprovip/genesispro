@@ -91,6 +91,51 @@ function RootLayoutNav() {
           presentation: 'modal'
         }}
       />
+      <Stack.Screen
+        name="salud/[id]"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="profile"
+        options={{
+          headerShown: false,
+          presentation: 'modal'
+        }}
+      />
+      <Stack.Screen
+        name="settings"
+        options={{
+          headerShown: false,
+          presentation: 'modal'
+        }}
+      />
+      <Stack.Screen
+        name="subscription"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="palenque/index"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="palenque/[id]"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="palenque/new"
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
     </Stack>
   );
 }

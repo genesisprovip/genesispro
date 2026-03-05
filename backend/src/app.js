@@ -23,6 +23,11 @@ const saludRoutes = require('./routes/salud');
 const finanzasRoutes = require('./routes/finanzas');
 const calendarioRoutes = require('./routes/calendario');
 const analyticsRoutes = require('./routes/analytics');
+const subscriptionRoutes = require('./routes/subscriptions');
+const eventosRoutes = require('./routes/eventos');
+const peleasRoutes = require('./routes/peleas');
+const apuestasRoutes = require('./routes/apuestas');
+const derbyRoutes = require('./routes/derby');
 
 const app = express();
 
@@ -53,6 +58,9 @@ app.use(cors(corsOptions));
 
 // Compression
 app.use(compression());
+
+// Stripe webhook needs raw body BEFORE json parsing
+app.use('/api/v1/subscriptions/webhook', express.raw({ type: 'application/json' }));
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
@@ -104,6 +112,11 @@ app.use('/api/v1/salud', saludRoutes);
 app.use('/api/v1/finanzas', finanzasRoutes);
 app.use('/api/v1/calendario', calendarioRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
+app.use('/api/v1/subscriptions', subscriptionRoutes);
+app.use('/api/v1/eventos', eventosRoutes);
+app.use('/api/v1/peleas', peleasRoutes);
+app.use('/api/v1/apuestas', apuestasRoutes);
+app.use('/api/v1/derby', derbyRoutes);
 
 // API info
 app.get('/api/v1', (req, res) => {
@@ -120,7 +133,12 @@ app.get('/api/v1', (req, res) => {
         salud: '/api/v1/salud',
         finanzas: '/api/v1/finanzas',
         calendario: '/api/v1/calendario',
-        analytics: '/api/v1/analytics'
+        analytics: '/api/v1/analytics',
+        subscriptions: '/api/v1/subscriptions',
+        eventos: '/api/v1/eventos',
+        peleas: '/api/v1/peleas',
+        apuestas: '/api/v1/apuestas',
+        derby: '/api/v1/derby',
       }
     }
   });

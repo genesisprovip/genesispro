@@ -264,6 +264,81 @@ class ApiService {
     return this.request<{ success: boolean; data: any }>('/finanzas/dashboard');
   }
 
+  // Subscriptions
+  async getSubscriptionStatus() {
+    return this.request<{
+      success: boolean;
+      data: {
+        plan: string;
+        hasSubscription: boolean;
+        isExpired: boolean | null;
+        billingInterval: string | null;
+        fechaExpiracion: string | null;
+        currentPriceId: string | null;
+        limits: { maxAves: number | null; maxFotosPorAve: number | null; maxCombates: number | null };
+        usage: { aves: number; combates: number };
+      };
+    }>('/subscriptions/status');
+  }
+
+  async getSubscriptionPlans() {
+    return this.request<{
+      success: boolean;
+      data: {
+        plans: Array<{
+          nombre: string;
+          precio_mensual: string;
+          precio_anual: string;
+          max_aves: number | null;
+          max_fotos_por_ave: number | null;
+          max_combates: number | null;
+          profundidad_genealogia: number | null;
+          analytics_avanzado: boolean;
+          multi_usuario: boolean;
+          exportacion: boolean;
+          soporte_prioritario: boolean;
+        }>;
+      };
+    }>('/subscriptions/plans');
+  }
+
+  async createCheckoutSession(priceId: string) {
+    return this.request<{
+      success: boolean;
+      data: { url: string; sessionId: string };
+    }>('/subscriptions/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ priceId }),
+    });
+  }
+
+  async createBillingPortalSession() {
+    return this.request<{
+      success: boolean;
+      data: { url: string };
+    }>('/subscriptions/portal', {
+      method: 'POST',
+    });
+  }
+
+  async getInvoices() {
+    return this.request<{
+      success: boolean;
+      data: {
+        invoices: Array<{
+          id: string;
+          number: string;
+          date: string;
+          amount: number;
+          currency: string;
+          status: string;
+          pdfUrl: string;
+          hostedUrl: string;
+        }>;
+      };
+    }>('/subscriptions/invoices');
+  }
+
   isAuthenticated() {
     return !!this.accessToken;
   }

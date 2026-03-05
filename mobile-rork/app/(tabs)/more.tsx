@@ -10,6 +10,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 import {
   User,
   Settings,
@@ -22,11 +23,13 @@ import {
   Calendar,
   Heart,
   Utensils,
-  Crown
+  Crown,
+  Smartphone,
+  Trophy,
 } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { COLORS } from '@/constants/colors';
-import { SPACING, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 
 interface MenuItem {
   icon: React.ReactNode;
@@ -34,6 +37,7 @@ interface MenuItem {
   subtitle?: string;
   onPress: () => void;
   showBadge?: boolean;
+  badgeText?: string;
   badgeColor?: string;
 }
 
@@ -65,24 +69,36 @@ export default function MoreScreen() {
     );
   };
 
+  const planNames: Record<string, string> = { basico: 'Básico', pro: 'Pro', premium: 'Premium' };
+  const planDisplay = planNames[user?.plan || 'basico'] || 'Básico';
+
   const menuSections: MenuSection[] = [
     {
       title: 'Módulos',
       items: [
         {
-          icon: <Calendar size={22} color={COLORS.primary} />,
+          icon: <Trophy size={20} color={COLORS.secondary} />,
+          label: 'Palenque',
+          subtitle: 'Eventos, cotejo y apuestas en vivo',
+          onPress: () => router.push('/palenque'),
+          showBadge: true,
+          badgeText: 'Nuevo',
+          badgeColor: COLORS.primary,
+        },
+        {
+          icon: <Calendar size={20} color={COLORS.accent} />,
           label: 'Calendario',
           subtitle: 'Eventos y recordatorios',
           onPress: () => router.push('/calendario'),
         },
         {
-          icon: <Heart size={22} color={COLORS.error} />,
+          icon: <Heart size={20} color={COLORS.error} />,
           label: 'Salud',
           subtitle: 'Vacunas y tratamientos',
           onPress: () => router.push('/salud'),
         },
         {
-          icon: <Utensils size={22} color={COLORS.warning} />,
+          icon: <Utensils size={20} color={COLORS.secondary} />,
           label: 'Alimentación',
           subtitle: 'Dietas e inventario',
           onPress: () => router.push('/alimentacion'),
@@ -93,24 +109,25 @@ export default function MoreScreen() {
       title: 'Cuenta',
       items: [
         {
-          icon: <User size={22} color={COLORS.info} />,
+          icon: <User size={20} color={COLORS.info} />,
           label: 'Mi Perfil',
           subtitle: user?.email,
-          onPress: () => Alert.alert('Mi Perfil', 'Configuración de perfil próximamente'),
+          onPress: () => router.push('/profile'),
         },
         {
-          icon: <Crown size={22} color={COLORS.warning} />,
+          icon: <Crown size={20} color={COLORS.secondary} />,
           label: 'Mi Suscripción',
-          subtitle: `Plan ${user?.plan || 'Gratuito'}`,
-          onPress: () => Alert.alert('Suscripción', 'Gestión de planes próximamente'),
-          showBadge: user?.plan === 'gratuito',
-          badgeColor: COLORS.warning,
+          subtitle: `Plan ${planDisplay || 'Gratuito'}`,
+          onPress: () => router.push('/subscription'),
+          showBadge: user?.plan === 'basico',
+          badgeText: 'Upgrade',
+          badgeColor: COLORS.secondary,
         },
         {
-          icon: <Bell size={22} color={COLORS.secondary} />,
+          icon: <Bell size={20} color={COLORS.primary} />,
           label: 'Notificaciones',
           subtitle: 'Configurar alertas',
-          onPress: () => Alert.alert('Notificaciones', 'Configuración de notificaciones próximamente'),
+          onPress: () => router.push('/settings'),
         },
       ],
     },
@@ -118,16 +135,16 @@ export default function MoreScreen() {
       title: 'Configuración',
       items: [
         {
-          icon: <Settings size={22} color={COLORS.textSecondary} />,
+          icon: <Settings size={20} color={COLORS.textSecondary} />,
           label: 'Ajustes',
           subtitle: 'Preferencias de la app',
-          onPress: () => Alert.alert('Ajustes', 'Configuración general próximamente'),
+          onPress: () => router.push('/settings'),
         },
         {
-          icon: <Shield size={22} color={COLORS.success} />,
+          icon: <Shield size={20} color={COLORS.success} />,
           label: 'Privacidad',
           subtitle: 'Seguridad y datos',
-          onPress: () => Alert.alert('Privacidad', 'Configuración de privacidad próximamente'),
+          onPress: () => router.push('/settings'),
         },
       ],
     },
@@ -135,15 +152,15 @@ export default function MoreScreen() {
       title: 'Soporte',
       items: [
         {
-          icon: <HelpCircle size={22} color={COLORS.info} />,
+          icon: <HelpCircle size={20} color={COLORS.info} />,
           label: 'Ayuda',
           subtitle: 'Centro de ayuda',
-          onPress: () => Alert.alert('Ayuda', 'Centro de ayuda próximamente'),
+          onPress: () => router.push('/settings'),
         },
         {
-          icon: <FileText size={22} color={COLORS.textSecondary} />,
+          icon: <FileText size={20} color={COLORS.textSecondary} />,
           label: 'Términos y Condiciones',
-          onPress: () => Alert.alert('Términos', 'Términos y condiciones próximamente'),
+          onPress: () => router.push('/settings'),
         },
       ],
     },
@@ -152,27 +169,32 @@ export default function MoreScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[COLORS.primary, COLORS.primaryDark]}
+        colors={[COLORS.backgroundDark, COLORS.backgroundDarkAlt]}
         style={[styles.header, { paddingTop: insets.top + SPACING.md }]}
       >
         <View style={styles.profileSection}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {user?.nombre?.charAt(0).toUpperCase() || 'U'}
-            </Text>
-          </View>
+          <Image
+            source={require('@/assets/images/logo.png')}
+            style={styles.avatar}
+            contentFit="contain"
+          />
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>
               {user?.nombre} {user?.apellido}
             </Text>
             <Text style={styles.profileEmail}>{user?.email}</Text>
-            <View style={styles.planBadge}>
-              <Crown size={12} color={COLORS.warning} />
-              <Text style={styles.planText}>
-                Plan {user?.plan?.charAt(0).toUpperCase()}{user?.plan?.slice(1) || 'Gratuito'}
-              </Text>
-            </View>
           </View>
+        </View>
+
+        <View style={styles.planCard}>
+          <Crown size={16} color={COLORS.secondary} />
+          <Text style={styles.planLabel}>Plan {planDisplay || 'Gratuito'}</Text>
+          <View style={{ flex: 1 }} />
+          <TouchableOpacity style={styles.planButton} onPress={() => router.push('/subscription')}>
+            <Text style={styles.planButtonText}>
+              {user?.plan === 'gratuito' || user?.plan === 'basico' ? 'Mejorar' : 'Gestionar'}
+            </Text>
+          </TouchableOpacity>
         </View>
       </LinearGradient>
 
@@ -184,7 +206,7 @@ export default function MoreScreen() {
         {menuSections.map((section, sectionIndex) => (
           <View key={sectionIndex} style={styles.section}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
-            <View style={styles.sectionCard}>
+            <View style={[styles.sectionCard, SHADOWS.sm]}>
               {section.items.map((item, itemIndex) => (
                 <TouchableOpacity
                   key={itemIndex}
@@ -201,16 +223,16 @@ export default function MoreScreen() {
                   <View style={styles.menuItemContent}>
                     <Text style={styles.menuItemLabel}>{item.label}</Text>
                     {item.subtitle && (
-                      <Text style={styles.menuItemSubtitle}>{item.subtitle}</Text>
+                      <Text style={styles.menuItemSubtitle} numberOfLines={1}>{item.subtitle}</Text>
                     )}
                   </View>
                   <View style={styles.menuItemRight}>
                     {item.showBadge && (
                       <View style={[styles.badge, { backgroundColor: item.badgeColor }]}>
-                        <Text style={styles.badgeText}>Upgrade</Text>
+                        <Text style={styles.badgeText}>{item.badgeText}</Text>
                       </View>
                     )}
-                    <ChevronRight size={20} color={COLORS.textSecondary} />
+                    <ChevronRight size={18} color={COLORS.textDisabled} />
                   </View>
                 </TouchableOpacity>
               ))}
@@ -219,15 +241,18 @@ export default function MoreScreen() {
         ))}
 
         <TouchableOpacity
-          style={styles.logoutButton}
+          style={[styles.logoutButton, SHADOWS.sm]}
           onPress={handleLogout}
           activeOpacity={0.7}
         >
-          <LogOut size={22} color={COLORS.error} />
+          <LogOut size={20} color={COLORS.error} />
           <Text style={styles.logoutText}>Cerrar Sesión</Text>
         </TouchableOpacity>
 
-        <Text style={styles.versionText}>GenesisPro v1.0.0</Text>
+        <View style={styles.footer}>
+          <Smartphone size={14} color={COLORS.textDisabled} />
+          <Text style={styles.versionText}>GenesisPro v1.1.0</Text>
+        </View>
       </ScrollView>
     </View>
   );
@@ -241,54 +266,52 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: SPACING.lg,
     paddingBottom: SPACING.lg,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
   },
   profileSection: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: SPACING.lg,
   },
   avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 56,
+    height: 56,
     marginRight: SPACING.md,
-  },
-  avatarText: {
-    fontSize: 28,
-    fontWeight: '700' as const,
-    color: COLORS.textLight,
   },
   profileInfo: {
     flex: 1,
   },
   profileName: {
     fontSize: 20,
-    fontWeight: '700' as const,
+    fontWeight: '700',
     color: COLORS.textLight,
   },
   profileEmail: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.5)',
     marginTop: 2,
   },
-  planBadge: {
+  planCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.round,
-    alignSelf: 'flex-start',
-    marginTop: SPACING.sm,
-    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    gap: SPACING.sm,
   },
-  planText: {
+  planLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textLight,
+  },
+  planButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 6,
+    borderRadius: BORDER_RADIUS.round,
+  },
+  planButtonText: {
     fontSize: 12,
-    fontWeight: '600' as const,
+    fontWeight: '700',
     color: COLORS.textLight,
   },
   content: {
@@ -302,13 +325,13 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600' as const,
+    fontSize: 11,
+    fontWeight: '700',
     color: COLORS.textSecondary,
     marginBottom: SPACING.sm,
     marginLeft: SPACING.xs,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   sectionCard: {
     backgroundColor: COLORS.card,
@@ -325,8 +348,8 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.divider,
   },
   menuItemIcon: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderRadius: 10,
     backgroundColor: COLORS.background,
     justifyContent: 'center',
@@ -337,12 +360,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   menuItemLabel: {
-    fontSize: 16,
-    fontWeight: '500' as const,
+    fontSize: 15,
+    fontWeight: '600',
     color: COLORS.text,
   },
   menuItemSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.textSecondary,
     marginTop: 2,
   },
@@ -352,34 +375,41 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   badge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: BORDER_RADIUS.round,
   },
   badgeText: {
     fontSize: 10,
-    fontWeight: '600' as const,
+    fontWeight: '700',
     color: COLORS.textLight,
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.error + '15',
+    backgroundColor: COLORS.card,
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
     gap: SPACING.sm,
-    marginTop: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.error + '20',
   },
   logoutText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
+    fontSize: 15,
+    fontWeight: '600',
     color: COLORS.error,
   },
-  versionText: {
-    textAlign: 'center',
-    fontSize: 12,
-    color: COLORS.textSecondary,
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     marginTop: SPACING.lg,
+    paddingBottom: SPACING.lg,
+  },
+  versionText: {
+    fontSize: 12,
+    color: COLORS.textDisabled,
   },
 });
