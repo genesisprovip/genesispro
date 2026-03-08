@@ -44,6 +44,8 @@ interface Pelea {
   peso_rojo: number | null;
   peso_verde: number | null;
   numero_ronda: number | null;
+  partido_rojo_nombre: string | null;
+  partido_verde_nombre: string | null;
 }
 
 export default function BroadcastScreen() {
@@ -452,20 +454,30 @@ export default function BroadcastScreen() {
             </Text>
             <View style={styles.fightMatchup}>
               <View style={styles.fightCornerBox}>
-                <View style={[styles.fightDot, { backgroundColor: '#EF4444' }]} />
-                <Text style={[styles.fightCorner, { color: '#EF4444' }]}>
-                  {currentPelea.anillo_rojo || 'ROJO'}
-                </Text>
+                {currentPelea.partido_rojo_nombre && (
+                  <Text style={styles.fightPartidoName}>{currentPelea.partido_rojo_nombre}</Text>
+                )}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <View style={[styles.fightDot, { backgroundColor: '#EF4444' }]} />
+                  <Text style={[styles.fightCorner, { color: '#EF4444' }]}>
+                    {currentPelea.anillo_rojo || 'ROJO'}
+                  </Text>
+                </View>
                 {currentPelea.peso_rojo && (
                   <Text style={styles.fightPeso}>{currentPelea.peso_rojo}kg</Text>
                 )}
               </View>
               <Text style={styles.fightVs}>VS</Text>
               <View style={styles.fightCornerBox}>
-                <View style={[styles.fightDot, { backgroundColor: '#10B981' }]} />
-                <Text style={[styles.fightCorner, { color: '#10B981' }]}>
-                  {currentPelea.anillo_verde || 'VERDE'}
-                </Text>
+                {currentPelea.partido_verde_nombre && (
+                  <Text style={styles.fightPartidoName}>{currentPelea.partido_verde_nombre}</Text>
+                )}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <View style={[styles.fightDot, { backgroundColor: '#10B981' }]} />
+                  <Text style={[styles.fightCorner, { color: '#10B981' }]}>
+                    {currentPelea.anillo_verde || 'VERDE'}
+                  </Text>
+                </View>
                 {currentPelea.peso_verde && (
                   <Text style={styles.fightPeso}>{currentPelea.peso_verde}kg</Text>
                 )}
@@ -672,7 +684,8 @@ const styles = StyleSheet.create({
   fightInfoRow: { alignItems: 'center', gap: 4 },
   fightNumber: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase' },
   fightMatchup: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.md },
-  fightCornerBox: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  fightCornerBox: { alignItems: 'center', gap: 4 },
+  fightPartidoName: { color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: '600' },
   fightDot: { width: 10, height: 10, borderRadius: 5 },
   fightCorner: { fontSize: 16, fontWeight: '800' },
   fightPeso: { color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: '500' },

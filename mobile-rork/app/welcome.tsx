@@ -200,7 +200,7 @@ export default function WelcomeScreen() {
           ))}
         </View>
 
-        <Text style={styles.version}>v1.1.0 · genesispro.vip</Text>
+        <Text style={styles.version}>v1.6.1 · genesispro.vip</Text>
       </ScrollView>
     </LinearGradient>
   );

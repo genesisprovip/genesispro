@@ -29,6 +29,7 @@ import {
   Megaphone,
 } from 'lucide-react-native';
 import { useKeepAwake } from 'expo-keep-awake';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 import { api } from '@/services/api';
@@ -68,6 +69,8 @@ interface PeleaData {
   duracion_minutos: number | null;
   tipo_victoria: string | null;
   numero_ronda: number | null;
+  partido_rojo_nombre: string | null;
+  partido_verde_nombre: string | null;
 }
 
 interface TablaData {
@@ -139,6 +142,14 @@ export default function LiveEventScreen() {
 
   // Keep screen awake during live event
   useKeepAwake();
+
+  // Allow landscape rotation for video viewing
+  useEffect(() => {
+    ScreenOrientation.unlockAsync();
+    return () => {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    };
+  }, []);
 
   const isPublic = !api.isAuthenticated();
 
@@ -264,8 +275,8 @@ export default function LiveEventScreen() {
     // Load peleas and tabla
     try {
       const [peleasRes, tablaRes] = await Promise.all([
-        api.getPeleasEvento(id, isPublic).catch(() => ({ success: false, data: [] })),
-        api.getTabla(id, isPublic).catch(() => ({ success: true, data: [] })),
+        api.getPeleasEvento(id, true).catch(() => ({ success: false, data: [] })),
+        api.getTabla(id, true).catch(() => ({ success: true, data: [] })),
       ]);
       if (peleasRes.success) setPeleas(peleasRes.data || []);
       if (tablaRes.success) setTabla(tablaRes.data || []);
@@ -648,16 +659,26 @@ export default function LiveEventScreen() {
               <View style={[styles.fightInfoCorner,
                 isFinished && currentFight.resultado === 'rojo' && styles.fightInfoCornerWinner,
               ]}>
-                <View style={[styles.fightInfoDot, { backgroundColor: '#EF4444' }]} />
-                <Text style={styles.fightInfoAnillo}>{currentFight.anillo_rojo || 'ROJO'}</Text>
+                {currentFight.partido_rojo_nombre && (
+                  <Text style={styles.fightInfoPartido}>{currentFight.partido_rojo_nombre}</Text>
+                )}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <View style={[styles.fightInfoDot, { backgroundColor: '#EF4444' }]} />
+                  <Text style={styles.fightInfoAnillo}>{currentFight.anillo_rojo || 'ROJO'}</Text>
+                </View>
                 {currentFight.peso_rojo && <Text style={styles.fightInfoPeso}>{currentFight.peso_rojo}kg</Text>}
               </View>
               <Text style={styles.fightInfoVs}>VS</Text>
               <View style={[styles.fightInfoCorner,
                 isFinished && currentFight.resultado === 'verde' && styles.fightInfoCornerWinner,
               ]}>
-                <View style={[styles.fightInfoDot, { backgroundColor: '#10B981' }]} />
-                <Text style={styles.fightInfoAnillo}>{currentFight.anillo_verde || 'VERDE'}</Text>
+                {currentFight.partido_verde_nombre && (
+                  <Text style={styles.fightInfoPartido}>{currentFight.partido_verde_nombre}</Text>
+                )}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <View style={[styles.fightInfoDot, { backgroundColor: '#10B981' }]} />
+                  <Text style={styles.fightInfoAnillo}>{currentFight.anillo_verde || 'VERDE'}</Text>
+                </View>
                 {currentFight.peso_verde && <Text style={styles.fightInfoPeso}>{currentFight.peso_verde}kg</Text>}
               </View>
             </View>
@@ -1007,6 +1028,12 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
+  },
+  fightInfoPartido: {
+    color: COLORS.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 2,
   },
   fightInfoAnillo: {
     color: COLORS.textLight,
