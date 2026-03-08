@@ -18,6 +18,7 @@ interface RegisterData {
   email: string;
   password: string;
   nombre: string;
+  plan?: string;
 }
 
 export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
@@ -42,11 +43,18 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     }
   };
 
+  const normalizeUser = (userData: any): User => {
+    return {
+      ...userData,
+      plan: userData.plan_actual || userData.plan || 'basico',
+    };
+  };
+
   const refreshProfile = async () => {
     try {
       const response = await api.getProfile();
       if (response.success) {
-        setUser(response.data.user);
+        setUser(normalizeUser(response.data.user));
       }
     } catch (error) {
       console.log('Error refreshing profile:', error);
@@ -63,7 +71,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       const response = await api.login(email, password);
 
       if (response.success) {
-        setUser(response.data.user);
+        setUser(normalizeUser(response.data.user));
         console.log('Login successful');
         return { success: true };
       } else {
@@ -85,7 +93,7 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
       const response = await api.register(data);
 
       if (response.success) {
-        setUser(response.data.user);
+        setUser(normalizeUser(response.data.user));
         console.log('Registration successful');
         return { success: true };
       } else {

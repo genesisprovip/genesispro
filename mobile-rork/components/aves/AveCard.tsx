@@ -1,10 +1,10 @@
 import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
-import { ChevronRight, Tag } from 'lucide-react-native';
+import { ChevronRight, Tag, Calendar, Scale } from 'lucide-react-native';
 import { Ave } from '@/types';
 import { COLORS } from '@/constants/colors';
-import { SPACING, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 
 interface AveCardProps {
   ave: Ave;
@@ -12,77 +12,86 @@ interface AveCardProps {
 }
 
 export default function AveCard({ ave, onPress }: AveCardProps) {
-  const getSexoColor = () => ave.sexo === 'M' ? COLORS.male : COLORS.female;
-  const getSexoLabel = () => ave.sexo === 'M' ? 'Macho' : 'Hembra';
+  const isMale = ave.sexo === 'M';
+  const genderColor = isMale ? COLORS.male : COLORS.female;
+  const genderLabel = isMale ? 'Macho' : 'Hembra';
 
-  const getEstadoStyle = () => {
-    switch (ave.estado) {
-      case 'activo':
-        return { backgroundColor: COLORS.success + '20', color: COLORS.success };
-      case 'vendido':
-        return { backgroundColor: COLORS.info + '20', color: COLORS.info };
-      case 'retirado':
-        return { backgroundColor: COLORS.warning + '20', color: COLORS.warning };
-      case 'muerto':
-        return { backgroundColor: COLORS.error + '20', color: COLORS.error };
-      default:
-        return { backgroundColor: COLORS.textDisabled + '20', color: COLORS.textDisabled };
-    }
+  const estadoConfig: Record<string, { bg: string; color: string; label: string }> = {
+    activo: { bg: COLORS.success + '15', color: COLORS.success, label: 'Activo' },
+    vendido: { bg: COLORS.info + '15', color: COLORS.info, label: 'Vendido' },
+    retirado: { bg: COLORS.warning + '15', color: COLORS.warning, label: 'Retirado' },
+    muerto: { bg: COLORS.error + '15', color: COLORS.error, label: 'Fallecido' },
   };
 
-  const estadoStyle = getEstadoStyle();
+  const estado = estadoConfig[ave.estado] || estadoConfig.activo;
+
+  const edad = () => {
+    const nacimiento = new Date(ave.fecha_nacimiento);
+    const hoy = new Date();
+    const meses = (hoy.getFullYear() - nacimiento.getFullYear()) * 12 + (hoy.getMonth() - nacimiento.getMonth());
+    if (meses < 1) return 'Recién nacido';
+    if (meses < 12) return `${meses}m`;
+    const anos = Math.floor(meses / 12);
+    const mesesRestantes = meses % 12;
+    return mesesRestantes > 0 ? `${anos}a ${mesesRestantes}m` : `${anos}a`;
+  };
 
   return (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, SHADOWS.md]}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <Image
-        source={{ uri: ave.foto_principal || 'https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=200' }}
-        style={styles.image}
-        contentFit="cover"
-        transition={200}
-      />
+      <View style={styles.imageContainer}>
+        <Image
+          source={{ uri: ave.foto_principal || 'https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=200' }}
+          style={styles.image}
+          contentFit="cover"
+          transition={200}
+        />
+        <View style={[styles.genderBadge, { backgroundColor: genderColor }]}>
+          <Text style={styles.genderText}>{ave.sexo}</Text>
+        </View>
+      </View>
 
       <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.codigo}>{ave.codigo_identidad}</Text>
-          <View style={[styles.estadoBadge, { backgroundColor: estadoStyle.backgroundColor }]}>
-            <Text style={[styles.estadoText, { color: estadoStyle.color }]}>
-              {ave.estado.charAt(0).toUpperCase() + ave.estado.slice(1)}
+        <View style={styles.topRow}>
+          <Text style={styles.codigo} numberOfLines={1}>{ave.codigo_identidad}</Text>
+          <View style={[styles.estadoBadge, { backgroundColor: estado.bg }]}>
+            <View style={[styles.estadoDot, { backgroundColor: estado.color }]} />
+            <Text style={[styles.estadoText, { color: estado.color }]}>
+              {estado.label}
             </Text>
           </View>
         </View>
 
-        <View style={styles.chips}>
-          <View style={[styles.chip, { backgroundColor: getSexoColor() + '20' }]}>
-            <Text style={[styles.chipText, { color: getSexoColor() }]}>
-              {getSexoLabel()}
-            </Text>
-          </View>
-
-          {ave.color && (
-            <View style={styles.chip}>
-              <Text style={styles.chipText}>{ave.color}</Text>
-            </View>
-          )}
-
+        <View style={styles.metaRow}>
           {ave.linea_genetica && (
-            <View style={styles.chip}>
-              <Text style={styles.chipText}>{ave.linea_genetica}</Text>
+            <View style={styles.metaChip}>
+              <Text style={styles.metaText}>{ave.linea_genetica}</Text>
+            </View>
+          )}
+          {ave.color && (
+            <View style={styles.metaChip}>
+              <Text style={styles.metaText}>{ave.color}</Text>
             </View>
           )}
         </View>
 
-        <View style={styles.footer}>
-          <Text style={styles.date}>
-            {new Date(ave.fecha_nacimiento).toLocaleDateString('es-ES')}
-          </Text>
-
+        <View style={styles.bottomRow}>
+          <View style={styles.infoItem}>
+            <Calendar size={12} color={COLORS.textSecondary} />
+            <Text style={styles.infoText}>{edad()}</Text>
+          </View>
+          {ave.peso_actual && (
+            <View style={styles.infoItem}>
+              <Scale size={12} color={COLORS.textSecondary} />
+              <Text style={styles.infoText}>{ave.peso_actual}g</Text>
+            </View>
+          )}
           {ave.disponible_venta && (
             <View style={styles.ventaBadge}>
-              <Tag size={12} color={COLORS.secondary} />
+              <Tag size={10} color={COLORS.secondary} />
               <Text style={styles.ventaText}>
                 ${ave.precio_venta || 'Consultar'}
               </Text>
@@ -91,8 +100,8 @@ export default function AveCard({ ave, onPress }: AveCardProps) {
         </View>
       </View>
 
-      <View style={styles.chevronContainer}>
-        <ChevronRight size={20} color={COLORS.textSecondary} />
+      <View style={styles.chevron}>
+        <ChevronRight size={18} color={COLORS.textDisabled} />
       </View>
     </TouchableOpacity>
   );
@@ -103,68 +112,97 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: COLORS.card,
     borderRadius: BORDER_RADIUS.lg,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
     padding: SPACING.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    alignItems: 'center',
+  },
+  imageContainer: {
+    position: 'relative',
   },
   image: {
-    width: 80,
-    height: 80,
+    width: 72,
+    height: 72,
     borderRadius: BORDER_RADIUS.md,
     backgroundColor: COLORS.divider,
+  },
+  genderBadge: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.card,
+  },
+  genderText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.textLight,
   },
   content: {
     flex: 1,
     marginLeft: SPACING.md,
-    justifyContent: 'space-between',
+    gap: 6,
   },
-  header: {
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   codigo: {
     fontSize: 16,
-    fontWeight: '600' as const,
+    fontWeight: '700',
     color: COLORS.text,
+    flex: 1,
+    marginRight: SPACING.sm,
   },
   estadoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingVertical: 3,
+    borderRadius: BORDER_RADIUS.round,
+    gap: 4,
+  },
+  estadoDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   estadoText: {
     fontSize: 10,
-    fontWeight: '600' as const,
+    fontWeight: '600',
   },
-  chips: {
+  metaRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 4,
-    marginTop: 6,
   },
-  chip: {
-    backgroundColor: COLORS.divider,
+  metaChip: {
+    backgroundColor: COLORS.background,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 4,
+    borderRadius: BORDER_RADIUS.sm,
   },
-  chipText: {
+  metaText: {
     fontSize: 11,
     color: COLORS.textSecondary,
-    fontWeight: '500' as const,
+    fontWeight: '500',
   },
-  footer: {
+  bottomRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 6,
+    gap: SPACING.md,
   },
-  date: {
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  infoText: {
     fontSize: 12,
     color: COLORS.textSecondary,
   },
@@ -172,18 +210,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: COLORS.secondary + '15',
+    backgroundColor: COLORS.secondary + '12',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 4,
+    borderRadius: BORDER_RADIUS.round,
+    marginLeft: 'auto',
   },
   ventaText: {
     fontSize: 11,
     color: COLORS.secondary,
-    fontWeight: '600' as const,
+    fontWeight: '700',
   },
-  chevronContainer: {
-    justifyContent: 'center',
+  chevron: {
     paddingLeft: SPACING.sm,
   },
 });

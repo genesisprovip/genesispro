@@ -1,11 +1,11 @@
 import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { Bird, Calendar, TrendingUp, AlertCircle } from 'lucide-react-native';
+import { Bird, Calendar, TrendingUp, AlertCircle, Swords } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
-import { SPACING, TYPOGRAPHY } from '@/constants/theme';
+import { SPACING, TYPOGRAPHY, BORDER_RADIUS } from '@/constants/theme';
 
 interface EmptyStateProps {
-  icon?: 'bird' | 'calendar' | 'chart' | 'alert';
+  icon?: 'bird' | 'calendar' | 'chart' | 'alert' | 'swords';
   title: string;
   message: string;
   actionLabel?: string;
@@ -17,6 +17,7 @@ const iconMap = {
   calendar: Calendar,
   chart: TrendingUp,
   alert: AlertCircle,
+  swords: Swords,
 };
 
 export default function EmptyState({
@@ -31,12 +32,12 @@ export default function EmptyState({
   return (
     <View style={styles.container}>
       <View style={styles.iconContainer}>
-        <IconComponent size={64} color={COLORS.textDisabled} />
+        <IconComponent size={48} color={COLORS.textDisabled} />
       </View>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.message}>{message}</Text>
       {actionLabel && onAction && (
-        <TouchableOpacity style={styles.button} onPress={onAction}>
+        <TouchableOpacity style={styles.button} onPress={onAction} activeOpacity={0.8}>
           <Text style={styles.buttonText}>{actionLabel}</Text>
         </TouchableOpacity>
       )}
@@ -53,8 +54,13 @@ const styles = StyleSheet.create({
     minHeight: 300,
   },
   iconContainer: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: COLORS.divider,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: SPACING.lg,
-    opacity: 0.5,
   },
   title: {
     ...TYPOGRAPHY.h3,
@@ -71,13 +77,13 @@ const styles = StyleSheet.create({
   button: {
     marginTop: SPACING.lg,
     backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
     paddingVertical: SPACING.md,
-    borderRadius: 8,
+    borderRadius: BORDER_RADIUS.lg,
   },
   buttonText: {
     color: COLORS.textLight,
-    fontSize: 16,
-    fontWeight: '600' as const,
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

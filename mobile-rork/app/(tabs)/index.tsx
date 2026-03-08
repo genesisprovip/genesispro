@@ -5,56 +5,169 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  RefreshControl
+  RefreshControl,
+  Animated,
+  Alert,
+  TextInput,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 import {
   Bell,
   Plus,
   ChevronRight,
-  Bird,
   Trophy,
   Swords,
-  DollarSign
+  DollarSign,
+  Heart,
+  Calendar,
+  TrendingUp,
+  Activity,
+  AlertTriangle,
+  Ticket,
 } from 'lucide-react-native';
+import { Cloud, CloudOff } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { useAves } from '@/context/AvesContext';
 import { useCombates } from '@/context/CombatesContext';
+import { useSalud } from '@/context/SaludContext';
 import { COLORS } from '@/constants/colors';
-import { SPACING, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
+import { api } from '@/services/api';
 
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { aves, refreshAves, isLoading: loadingAves } = useAves();
   const { combates, stats, refreshCombates, isLoading: loadingCombates } = useCombates();
+  const { stats: saludStats, getProximasVacunas } = useSalud();
   const [refreshing, setRefreshing] = React.useState(false);
+  const [eventoActivo, setEventoActivo] = React.useState<any>(null);
+  const [visitorId, setVisitorId] = React.useState<string>('');
+  const [pendingSync, setPendingSync] = React.useState(0);
+  const [codigoEvento, setCodigoEvento] = React.useState('');
+  const [joiningEvento, setJoiningEvento] = React.useState(false);
+  const isEmpresario = !!user?.plan_empresario;
+
+  React.useEffect(() => {
+    api.getVisitorId().then(id => setVisitorId(id));
+    if (api.isAuthenticated()) {
+      api.getEventos({ estado: 'en_curso' })
+        .then(res => {
+          if (res.success && res.data.length > 0) setEventoActivo(res.data[0]);
+        })
+        .catch(() => {});
+    }
+    // Sync queue listener
+    setPendingSync(api.pendingSyncCount);
+    const unsub = api.subscribeSyncQueue((queue) => setPendingSync(queue.length));
+    return unsub;
+  }, []);
 
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
+    if (api.pendingSyncCount > 0) {
+      await api.processSyncQueue();
+    }
     await Promise.all([refreshAves(), refreshCombates()]);
     setRefreshing(false);
   }, [refreshAves, refreshCombates]);
 
   const avesActivas = aves.filter(a => a.estado === 'activo').length;
+  const machos = aves.filter(a => a.sexo === 'M').length;
+  const hembras = aves.filter(a => a.sexo === 'H').length;
+  const proximasVacunas = getProximasVacunas();
+
+  const requireAuth = (action: () => void) => {
+    if (isAuthenticated) {
+      action();
+    } else {
+      Alert.alert(
+        'Crea tu cuenta gratis',
+        'Registrate y obtiene 15 dias Premium gratis para usar todas las funciones de GenesisPro.',
+        [
+          { text: 'Ahora no', style: 'cancel' },
+          { text: 'Crear Cuenta', onPress: () => router.push('/register') },
+        ]
+      );
+    }
+  };
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Buenos días';
+    if (hour < 18) return 'Buenas tardes';
+    return 'Buenas noches';
+  };
+
+  const handleJoinEvento = async () => {
+    const code = codigoEvento.trim().toUpperCase();
+    if (code.length < 4) {
+      Alert.alert('Error', 'Ingresa un codigo de acceso valido');
+      return;
+    }
+    setJoiningEvento(true);
+    try {
+      const res = await api.getEventoByCodigo(code);
+      if (res.success && res.data?.id) {
+        setCodigoEvento('');
+        router.push(`/palenque/live?eventoId=${res.data.id}&code=${code}`);
+      } else {
+        Alert.alert('No encontrado', 'No se encontro ningun evento con ese codigo');
+      }
+    } catch {
+      Alert.alert('Error', 'No se pudo buscar el evento. Verifica el codigo e intenta de nuevo.');
+    } finally {
+      setJoiningEvento(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[COLORS.primary, COLORS.primaryDark]}
-        style={[styles.header, { paddingTop: insets.top + SPACING.md }]}
+        colors={[COLORS.backgroundDark, COLORS.backgroundDarkAlt]}
+        style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}
       >
         <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.greeting}>Hola, {user?.nombre || 'Usuario'}!</Text>
-            <Text style={styles.subtitle}>Bienvenido a GenesisPro</Text>
+          <View style={styles.headerLeft}>
+            <Image
+              source={require('@/assets/images/logo.png')}
+              style={styles.headerLogo}
+              contentFit="contain"
+            />
+            <View>
+              <Text style={styles.greeting}>{getGreeting()},</Text>
+              <Text style={styles.userName}>{user?.nombre || `Visitante`}</Text>
+            </View>
           </View>
           <TouchableOpacity style={styles.notificationButton}>
-            <Bell size={24} color={COLORS.textLight} />
+            <Bell size={22} color={COLORS.textLight} />
+            {proximasVacunas.length > 0 && <View style={styles.notifDot} />}
           </TouchableOpacity>
+        </View>
+
+        {/* Hero Stats */}
+        <View style={styles.heroStats}>
+          <View style={styles.heroStatMain}>
+            <Text style={styles.heroNumber}>{avesActivas}</Text>
+            <Text style={styles.heroLabel}>Aves Activas</Text>
+          </View>
+          <View style={styles.heroDivider} />
+          <View style={styles.heroStatSide}>
+            <View style={styles.heroMiniStat}>
+              <View style={[styles.miniDot, { backgroundColor: COLORS.male }]} />
+              <Text style={styles.heroMiniNumber}>{machos}</Text>
+              <Text style={styles.heroMiniLabel}>Machos</Text>
+            </View>
+            <View style={styles.heroMiniStat}>
+              <View style={[styles.miniDot, { backgroundColor: COLORS.female }]} />
+              <Text style={styles.heroMiniNumber}>{hembras}</Text>
+              <Text style={styles.heroMiniLabel}>Hembras</Text>
+            </View>
+          </View>
         </View>
       </LinearGradient>
 
@@ -63,178 +176,345 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={COLORS.primary}
+          />
         }
       >
-        <View style={styles.statsContainer}>
-          <View style={styles.statsRow}>
-            <StatsCard
-              title="Aves Activas"
-              value={avesActivas.toString()}
-              icon={<Bird size={20} color={COLORS.primary} />}
-              color={COLORS.primary}
-            />
-            <StatsCard
+        {/* Offline sync banner */}
+        {pendingSync > 0 && (
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7', padding: 10, borderRadius: 8, marginBottom: 12, gap: 8 }}
+            onPress={() => { api.processSyncQueue(); }}
+            activeOpacity={0.7}
+          >
+            <CloudOff size={16} color="#92400E" />
+            <Text style={{ flex: 1, fontSize: 12, color: '#92400E', fontWeight: '600' }}>
+              {pendingSync} cambio{pendingSync > 1 ? 's' : ''} pendiente{pendingSync > 1 ? 's' : ''} de sincronizar
+            </Text>
+            <Text style={{ fontSize: 11, color: '#B45309' }}>Reintentar</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Unirse a evento como espectador */}
+        {!isEmpresario && (
+          <View style={[styles.joinEventCard, SHADOWS.sm]}>
+            <View style={styles.joinEventHeader}>
+              <Ticket size={18} color={COLORS.secondary} />
+              <Text style={styles.joinEventTitle}>Entrar a Evento</Text>
+            </View>
+            <View style={styles.joinEventRow}>
+              <TextInput
+                style={styles.joinEventInput}
+                placeholder="CODIGO DE ACCESO"
+                placeholderTextColor={COLORS.placeholder}
+                value={codigoEvento}
+                onChangeText={setCodigoEvento}
+                autoCapitalize="characters"
+                maxLength={8}
+              />
+              <TouchableOpacity
+                style={styles.joinEventButton}
+                onPress={handleJoinEvento}
+                disabled={joiningEvento}
+              >
+                <Text style={styles.joinEventButtonText}>
+                  {joiningEvento ? '...' : 'Entrar'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.joinEventHint}>
+              Ingresa el codigo que te compartio el organizador del evento
+            </Text>
+          </View>
+        )}
+
+        {/* Evento en curso banner */}
+        {eventoActivo && (
+          <TouchableOpacity
+            style={[styles.eventoBanner, SHADOWS.md]}
+            activeOpacity={0.8}
+            onPress={() => router.push(`/palenque/${eventoActivo.id}`)}
+          >
+            <LinearGradient
+              colors={[COLORS.accent, '#4F46E5']}
+              style={styles.eventoBannerGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <View style={styles.eventoBannerLeft}>
+                <View style={styles.eventoBannerLive}>
+                  <View style={styles.liveDot} />
+                  <Text style={styles.liveText}>EN VIVO</Text>
+                </View>
+                <Text style={styles.eventoBannerTitle} numberOfLines={1}>
+                  {eventoActivo.nombre}
+                </Text>
+                <Text style={styles.eventoBannerSub}>
+                  Pelea {eventoActivo.pelea_actual || 0} de {eventoActivo.total_peleas}
+                </Text>
+              </View>
+              <ChevronRight size={22} color="rgba(255,255,255,0.7)" />
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
+        {/* KPI Cards */}
+        <View style={styles.kpiContainer}>
+          <View style={styles.kpiRow}>
+            <KPICard
               title="Combates"
               value={stats.total.toString()}
-              icon={<Swords size={20} color={COLORS.secondary} />}
+              subtitle={`${stats.porcentajeVictorias}% victorias`}
+              icon={<Swords size={18} color={COLORS.primary} />}
+              color={COLORS.primary}
+            />
+            <KPICard
+              title="Victorias"
+              value={stats.victorias.toString()}
+              subtitle={`de ${stats.total}`}
+              icon={<Trophy size={18} color={COLORS.secondary} />}
               color={COLORS.secondary}
             />
           </View>
-          <View style={styles.statsRow}>
-            <StatsCard
-              title="% Victorias"
-              value={`${stats.porcentajeVictorias}%`}
-              icon={<Trophy size={20} color={COLORS.success} />}
-              color={COLORS.success}
-            />
-            <StatsCard
-              title="ROI"
-              value={`$${stats.roi.toLocaleString()}`}
-              icon={<DollarSign size={20} color={COLORS.info} />}
+          <View style={styles.kpiRow}>
+            <KPICard
+              title="Balance"
+              value={`$${stats.roi >= 0 ? '+' : ''}${stats.roi.toLocaleString()}`}
+              subtitle="Total neto"
+              icon={<DollarSign size={18} color={stats.roi >= 0 ? COLORS.success : COLORS.error} />}
               color={stats.roi >= 0 ? COLORS.success : COLORS.error}
             />
+            <KPICard
+              title="Salud"
+              value={saludStats.vacunasPendientes.toString()}
+              subtitle="vacunas pendientes"
+              icon={<Heart size={18} color={COLORS.error} />}
+              color={COLORS.error}
+            />
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.quickActionButton}
-          onPress={() => router.push('/ave/new')}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={[COLORS.primary, COLORS.primaryLight]}
-            style={styles.quickActionGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
-            <View style={styles.quickActionContent}>
-              <View style={styles.quickActionIcon}>
-                <Plus size={24} color={COLORS.textLight} />
-              </View>
-              <View style={styles.quickActionText}>
-                <Text style={styles.quickActionTitle}>Registrar Nueva Ave</Text>
-                <Text style={styles.quickActionSubtitle}>Agrega un nuevo ejemplar a tu colección</Text>
-              </View>
-            </View>
-            <ChevronRight size={24} color={COLORS.textLight} />
-          </LinearGradient>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.quickActionButton}
-          onPress={() => router.push('/combate/new')}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
+        {/* Quick Actions */}
+        <Text style={styles.sectionLabel}>ACCIONES RAPIDAS</Text>
+        <View style={styles.quickActions}>
+          <QuickAction
+            icon={<Plus size={22} color={COLORS.textLight} />}
+            label="Nueva Ave"
+            colors={[COLORS.primary, COLORS.primaryDark]}
+            onPress={() => requireAuth(() => router.push('/ave/new'))}
+          />
+          <QuickAction
+            icon={<Swords size={22} color={COLORS.textLight} />}
+            label="Combate"
             colors={[COLORS.secondary, COLORS.secondaryDark]}
-            style={styles.quickActionGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
-            <View style={styles.quickActionContent}>
-              <View style={styles.quickActionIcon}>
-                <Swords size={24} color={COLORS.textLight} />
-              </View>
-              <View style={styles.quickActionText}>
-                <Text style={styles.quickActionTitle}>Registrar Combate</Text>
-                <Text style={styles.quickActionSubtitle}>Registra un nuevo combate</Text>
-              </View>
-            </View>
-            <ChevronRight size={24} color={COLORS.textLight} />
-          </LinearGradient>
-        </TouchableOpacity>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Bird size={20} color={COLORS.primary} />
-            <Text style={styles.sectionTitle}>Resumen de Aves</Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/aves')}>
-              <Text style={styles.seeAllText}>Ver todas</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.summaryCard}>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Total de Aves</Text>
-              <Text style={styles.summaryValue}>{aves.length}</Text>
-            </View>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Machos</Text>
-              <Text style={[styles.summaryValue, { color: COLORS.male }]}>
-                {aves.filter(a => a.sexo === 'M').length}
-              </Text>
-            </View>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Hembras</Text>
-              <Text style={[styles.summaryValue, { color: COLORS.female }]}>
-                {aves.filter(a => a.sexo === 'H').length}
-              </Text>
-            </View>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>En Venta</Text>
-              <Text style={[styles.summaryValue, { color: COLORS.secondary }]}>
-                {aves.filter(a => a.disponible_venta).length}
-              </Text>
-            </View>
-          </View>
+            onPress={() => requireAuth(() => router.push('/combate/new'))}
+          />
+          <QuickAction
+            icon={<Heart size={22} color={COLORS.textLight} />}
+            label="Salud"
+            colors={['#EC4899', '#DB2777']}
+            onPress={() => router.push('/salud')}
+          />
+          <QuickAction
+            icon={<Trophy size={22} color={COLORS.textLight} />}
+            label="Palenque"
+            colors={[COLORS.accent, '#4F46E5']}
+            onPress={() => router.push('/palenque')}
+          />
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Swords size={20} color={COLORS.secondary} />
-            <Text style={styles.sectionTitle}>Últimos Combates</Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/combates')}>
-              <Text style={styles.seeAllText}>Ver todos</Text>
-            </TouchableOpacity>
-          </View>
-          {combates.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>No hay combates registrados</Text>
-            </View>
-          ) : (
-            combates.slice(0, 3).map((combate) => (
-              <View key={combate.id} style={styles.combateCard}>
-                <View style={[
-                  styles.combateIndicator,
-                  { backgroundColor: combate.resultado === 'victoria' ? COLORS.success : combate.resultado === 'derrota' ? COLORS.error : COLORS.warning }
-                ]} />
-                <View style={styles.combateInfo}>
-                  <Text style={styles.combateDate}>
-                    {new Date(combate.fecha).toLocaleDateString('es-ES')}
-                  </Text>
-                  <Text style={styles.combateLugar}>{combate.lugar}</Text>
+        {/* Win Rate Ring */}
+        {stats.total > 0 && (
+          <>
+            <Text style={styles.sectionLabel}>RENDIMIENTO</Text>
+            <View style={[styles.performanceCard, SHADOWS.md]}>
+              <View style={styles.perfLeft}>
+                <View style={styles.ringContainer}>
+                  <View style={[styles.ring, { borderColor: COLORS.primary }]}>
+                    <Text style={styles.ringValue}>{stats.porcentajeVictorias}%</Text>
+                    <Text style={styles.ringLabel}>Win Rate</Text>
+                  </View>
                 </View>
-                <Text style={[
-                  styles.combateResultado,
-                  { color: combate.resultado === 'victoria' ? COLORS.success : combate.resultado === 'derrota' ? COLORS.error : COLORS.warning }
-                ]}>
-                  {combate.resultado.charAt(0).toUpperCase()}
-                </Text>
               </View>
-            ))
+              <View style={styles.perfRight}>
+                <PerfStat
+                  label="Victorias"
+                  value={stats.victorias}
+                  total={stats.total}
+                  color={COLORS.victory}
+                />
+                <PerfStat
+                  label="Derrotas"
+                  value={stats.derrotas}
+                  total={stats.total}
+                  color={COLORS.defeat}
+                />
+                <PerfStat
+                  label="Empates"
+                  value={stats.empates}
+                  total={stats.total}
+                  color={COLORS.draw}
+                />
+              </View>
+            </View>
+          </>
+        )}
+
+        {/* Alerts */}
+        {proximasVacunas.length > 0 && (
+          <>
+            <Text style={styles.sectionLabel}>ALERTAS</Text>
+            <TouchableOpacity
+              style={[styles.alertCard, SHADOWS.sm]}
+              onPress={() => router.push('/salud')}
+            >
+              <View style={styles.alertIcon}>
+                <AlertTriangle size={20} color={COLORS.warning} />
+              </View>
+              <View style={styles.alertContent}>
+                <Text style={styles.alertTitle}>
+                  {proximasVacunas.length} vacuna{proximasVacunas.length > 1 ? 's' : ''} próxima{proximasVacunas.length > 1 ? 's' : ''}
+                </Text>
+                <Text style={styles.alertSubtitle}>Toca para ver el calendario de salud</Text>
+              </View>
+              <ChevronRight size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          </>
+        )}
+
+        {/* Recent Fights */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionLabel}>ÚLTIMOS COMBATES</Text>
+          {combates.length > 0 && (
+            <TouchableOpacity onPress={() => router.push('/(tabs)/combates')}>
+              <Text style={styles.seeAll}>Ver todos</Text>
+            </TouchableOpacity>
           )}
         </View>
+        {combates.length === 0 ? (
+          <View style={[styles.emptyCard, SHADOWS.sm]}>
+            <Swords size={32} color={COLORS.textDisabled} />
+            <Text style={styles.emptyText}>Sin combates registrados</Text>
+            <TouchableOpacity
+              style={styles.emptyAction}
+              onPress={() => router.push('/combate/new')}
+            >
+              <Text style={styles.emptyActionText}>Registrar primero</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          combates.slice(0, 4).map((combate, index) => (
+            <View key={combate.id} style={[styles.combateRow, SHADOWS.sm]}>
+              <View style={[
+                styles.combateStatus,
+                {
+                  backgroundColor: combate.resultado === 'victoria'
+                    ? COLORS.victory
+                    : combate.resultado === 'derrota'
+                    ? COLORS.defeat
+                    : COLORS.draw
+                }
+              ]} />
+              <View style={styles.combateBody}>
+                <Text style={styles.combatePlace}>{combate.lugar}</Text>
+                <Text style={styles.combateDate}>
+                  {new Date(combate.fecha).toLocaleDateString('es-ES', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric'
+                  })}
+                </Text>
+              </View>
+              <View style={[
+                styles.combateResultBadge,
+                {
+                  backgroundColor: combate.resultado === 'victoria'
+                    ? COLORS.victory + '18'
+                    : combate.resultado === 'derrota'
+                    ? COLORS.defeat + '18'
+                    : COLORS.draw + '18'
+                }
+              ]}>
+                <Text style={[
+                  styles.combateResultText,
+                  {
+                    color: combate.resultado === 'victoria'
+                      ? COLORS.victory
+                      : combate.resultado === 'derrota'
+                      ? COLORS.defeat
+                      : COLORS.draw
+                  }
+                ]}>
+                  {combate.resultado === 'victoria' ? 'V' : combate.resultado === 'derrota' ? 'D' : 'E'}
+                </Text>
+              </View>
+            </View>
+          ))
+        )}
+
+        <View style={{ height: SPACING.xxl }} />
       </ScrollView>
     </View>
   );
 }
 
-function StatsCard({ title, value, icon, color }: {
+function KPICard({ title, value, subtitle, icon, color }: {
   title: string;
   value: string;
+  subtitle: string;
   icon: React.ReactNode;
   color: string;
 }) {
   return (
-    <View style={styles.statsCard}>
-      <View style={[styles.statsIcon, { backgroundColor: color + '15' }]}>
-        {icon}
+    <View style={[styles.kpiCard, SHADOWS.md]}>
+      <View style={styles.kpiHeader}>
+        <View style={[styles.kpiIcon, { backgroundColor: color + '15' }]}>
+          {icon}
+        </View>
+        <Text style={styles.kpiTitle}>{title}</Text>
       </View>
-      <Text style={styles.statsValue}>{value}</Text>
-      <Text style={styles.statsTitle}>{title}</Text>
+      <Text style={styles.kpiValue}>{value}</Text>
+      <Text style={styles.kpiSubtitle}>{subtitle}</Text>
+    </View>
+  );
+}
+
+function QuickAction({ icon, label, colors, onPress }: {
+  icon: React.ReactNode;
+  label: string;
+  colors: string[];
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity style={styles.quickActionItem} onPress={onPress} activeOpacity={0.8}>
+      <LinearGradient colors={colors} style={styles.quickActionGradient}>
+        {icon}
+      </LinearGradient>
+      <Text style={styles.quickActionLabel}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function PerfStat({ label, value, total, color }: {
+  label: string;
+  value: number;
+  total: number;
+  color: string;
+}) {
+  const pct = total > 0 ? (value / total) * 100 : 0;
+  return (
+    <View style={styles.perfStatRow}>
+      <View style={styles.perfStatLabel}>
+        <View style={[styles.perfDot, { backgroundColor: color }]} />
+        <Text style={styles.perfStatText}>{label}</Text>
+      </View>
+      <Text style={styles.perfStatValue}>{value}</Text>
+      <View style={styles.perfBarBg}>
+        <View style={[styles.perfBarFill, { width: `${pct}%`, backgroundColor: color }]} />
+      </View>
     </View>
   );
 }
@@ -246,211 +526,453 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.xl,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingBottom: SPACING.lg,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: SPACING.lg,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  headerLogo: {
+    width: 44,
+    height: 44,
   },
   greeting: {
-    fontSize: 24,
-    fontWeight: '700' as const,
-    color: COLORS.textLight,
-    marginBottom: 4,
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '400',
   },
-  subtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
+  userName: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: COLORS.textLight,
+    marginTop: 2,
   },
   notificationButton: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center',
     alignItems: 'center',
   },
+  notifDot: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.error,
+    borderWidth: 1.5,
+    borderColor: COLORS.backgroundDark,
+  },
+  heroStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.lg,
+  },
+  heroStatMain: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  heroNumber: {
+    fontSize: 48,
+    fontWeight: '700',
+    color: COLORS.primary,
+    lineHeight: 52,
+  },
+  heroLabel: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 2,
+  },
+  heroDivider: {
+    width: 1,
+    height: 60,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    marginHorizontal: SPACING.lg,
+  },
+  heroStatSide: {
+    flex: 1,
+    gap: SPACING.md,
+  },
+  heroMiniStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  miniDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  heroMiniNumber: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.textLight,
+  },
+  heroMiniLabel: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.5)',
+  },
   content: {
     flex: 1,
-    marginTop: -SPACING.md,
+    marginTop: -SPACING.sm,
   },
   scrollContent: {
     paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.lg,
-    paddingBottom: SPACING.xxl,
+    paddingTop: SPACING.md,
   },
-  statsContainer: {
-    marginBottom: SPACING.md,
+  eventoBanner: {
+    borderRadius: BORDER_RADIUS.lg,
+    overflow: 'hidden',
+    marginBottom: SPACING.lg,
   },
-  statsRow: {
+  eventoBannerGradient: {
     flexDirection: 'row',
-    gap: SPACING.md,
-    marginBottom: SPACING.md,
+    alignItems: 'center',
+    padding: SPACING.md,
   },
-  statsCard: {
+  eventoBannerLeft: { flex: 1 },
+  eventoBannerLive: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  liveDot: {
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: '#EF4444',
+  },
+  liveText: {
+    fontSize: 11, fontWeight: '800',
+    color: '#EF4444', letterSpacing: 1,
+  },
+  eventoBannerTitle: {
+    fontSize: 16, fontWeight: '700',
+    color: COLORS.textLight,
+  },
+  eventoBannerSub: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+    marginTop: 2,
+  },
+  kpiContainer: {
+    marginBottom: SPACING.lg,
+  },
+  kpiRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  kpiCard: {
     flex: 1,
     backgroundColor: COLORS.card,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
-  statsIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    justifyContent: 'center',
+  kpiHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: SPACING.sm,
     marginBottom: SPACING.sm,
   },
-  statsValue: {
-    fontSize: 20,
-    fontWeight: '700' as const,
+  kpiIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  kpiTitle: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+  kpiValue: {
+    fontSize: 22,
+    fontWeight: '700',
     color: COLORS.text,
   },
-  statsTitle: {
+  kpiSubtitle: {
     fontSize: 11,
     color: COLORS.textSecondary,
     marginTop: 2,
   },
-  quickActionButton: {
-    borderRadius: BORDER_RADIUS.lg,
-    overflow: 'hidden',
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    letterSpacing: 1,
+    marginBottom: SPACING.md,
+    marginLeft: SPACING.xs,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: SPACING.md,
   },
-  quickActionGradient: {
+  seeAll: {
+    fontSize: 13,
+    color: COLORS.primary,
+    fontWeight: '600',
+  },
+  quickActions: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    gap: SPACING.sm,
   },
-  quickActionContent: {
+  quickActionItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  quickActionGradient: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  quickActionLabel: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+  },
+  performanceCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.lg,
+    flexDirection: 'row',
+    marginBottom: SPACING.lg,
+  },
+  perfLeft: {
+    marginRight: SPACING.lg,
+  },
+  ringContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ring: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary + '10',
+  },
+  ringValue: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  ringLabel: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    marginTop: -2,
+  },
+  perfRight: {
+    flex: 1,
+    justifyContent: 'center',
+    gap: SPACING.md,
+  },
+  perfStatRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    gap: SPACING.sm,
   },
-  quickActionIcon: {
-    width: 48,
-    height: 48,
+  perfStatLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    width: 80,
+  },
+  perfDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  perfStatText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  perfStatValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+    width: 24,
+    textAlign: 'right',
+  },
+  perfBarBg: {
+    flex: 1,
+    height: 6,
+    backgroundColor: COLORS.divider,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  perfBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  alertCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.warning + '10',
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.warning + '25',
+  },
+  alertIcon: {
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: COLORS.warning + '20',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: SPACING.md,
   },
-  quickActionText: {
+  alertContent: {
     flex: 1,
   },
-  quickActionTitle: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: COLORS.textLight,
+  alertTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
   },
-  quickActionSubtitle: {
+  alertSubtitle: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
+    color: COLORS.textSecondary,
     marginTop: 2,
   },
-  section: {
-    marginBottom: SPACING.lg,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-    gap: SPACING.sm,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600' as const,
-    color: COLORS.text,
-    flex: 1,
-  },
-  seeAllText: {
-    fontSize: 14,
-    color: COLORS.primary,
-    fontWeight: '500' as const,
-  },
-  summaryCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: SPACING.sm,
-  },
-  summaryDivider: {
-    height: 1,
-    backgroundColor: COLORS.divider,
-  },
-  summaryLabel: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-  },
-  summaryValue: {
-    fontSize: 18,
-    fontWeight: '600' as const,
-    color: COLORS.text,
-  },
-  combateCard: {
+  combateRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.card,
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
     marginBottom: SPACING.sm,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
   },
-  combateIndicator: {
+  combateStatus: {
     width: 4,
-    height: 32,
+    height: 36,
     borderRadius: 2,
     marginRight: SPACING.md,
   },
-  combateInfo: {
+  combateBody: {
     flex: 1,
   },
-  combateDate: {
-    fontSize: 14,
-    fontWeight: '500' as const,
+  combatePlace: {
+    fontSize: 15,
+    fontWeight: '600',
     color: COLORS.text,
   },
-  combateLugar: {
+  combateDate: {
     fontSize: 12,
     color: COLORS.textSecondary,
+    marginTop: 2,
   },
-  combateResultado: {
-    fontSize: 18,
-    fontWeight: '700' as const,
+  combateResultBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  combateResultText: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   emptyCard: {
     backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.lg,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.xl,
     alignItems: 'center',
+    marginBottom: SPACING.lg,
   },
   emptyText: {
     fontSize: 14,
     color: COLORS.textSecondary,
-    fontStyle: 'italic',
+    marginTop: SPACING.sm,
+  },
+  emptyAction: {
+    marginTop: SPACING.md,
+    backgroundColor: COLORS.primary + '15',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  emptyActionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  joinEventCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.secondary + '25',
+  },
+  joinEventHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  joinEventTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.secondary,
+  },
+  joinEventRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  joinEventInput: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.text,
+    letterSpacing: 2,
+    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  joinEventButton: {
+    backgroundColor: COLORS.secondary,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: BORDER_RADIUS.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  joinEventButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.textLight,
+  },
+  joinEventHint: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.xs,
+    textAlign: 'center',
   },
 });

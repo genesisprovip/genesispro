@@ -25,7 +25,7 @@ import {
 import { useAves } from '@/context/AvesContext';
 import { Ave } from '@/types';
 import { COLORS } from '@/constants/colors';
-import { SPACING, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 
 type SexoType = 'M' | 'H';
 type EstadoType = 'activo' | 'vendido' | 'muerto' | 'retirado';
@@ -244,7 +244,7 @@ export default function AveFormScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[COLORS.primary, COLORS.primaryDark]}
+        colors={[COLORS.backgroundDark, COLORS.backgroundDarkAlt]}
         style={[styles.header, { paddingTop: insets.top }]}
       >
         <View style={styles.headerContent}>
@@ -611,6 +611,59 @@ export default function AveFormScreen() {
                 value={formData.criadero_origen}
                 onChangeText={(v) => updateField('criadero_origen', v)}
               />
+            </View>
+
+            {/* Genealogia - Padre y Madre */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { marginBottom: 8 }]}>Genealogia</Text>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 11, color: COLORS.male, fontWeight: '600', marginBottom: 4 }}>Padre</Text>
+                  <TouchableOpacity
+                    style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                    onPress={() => {
+                      const machos = aves.filter(a => a.sexo === 'M' && a.id !== existingAve?.id);
+                      if (machos.length === 0) { Alert.alert('Sin machos', 'No hay machos registrados para asignar como padre.'); return; }
+                      Alert.alert('Seleccionar Padre', undefined, [
+                        { text: 'Sin padre', onPress: () => updateField('padre_id', '') },
+                        ...machos.slice(0, 15).map(m => ({
+                          text: `${m.codigo_identidad}${m.linea_genetica ? ' (' + m.linea_genetica + ')' : ''}`,
+                          onPress: () => updateField('padre_id', m.id),
+                        })),
+                        { text: 'Cancelar', style: 'cancel' as const },
+                      ]);
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, color: formData.padre_id ? COLORS.text : COLORS.placeholder, flex: 1 }} numberOfLines={1}>
+                      {formData.padre_id ? (aves.find(a => a.id === formData.padre_id)?.codigo_identidad || 'Seleccionado') : 'Seleccionar...'}
+                    </Text>
+                    <ChevronDown size={14} color={COLORS.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 11, color: COLORS.female, fontWeight: '600', marginBottom: 4 }}>Madre</Text>
+                  <TouchableOpacity
+                    style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                    onPress={() => {
+                      const hembras = aves.filter(a => a.sexo === 'H' && a.id !== existingAve?.id);
+                      if (hembras.length === 0) { Alert.alert('Sin hembras', 'No hay hembras registradas para asignar como madre.'); return; }
+                      Alert.alert('Seleccionar Madre', undefined, [
+                        { text: 'Sin madre', onPress: () => updateField('madre_id', '') },
+                        ...hembras.slice(0, 15).map(h => ({
+                          text: `${h.codigo_identidad}${h.linea_genetica ? ' (' + h.linea_genetica + ')' : ''}`,
+                          onPress: () => updateField('madre_id', h.id),
+                        })),
+                        { text: 'Cancelar', style: 'cancel' as const },
+                      ]);
+                    }}
+                  >
+                    <Text style={{ fontSize: 13, color: formData.madre_id ? COLORS.text : COLORS.placeholder, flex: 1 }} numberOfLines={1}>
+                      {formData.madre_id ? (aves.find(a => a.id === formData.madre_id)?.codigo_identidad || 'Seleccionada') : 'Seleccionar...'}
+                    </Text>
+                    <ChevronDown size={14} color={COLORS.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
 
             <View style={styles.inputGroup}>

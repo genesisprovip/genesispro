@@ -26,7 +26,7 @@ import {
 import { useSalud, RegistroSalud } from '@/context/SaludContext';
 import { useAves } from '@/context/AvesContext';
 import { COLORS } from '@/constants/colors';
-import { SPACING, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 
 type FilterType = 'todos' | 'vacuna' | 'tratamiento' | 'enfermedad' | 'revision';
 
@@ -126,7 +126,7 @@ export default function SaludScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[COLORS.error, '#C62828']}
+        colors={[COLORS.backgroundDark, COLORS.backgroundDarkAlt]}
         style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}
       >
         <View style={styles.headerContent}>
@@ -258,7 +258,7 @@ export default function SaludScreen() {
         onPress={() => router.push('/salud/new')}
       >
         <LinearGradient
-          colors={[COLORS.error, '#C62828']}
+          colors={['#EC4899', '#DB2777']}
           style={styles.fabGradient}
         >
           <Plus size={28} color={COLORS.textLight} />

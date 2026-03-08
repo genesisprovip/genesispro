@@ -24,7 +24,7 @@ import {
 } from 'lucide-react-native';
 import { useAlimentacion, Alimento, RegistroAlimentacion, Dieta } from '@/context/AlimentacionContext';
 import { COLORS } from '@/constants/colors';
-import { SPACING, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 
 type TabType = 'inventario' | 'registros' | 'dietas';
 
@@ -289,7 +289,7 @@ export default function AlimentacionScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[COLORS.warning, '#E65100']}
+        colors={[COLORS.backgroundDark, COLORS.backgroundDarkAlt]}
         style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}
       >
         <View style={styles.headerContent}>

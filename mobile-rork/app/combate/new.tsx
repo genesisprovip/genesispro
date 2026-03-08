@@ -18,7 +18,7 @@ import { ChevronLeft, Trophy, Calendar, MapPin, Scale, Clock, DollarSign } from 
 import { useAves } from '@/context/AvesContext';
 import { useCombates } from '@/context/CombatesContext';
 import { COLORS } from '@/constants/colors';
-import { SPACING, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 
 type Resultado = 'victoria' | 'derrota' | 'empate' | 'pendiente';
 
@@ -109,7 +109,7 @@ export default function NuevoCombateScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[COLORS.secondary, COLORS.secondaryDark]}
+        colors={[COLORS.backgroundDark, COLORS.backgroundDarkAlt]}
         style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}
       >
         <View style={styles.headerContent}>
@@ -353,7 +353,7 @@ export default function NuevoCombateScreen() {
             disabled={isLoading}
           >
             <LinearGradient
-              colors={[COLORS.secondary, COLORS.secondaryDark]}
+              colors={['#F59E0B', '#D97706']}
               style={styles.submitGradient}
             >
               {isLoading ? (

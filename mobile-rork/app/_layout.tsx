@@ -3,6 +3,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useKeepAwake } from "expo-keep-awake";
 import { AuthProvider } from "@/context/AuthContext";
 import { AvesProvider } from "@/context/AvesContext";
 import { CombatesProvider } from "@/context/CombatesContext";
@@ -24,6 +25,8 @@ const queryClient = new QueryClient({
 function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: "Atrás" }}>
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="welcome" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="login"
@@ -136,11 +139,32 @@ function RootLayoutNav() {
           presentation: 'modal',
         }}
       />
+      <Stack.Screen
+        name="palenque/live"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="empresario/dashboard"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="empresario/broadcast"
+        options={{
+          headerShown: false,
+        }}
+      />
     </Stack>
   );
 }
 
 export default function RootLayout() {
+  // Keep screen awake across the entire app
+  useKeepAwake();
+
   useEffect(() => {
     SplashScreen.hideAsync();
   }, []);

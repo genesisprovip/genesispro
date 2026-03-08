@@ -22,7 +22,7 @@ import {
 } from 'lucide-react-native';
 import { useEventos, Evento } from '@/context/EventosContext';
 import { COLORS } from '@/constants/colors';
-import { SPACING, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 
 const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MESES = [
@@ -120,7 +120,7 @@ export default function CalendarioScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[COLORS.primary, COLORS.primaryDark]}
+        colors={[COLORS.backgroundDark, COLORS.backgroundDarkAlt]}
         style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}
       >
         <View style={styles.headerContent}>

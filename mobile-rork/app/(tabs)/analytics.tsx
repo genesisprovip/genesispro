@@ -5,25 +5,24 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Dimensions,
   ActivityIndicator
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   TrendingUp,
-  TrendingDown,
   Bird,
   Trophy,
   DollarSign,
-  Activity
+  Activity,
+  BarChart3,
+  PieChart,
+  Wallet,
 } from 'lucide-react-native';
 import { useAves } from '@/context/AvesContext';
 import { useCombates } from '@/context/CombatesContext';
 import { COLORS } from '@/constants/colors';
-import { SPACING, BORDER_RADIUS } from '@/constants/theme';
-
-const { width } = Dimensions.get('window');
+import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 
 export default function AnalyticsScreen() {
   const insets = useSafeAreaInsets();
@@ -54,10 +53,16 @@ export default function AnalyticsScreen() {
     retirados: aves.filter(a => a.estado === 'retirado').length,
   };
 
+  const tabs = [
+    { key: 'general' as const, label: 'General', icon: PieChart },
+    { key: 'combates' as const, label: 'Combates', icon: BarChart3 },
+    { key: 'financiero' as const, label: 'Finanzas', icon: Wallet },
+  ];
+
   if (isLoading && combates.length === 0 && aves.length === 0) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color={COLORS.info} />
+        <ActivityIndicator size="large" color={COLORS.accent} />
         <Text style={styles.loadingText}>Cargando estadísticas...</Text>
       </View>
     );
@@ -66,25 +71,30 @@ export default function AnalyticsScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[COLORS.info, '#1565C0']}
+        colors={[COLORS.accent, '#4F46E5']}
         style={[styles.header, { paddingTop: insets.top + SPACING.md }]}
       >
-        <Text style={styles.headerTitle}>Analytics</Text>
-        <Text style={styles.headerSubtitle}>Estadísticas de tu operación</Text>
+        <Text style={styles.headerTitle}>Estadísticas</Text>
+        <Text style={styles.headerSubtitle}>Análisis de tu operación</Text>
       </LinearGradient>
 
-      <View style={styles.tabs}>
-        {(['general', 'combates', 'financiero'] as const).map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === tab && styles.tabActive]}
-            onPress={() => setActiveTab(tab)}
-          >
-            <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <View style={styles.tabsContainer}>
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.key;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={[styles.tab, isActive && styles.tabActive]}
+              onPress={() => setActiveTab(tab.key)}
+            >
+              <Icon size={16} color={isActive ? COLORS.textLight : COLORS.textSecondary} />
+              <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <ScrollView
@@ -96,59 +106,67 @@ export default function AnalyticsScreen() {
           <>
             <View style={styles.kpiRow}>
               <KPICard
-                icon={<Bird size={24} color={COLORS.primary} />}
+                icon={<Bird size={22} color={COLORS.primary} />}
                 title="Total Aves"
                 value={aves.length.toString()}
-                trend={`${avesPorSexo.machos}M / ${avesPorSexo.hembras}H`}
+                detail={`${avesPorSexo.machos}M / ${avesPorSexo.hembras}H`}
                 color={COLORS.primary}
               />
               <KPICard
-                icon={<Trophy size={24} color={COLORS.success} />}
+                icon={<Trophy size={22} color={COLORS.secondary} />}
                 title="Combates"
                 value={totalCombates.toString()}
-                trend={`${porcentajeVictorias}% victorias`}
-                color={COLORS.success}
-                positive={porcentajeVictorias >= 50}
+                detail={`${porcentajeVictorias}% victorias`}
+                color={COLORS.secondary}
               />
             </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Distribución de Aves</Text>
-              <View style={styles.distributionCard}>
-                <View style={styles.distributionRow}>
-                  <View style={styles.distributionItem}>
-                    <View style={[styles.dot, { backgroundColor: COLORS.male }]} />
-                    <Text style={styles.distributionLabel}>Machos</Text>
-                  </View>
-                  <Text style={styles.distributionValue}>{avesPorSexo.machos}</Text>
+            <View style={[styles.sectionCard, SHADOWS.md]}>
+              <Text style={styles.cardTitle}>Distribución por Sexo</Text>
+              <View style={styles.distRow}>
+                <View style={styles.distItem}>
+                  <View style={[styles.distDot, { backgroundColor: COLORS.male }]} />
+                  <Text style={styles.distLabel}>Machos</Text>
+                  <Text style={styles.distValue}>{avesPorSexo.machos}</Text>
                 </View>
-                <View style={styles.distributionRow}>
-                  <View style={styles.distributionItem}>
-                    <View style={[styles.dot, { backgroundColor: COLORS.female }]} />
-                    <Text style={styles.distributionLabel}>Hembras</Text>
-                  </View>
-                  <Text style={styles.distributionValue}>{avesPorSexo.hembras}</Text>
+                <View style={styles.distItem}>
+                  <View style={[styles.distDot, { backgroundColor: COLORS.female }]} />
+                  <Text style={styles.distLabel}>Hembras</Text>
+                  <Text style={styles.distValue}>{avesPorSexo.hembras}</Text>
                 </View>
-                <View style={styles.progressBar}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      {
-                        width: `${aves.length > 0 ? (avesPorSexo.machos / aves.length) * 100 : 50}%`,
-                        backgroundColor: COLORS.male
-                      }
-                    ]}
-                  />
-                </View>
+              </View>
+              <View style={styles.barTrack}>
+                <View
+                  style={[
+                    styles.barFill,
+                    {
+                      width: `${aves.length > 0 ? (avesPorSexo.machos / aves.length) * 100 : 50}%`,
+                      backgroundColor: COLORS.male,
+                      borderTopRightRadius: 0,
+                      borderBottomRightRadius: 0,
+                    }
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.barFill,
+                    {
+                      flex: 1,
+                      backgroundColor: COLORS.female,
+                      borderTopLeftRadius: 0,
+                      borderBottomLeftRadius: 0,
+                    }
+                  ]}
+                />
               </View>
             </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Estado de Aves</Text>
-              <View style={styles.stateCards}>
-                <StateCard label="Activos" value={avesPorEstado.activos} color={COLORS.success} />
-                <StateCard label="Vendidos" value={avesPorEstado.vendidos} color={COLORS.info} />
-                <StateCard label="Retirados" value={avesPorEstado.retirados} color={COLORS.warning} />
+            <View style={[styles.sectionCard, SHADOWS.md]}>
+              <Text style={styles.cardTitle}>Estado de Aves</Text>
+              <View style={styles.stateRow}>
+                <StateChip label="Activos" value={avesPorEstado.activos} color={COLORS.success} total={aves.length} />
+                <StateChip label="Vendidos" value={avesPorEstado.vendidos} color={COLORS.info} total={aves.length} />
+                <StateChip label="Retirados" value={avesPorEstado.retirados} color={COLORS.warning} total={aves.length} />
               </View>
             </View>
           </>
@@ -158,78 +176,64 @@ export default function AnalyticsScreen() {
           <>
             <View style={styles.kpiRow}>
               <KPICard
-                icon={<Activity size={24} color={COLORS.success} />}
+                icon={<Activity size={22} color={COLORS.success} />}
                 title="Victorias"
                 value={victorias.toString()}
                 color={COLORS.success}
               />
               <KPICard
-                icon={<Activity size={24} color={COLORS.error} />}
+                icon={<Activity size={22} color={COLORS.error} />}
                 title="Derrotas"
                 value={derrotas.toString()}
                 color={COLORS.error}
               />
             </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Rendimiento</Text>
-              <View style={styles.performanceCard}>
-                <View style={styles.performanceCircle}>
-                  <Text style={styles.performanceValue}>{porcentajeVictorias}%</Text>
-                  <Text style={styles.performanceLabel}>Victorias</Text>
+            <View style={[styles.sectionCard, SHADOWS.md]}>
+              <Text style={styles.cardTitle}>Rendimiento Global</Text>
+              <View style={styles.perfRow}>
+                <View style={styles.perfRing}>
+                  <View style={[styles.ringCircle, { borderColor: COLORS.primary }]}>
+                    <Text style={styles.ringPct}>{porcentajeVictorias}%</Text>
+                    <Text style={styles.ringLbl}>Win Rate</Text>
+                  </View>
                 </View>
-                <View style={styles.performanceStats}>
-                  <View style={styles.performanceStat}>
-                    <View style={[styles.performanceBar, { backgroundColor: COLORS.success }]}>
-                      <View
-                        style={[
-                          styles.performanceBarFill,
-                          { width: `${porcentajeVictorias}%`, backgroundColor: COLORS.success }
-                        ]}
-                      />
-                    </View>
-                    <Text style={styles.performanceStatLabel}>Victorias ({victorias})</Text>
-                  </View>
-                  <View style={styles.performanceStat}>
-                    <View style={[styles.performanceBar, { backgroundColor: COLORS.divider }]}>
-                      <View
-                        style={[
-                          styles.performanceBarFill,
-                          { width: `${100 - porcentajeVictorias}%`, backgroundColor: COLORS.error }
-                        ]}
-                      />
-                    </View>
-                    <Text style={styles.performanceStatLabel}>Derrotas ({derrotas})</Text>
-                  </View>
+                <View style={styles.perfBars}>
+                  <ResultBar label="Victorias" value={victorias} total={totalCombates} color={COLORS.victory} />
+                  <ResultBar label="Derrotas" value={derrotas} total={totalCombates} color={COLORS.defeat} />
+                  <ResultBar label="Empates" value={stats.empates} total={totalCombates} color={COLORS.draw} />
                 </View>
               </View>
             </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Últimos Combates</Text>
+            <View style={[styles.sectionCard, SHADOWS.md]}>
+              <Text style={styles.cardTitle}>Historial Reciente</Text>
               {combates.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyText}>No hay combates registrados</Text>
-                </View>
+                <Text style={styles.emptyText}>No hay combates registrados</Text>
               ) : (
                 combates.slice(0, 5).map((combate) => (
-                  <View key={combate.id} style={styles.combateItem}>
+                  <View key={combate.id} style={styles.histItem}>
                     <View style={[
-                      styles.combateIndicator,
+                      styles.histDot,
                       { backgroundColor: combate.resultado === 'victoria' ? COLORS.success : combate.resultado === 'derrota' ? COLORS.error : COLORS.warning }
                     ]} />
-                    <View style={styles.combateInfo}>
-                      <Text style={styles.combateDate}>
-                        {new Date(combate.fecha).toLocaleDateString('es-ES')}
+                    <View style={styles.histInfo}>
+                      <Text style={styles.histDate}>
+                        {new Date(combate.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
                       </Text>
-                      <Text style={styles.combateLugar}>{combate.lugar}</Text>
+                      <Text style={styles.histPlace}>{combate.lugar}</Text>
                     </View>
-                    <Text style={[
-                      styles.combateResultado,
-                      { color: combate.resultado === 'victoria' ? COLORS.success : combate.resultado === 'derrota' ? COLORS.error : COLORS.warning }
+                    <View style={[
+                      styles.histBadge,
+                      { backgroundColor: combate.resultado === 'victoria' ? COLORS.success + '15' : combate.resultado === 'derrota' ? COLORS.error + '15' : COLORS.warning + '15' }
                     ]}>
-                      {combate.resultado === 'victoria' ? 'V' : combate.resultado === 'derrota' ? 'D' : 'E'}
-                    </Text>
+                      <Text style={[
+                        styles.histResult,
+                        { color: combate.resultado === 'victoria' ? COLORS.success : combate.resultado === 'derrota' ? COLORS.error : COLORS.warning }
+                      ]}>
+                        {combate.resultado === 'victoria' ? 'V' : combate.resultado === 'derrota' ? 'D' : 'E'}
+                      </Text>
+                    </View>
                   </View>
                 ))
               )}
@@ -241,110 +245,127 @@ export default function AnalyticsScreen() {
           <>
             <View style={styles.kpiRow}>
               <KPICard
-                icon={<DollarSign size={24} color={COLORS.success} />}
-                title="Total Ganado"
+                icon={<DollarSign size={22} color={COLORS.success} />}
+                title="Ganado"
                 value={`$${totalGanado.toLocaleString()}`}
                 color={COLORS.success}
               />
               <KPICard
-                icon={<TrendingUp size={24} color={roi >= 0 ? COLORS.success : COLORS.error} />}
+                icon={<TrendingUp size={22} color={roi >= 0 ? COLORS.success : COLORS.error} />}
                 title="ROI"
                 value={`${roi >= 0 ? '+' : ''}$${roi.toLocaleString()}`}
-                trend={`${roiPercentage >= 0 ? '+' : ''}${roiPercentage}%`}
+                detail={`${roiPercentage >= 0 ? '+' : ''}${roiPercentage}%`}
                 color={roi >= 0 ? COLORS.success : COLORS.error}
-                positive={roi >= 0}
               />
             </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Resumen Financiero</Text>
-              <View style={styles.financialCard}>
-                <View style={styles.financialRow}>
-                  <Text style={styles.financialLabel}>Total Apostado</Text>
-                  <Text style={styles.financialValue}>${totalApostado.toLocaleString()}</Text>
-                </View>
-                <View style={styles.financialDivider} />
-                <View style={styles.financialRow}>
-                  <Text style={styles.financialLabel}>Total Ganado</Text>
-                  <Text style={[styles.financialValue, { color: COLORS.success }]}>${totalGanado.toLocaleString()}</Text>
-                </View>
-                <View style={styles.financialDivider} />
-                <View style={styles.financialRow}>
-                  <Text style={styles.financialLabel}>Balance</Text>
-                  <Text style={[
-                    styles.financialValue,
-                    styles.financialBold,
-                    { color: roi >= 0 ? COLORS.success : COLORS.error }
-                  ]}>
-                    {roi >= 0 ? '+' : ''}${roi.toLocaleString()}
-                  </Text>
-                </View>
-              </View>
+            <View style={[styles.sectionCard, SHADOWS.md]}>
+              <Text style={styles.cardTitle}>Resumen Financiero</Text>
+              <FinRow label="Total Apostado" value={`$${totalApostado.toLocaleString()}`} />
+              <View style={styles.finDivider} />
+              <FinRow label="Total Ganado" value={`$${totalGanado.toLocaleString()}`} color={COLORS.success} />
+              <View style={styles.finDivider} />
+              <FinRow
+                label="Balance Neto"
+                value={`${roi >= 0 ? '+' : ''}$${roi.toLocaleString()}`}
+                color={roi >= 0 ? COLORS.success : COLORS.error}
+                bold
+              />
             </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Transacciones Recientes</Text>
+            <View style={[styles.sectionCard, SHADOWS.md]}>
+              <Text style={styles.cardTitle}>Últimas Transacciones</Text>
               {combates.filter(c => c.ganado || c.apostado).length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyText}>No hay transacciones registradas</Text>
-                </View>
+                <Text style={styles.emptyText}>No hay transacciones registradas</Text>
               ) : (
-                combates.filter(c => c.ganado || c.apostado).slice(0, 5).map((combate) => (
-                  <View key={combate.id} style={styles.transactionItem}>
-                    <View style={styles.transactionInfo}>
-                      <Text style={styles.transactionDate}>
-                        {new Date(combate.fecha).toLocaleDateString('es-ES')}
+                combates.filter(c => c.ganado || c.apostado).slice(0, 5).map((combate) => {
+                  const neto = (combate.ganado || 0) - (combate.apostado || 0);
+                  return (
+                    <View key={combate.id} style={styles.txRow}>
+                      <View style={[styles.txIcon, { backgroundColor: neto >= 0 ? COLORS.success + '15' : COLORS.error + '15' }]}>
+                        <DollarSign size={16} color={neto >= 0 ? COLORS.success : COLORS.error} />
+                      </View>
+                      <View style={styles.txInfo}>
+                        <Text style={styles.txPlace}>{combate.lugar}</Text>
+                        <Text style={styles.txDate}>
+                          {new Date(combate.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                        </Text>
+                      </View>
+                      <Text style={[styles.txAmount, { color: neto >= 0 ? COLORS.success : COLORS.error }]}>
+                        {neto >= 0 ? '+' : ''}${Math.abs(neto).toLocaleString()}
                       </Text>
-                      <Text style={styles.transactionDesc}>Combate en {combate.lugar}</Text>
                     </View>
-                    <Text style={[
-                      styles.transactionAmount,
-                      { color: (combate.ganado || 0) > (combate.apostado || 0) ? COLORS.success : COLORS.error }
-                    ]}>
-                      {(combate.ganado || 0) > (combate.apostado || 0) ? '+' : '-'}
-                      ${Math.abs((combate.ganado || 0) - (combate.apostado || 0)).toLocaleString()}
-                    </Text>
-                  </View>
-                ))
+                  );
+                })
               )}
             </View>
           </>
         )}
+
+        <View style={{ height: SPACING.xxl }} />
       </ScrollView>
     </View>
   );
 }
 
-function KPICard({ icon, title, value, trend, color, positive }: {
+function KPICard({ icon, title, value, detail, color }: {
   icon: React.ReactNode;
   title: string;
   value: string;
-  trend?: string;
+  detail?: string;
   color: string;
-  positive?: boolean;
 }) {
   return (
-    <View style={styles.kpiCard}>
-      <View style={[styles.kpiIcon, { backgroundColor: color + '15' }]}>
+    <View style={[styles.kpiCard, SHADOWS.md]}>
+      <View style={[styles.kpiIcon, { backgroundColor: color + '12' }]}>
         {icon}
       </View>
       <Text style={styles.kpiValue}>{value}</Text>
       <Text style={styles.kpiTitle}>{title}</Text>
-      {trend && (
-        <Text style={[styles.kpiTrend, { color: positive !== false ? COLORS.success : COLORS.error }]}>
-          {trend}
-        </Text>
+      {detail && (
+        <Text style={[styles.kpiDetail, { color }]}>{detail}</Text>
       )}
     </View>
   );
 }
 
-function StateCard({ label, value, color }: { label: string; value: number; color: string }) {
+function StateChip({ label, value, color, total }: { label: string; value: number; color: string; total: number }) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
-    <View style={styles.stateCard}>
-      <View style={[styles.stateIndicator, { backgroundColor: color }]} />
+    <View style={styles.stateChip}>
+      <View style={[styles.stateBar, { backgroundColor: color + '20' }]}>
+        <View style={[styles.stateBarFill, { height: `${pct}%`, backgroundColor: color }]} />
+      </View>
       <Text style={styles.stateValue}>{value}</Text>
       <Text style={styles.stateLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function ResultBar({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
+  const pct = total > 0 ? (value / total) * 100 : 0;
+  return (
+    <View style={styles.resultRow}>
+      <Text style={styles.resultLabel}>{label}</Text>
+      <View style={styles.resultBarBg}>
+        <View style={[styles.resultBarFill, { width: `${pct}%`, backgroundColor: color }]} />
+      </View>
+      <Text style={styles.resultNum}>{value}</Text>
+    </View>
+  );
+}
+
+function FinRow({ label, value, color, bold }: { label: string; value: string; color?: string; bold?: boolean }) {
+  return (
+    <View style={styles.finRow}>
+      <Text style={styles.finLabel}>{label}</Text>
+      <Text style={[
+        styles.finValue,
+        color ? { color } : undefined,
+        bold ? { fontWeight: '700', fontSize: 18 } : undefined,
+      ]}>
+        {value}
+      </Text>
     </View>
   );
 }
@@ -366,38 +387,41 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: SPACING.lg,
     paddingBottom: SPACING.lg,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: '700' as const,
+    fontWeight: '700',
     color: COLORS.textLight,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.7)',
     marginTop: 4,
   },
-  tabs: {
+  tabsContainer: {
     flexDirection: 'row',
-    margin: SPACING.md,
+    marginHorizontal: SPACING.md,
+    marginTop: -SPACING.md,
     backgroundColor: COLORS.card,
     borderRadius: BORDER_RADIUS.lg,
     padding: 4,
+    ...SHADOWS.md,
   },
   tab: {
     flex: 1,
-    paddingVertical: SPACING.sm,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.sm + 2,
     borderRadius: BORDER_RADIUS.md,
+    gap: 6,
   },
   tabActive: {
-    backgroundColor: COLORS.info,
+    backgroundColor: COLORS.accent,
   },
   tabText: {
-    fontSize: 14,
-    fontWeight: '500' as const,
+    fontSize: 13,
+    fontWeight: '600',
     color: COLORS.textSecondary,
   },
   tabTextActive: {
@@ -408,11 +432,11 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: SPACING.md,
-    paddingBottom: SPACING.xxl,
+    paddingTop: SPACING.md,
   },
   kpiRow: {
     flexDirection: 'row',
-    gap: SPACING.md,
+    gap: SPACING.sm,
     marginBottom: SPACING.md,
   },
   kpiCard: {
@@ -423,16 +447,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   kpiIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: SPACING.sm,
   },
   kpiValue: {
     fontSize: 24,
-    fontWeight: '700' as const,
+    fontWeight: '700',
     color: COLORS.text,
   },
   kpiTitle: {
@@ -440,222 +464,238 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: 2,
   },
-  kpiTrend: {
+  kpiDetail: {
     fontSize: 11,
-    fontWeight: '500' as const,
+    fontWeight: '600',
     marginTop: 4,
   },
-  section: {
-    marginBottom: SPACING.lg,
+  sectionCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600' as const,
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: '700',
     color: COLORS.text,
     marginBottom: SPACING.md,
   },
-  distributionCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-  },
-  distributionRow: {
+  distRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.sm,
+    justifyContent: 'space-around',
+    marginBottom: SPACING.md,
   },
-  distributionItem: {
+  distItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: SPACING.sm,
   },
-  dot: {
+  distDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    marginRight: SPACING.sm,
   },
-  distributionLabel: {
+  distLabel: {
     fontSize: 14,
     color: COLORS.textSecondary,
   },
-  distributionValue: {
+  distValue: {
     fontSize: 16,
-    fontWeight: '600' as const,
+    fontWeight: '700',
     color: COLORS.text,
   },
-  progressBar: {
-    height: 8,
-    backgroundColor: COLORS.female,
-    borderRadius: 4,
+  barTrack: {
+    flexDirection: 'row',
+    height: 10,
+    borderRadius: 5,
     overflow: 'hidden',
-    marginTop: SPACING.sm,
   },
-  progressFill: {
+  barFill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: 5,
   },
-  stateCards: {
+  stateRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
   },
-  stateCard: {
+  stateChip: {
     flex: 1,
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
     alignItems: 'center',
+    gap: 6,
   },
-  stateIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginBottom: SPACING.sm,
+  stateBar: {
+    width: '100%',
+    height: 48,
+    borderRadius: BORDER_RADIUS.md,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  stateBarFill: {
+    width: '100%',
+    borderRadius: BORDER_RADIUS.md,
   },
   stateValue: {
-    fontSize: 20,
-    fontWeight: '700' as const,
+    fontSize: 18,
+    fontWeight: '700',
     color: COLORS.text,
   },
   stateLabel: {
     fontSize: 11,
     color: COLORS.textSecondary,
-    marginTop: 2,
+    fontWeight: '500',
   },
-  performanceCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
+  perfRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  performanceCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.success + '20',
+  perfRing: {
+    marginRight: SPACING.lg,
+  },
+  ringCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary + '08',
+  },
+  ringPct: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  ringLbl: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    marginTop: -2,
+  },
+  perfBars: {
+    flex: 1,
+    gap: SPACING.md,
+  },
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  resultLabel: {
+    width: 70,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  resultBarBg: {
+    flex: 1,
+    height: 8,
+    backgroundColor: COLORS.divider,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  resultBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  resultNum: {
+    width: 24,
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+    textAlign: 'right',
+  },
+  histItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.divider,
+  },
+  histDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: SPACING.md,
+  },
+  histInfo: {
+    flex: 1,
+  },
+  histDate: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  histPlace: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 1,
+  },
+  histBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  histResult: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  finRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+  },
+  finDivider: {
+    height: 1,
+    backgroundColor: COLORS.divider,
+  },
+  finLabel: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+  },
+  finValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  txRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.divider,
+  },
+  txIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: SPACING.md,
   },
-  performanceValue: {
-    fontSize: 20,
-    fontWeight: '700' as const,
-    color: COLORS.success,
-  },
-  performanceLabel: {
-    fontSize: 10,
-    color: COLORS.textSecondary,
-  },
-  performanceStats: {
+  txInfo: {
     flex: 1,
   },
-  performanceStat: {
-    marginBottom: SPACING.sm,
-  },
-  performanceBar: {
-    height: 8,
-    borderRadius: 4,
-    marginBottom: 4,
-  },
-  performanceBarFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  performanceStatLabel: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-  },
-  combateItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
-  },
-  combateIndicator: {
-    width: 4,
-    height: 32,
-    borderRadius: 2,
-    marginRight: SPACING.md,
-  },
-  combateInfo: {
-    flex: 1,
-  },
-  combateDate: {
+  txPlace: {
     fontSize: 14,
-    fontWeight: '500' as const,
+    fontWeight: '600',
     color: COLORS.text,
   },
-  combateLugar: {
+  txDate: {
     fontSize: 12,
     color: COLORS.textSecondary,
+    marginTop: 1,
   },
-  combateResultado: {
-    fontSize: 18,
-    fontWeight: '700' as const,
-  },
-  financialCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-  },
-  financialRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: SPACING.sm,
-  },
-  financialDivider: {
-    height: 1,
-    backgroundColor: COLORS.divider,
-  },
-  financialLabel: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-  },
-  financialValue: {
+  txAmount: {
     fontSize: 16,
-    fontWeight: '500' as const,
-    color: COLORS.text,
-  },
-  financialBold: {
-    fontWeight: '700' as const,
-    fontSize: 18,
-  },
-  transactionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
-  },
-  transactionInfo: {
-    flex: 1,
-  },
-  transactionDate: {
-    fontSize: 14,
-    fontWeight: '500' as const,
-    color: COLORS.text,
-  },
-  transactionDesc: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  transactionAmount: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-  },
-  emptyState: {
-    backgroundColor: COLORS.card,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.lg,
-    alignItems: 'center',
+    fontWeight: '700',
   },
   emptyText: {
     fontSize: 14,
     color: COLORS.textSecondary,
     fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: SPACING.lg,
   },
 });

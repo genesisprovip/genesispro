@@ -1,41 +1,65 @@
 export const COLORS = {
-  primary: '#2E7D32',
-  primaryLight: '#4CAF50',
-  primaryDark: '#1B5E20',
-  
-  secondary: '#FF6B35',
-  secondaryLight: '#FF8A5B',
-  secondaryDark: '#D84315',
-  
-  success: '#4CAF50',
-  error: '#F44336',
-  warning: '#FF9800',
-  info: '#2196F3',
-  
-  background: '#F5F5F5',
+  // Primary - Deep emerald green
+  primary: '#10B981',
+  primaryLight: '#34D399',
+  primaryDark: '#059669',
+  primaryMuted: '#D1FAE5',
+
+  // Secondary - Warm amber
+  secondary: '#F59E0B',
+  secondaryLight: '#FBBF24',
+  secondaryDark: '#D97706',
+
+  // Accent - Rich indigo
+  accent: '#6366F1',
+  accentLight: '#818CF8',
+
+  // Status
+  success: '#10B981',
+  error: '#EF4444',
+  warning: '#F59E0B',
+  info: '#3B82F6',
+
+  // Dark backgrounds
+  backgroundDark: '#0F172A',
+  backgroundDarkAlt: '#1E293B',
+
+  // Light backgrounds
+  background: '#F8FAFC',
   surface: '#FFFFFF',
   card: '#FFFFFF',
-  
-  text: '#212121',
-  textSecondary: '#757575',
-  textDisabled: '#BDBDBD',
+
+  // Text
+  text: '#0F172A',
+  textSecondary: '#64748B',
+  textDisabled: '#CBD5E1',
   textLight: '#FFFFFF',
-  
-  border: '#E0E0E0',
-  divider: '#EEEEEE',
-  
-  disabled: '#BDBDBD',
-  placeholder: '#9E9E9E',
-  
-  gradientStart: '#2E7D32',
-  gradientEnd: '#1B5E20',
-  
-  male: '#2196F3',
-  female: '#E91E63',
-  
-  victory: '#4CAF50',
-  defeat: '#F44336',
-  draw: '#FF9800',
+
+  // Borders
+  border: '#E2E8F0',
+  divider: '#F1F5F9',
+
+  // Misc
+  disabled: '#CBD5E1',
+  placeholder: '#94A3B8',
+
+  // Gradients
+  gradientStart: '#10B981',
+  gradientEnd: '#059669',
+  gradientDark: '#0F172A',
+  gradientDarkEnd: '#1E293B',
+
+  // Gender
+  male: '#3B82F6',
+  female: '#EC4899',
+
+  // Results
+  victory: '#10B981',
+  defeat: '#EF4444',
+  draw: '#F59E0B',
+
+  // Overlay
+  overlay: 'rgba(15, 23, 42, 0.6)',
 };
 
 export default {

@@ -67,7 +67,7 @@ export default function LiveStreamViewer({
     setPlayerStatus('buffering');
     retryTimerRef.current = setTimeout(() => {
       try {
-        player.replace({ uri: hlsUrl, headers: {} });
+        player.replace(hlsUrl);
         player.play();
       } catch (e) {
         console.log('[Video] Reconnect failed:', e);
@@ -159,7 +159,7 @@ export default function LiveStreamViewer({
     retryCountRef.current = 0;
     setPlayerStatus('buffering');
     if (player) {
-      player.replace({ uri: hlsUrl, headers: {} });
+      player.replace(hlsUrl);
       player.play();
     }
   };

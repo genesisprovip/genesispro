@@ -1,18 +1,39 @@
 import { Tabs } from "expo-router";
 import { Home, Bird, Swords, TrendingUp, Menu } from "lucide-react-native";
-import React from "react";
-import { Platform, StyleSheet } from "react-native";
+import React, { useEffect } from "react";
+import { Platform, StyleSheet, BackHandler } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "@/constants/colors";
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+  const bottomPadding = Math.max(insets.bottom, 10);
+
+  // Prevent Android back button from exiting to welcome/login screens
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      // Return true to prevent default back behavior (exiting tabs)
+      return true;
+    });
+    return () => backHandler.remove();
+  }, []);
+
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.textSecondary,
         headerShown: false,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: {
+          backgroundColor: COLORS.card,
+          borderTopColor: COLORS.border,
+          borderTopWidth: 1,
+          paddingTop: 6,
+          paddingBottom: bottomPadding,
+          height: 54 + bottomPadding,
+        },
         tabBarLabelStyle: styles.tabBarLabel,
+        tabBarItemStyle: styles.tabBarItem,
       }}
     >
       <Tabs.Screen
@@ -20,7 +41,7 @@ export default function TabLayout() {
         options={{
           title: "Inicio",
           tabBarIcon: ({ color, size }) => (
-            <Home size={size} color={color} />
+            <Home size={22} color={color} />
           ),
         }}
       />
@@ -29,7 +50,7 @@ export default function TabLayout() {
         options={{
           title: "Aves",
           tabBarIcon: ({ color, size }) => (
-            <Bird size={size} color={color} />
+            <Bird size={22} color={color} />
           ),
         }}
       />
@@ -38,16 +59,16 @@ export default function TabLayout() {
         options={{
           title: "Combates",
           tabBarIcon: ({ color, size }) => (
-            <Swords size={size} color={color} />
+            <Swords size={22} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="analytics"
         options={{
-          title: "Analytics",
+          title: "Estadísticas",
           tabBarIcon: ({ color, size }) => (
-            <TrendingUp size={size} color={color} />
+            <TrendingUp size={22} color={color} />
           ),
         }}
       />
@@ -56,7 +77,7 @@ export default function TabLayout() {
         options={{
           title: "Más",
           tabBarIcon: ({ color, size }) => (
-            <Menu size={size} color={color} />
+            <Menu size={22} color={color} />
           ),
         }}
       />
@@ -65,17 +86,13 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: COLORS.card,
-    borderTopColor: COLORS.border,
-    borderTopWidth: 1,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-    height: Platform.OS === 'ios' ? 85 : 65,
-  },
   tabBarLabel: {
-    fontSize: 11,
-    fontWeight: '500' as const,
+    fontSize: 10,
+    fontWeight: '600' as const,
     marginTop: 2,
+    letterSpacing: 0.2,
+  },
+  tabBarItem: {
+    gap: 2,
   },
 });

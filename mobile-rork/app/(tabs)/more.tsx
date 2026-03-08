@@ -26,6 +26,7 @@ import {
   Crown,
   Smartphone,
   Trophy,
+  Radio,
 } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { COLORS } from '@/constants/colors';
@@ -62,7 +63,7 @@ export default function MoreScreen() {
           style: 'destructive',
           onPress: async () => {
             await logout();
-            router.replace('/login');
+            router.replace('/welcome');
           }
         },
       ]
@@ -71,20 +72,41 @@ export default function MoreScreen() {
 
   const planNames: Record<string, string> = { basico: 'Básico', pro: 'Pro', premium: 'Premium' };
   const planDisplay = planNames[user?.plan || 'basico'] || 'Básico';
+  const isTrial = user?.estado_cuenta === 'trial';
+  const trialDays = user?.trial_dias_restantes;
+
+  const isEmpresario = !!user?.plan_empresario;
 
   const menuSections: MenuSection[] = [
+    ...(isEmpresario ? [{
+      title: 'Empresario',
+      items: [
+        {
+          icon: <Crown size={20} color={COLORS.secondary} />,
+          label: 'Panel Empresario',
+          subtitle: 'Dashboard, eventos y transmision',
+          onPress: () => router.push('/empresario/dashboard'),
+          showBadge: true,
+          badgeText: 'Pro',
+          badgeColor: COLORS.secondary,
+        },
+        {
+          icon: <Radio size={20} color={COLORS.error} />,
+          label: 'Transmitir En Vivo',
+          subtitle: 'Inicia un stream desde tu evento',
+          onPress: () => router.push('/empresario/dashboard'),
+        },
+      ],
+    }] : []),
     {
       title: 'Módulos',
       items: [
-        {
+        ...(isEmpresario ? [{
           icon: <Trophy size={20} color={COLORS.secondary} />,
           label: 'Palenque',
-          subtitle: 'Eventos, cotejo y apuestas en vivo',
+          subtitle: 'Gestionar eventos y transmisiones',
           onPress: () => router.push('/palenque'),
-          showBadge: true,
-          badgeText: 'Nuevo',
-          badgeColor: COLORS.primary,
-        },
+        }] : []),
         {
           icon: <Calendar size={20} color={COLORS.accent} />,
           label: 'Calendario',
@@ -188,7 +210,9 @@ export default function MoreScreen() {
 
         <View style={styles.planCard}>
           <Crown size={16} color={COLORS.secondary} />
-          <Text style={styles.planLabel}>Plan {planDisplay || 'Gratuito'}</Text>
+          <Text style={styles.planLabel}>
+            {isTrial ? `Trial Premium (${trialDays ?? '?'} dias)` : `Plan ${planDisplay || 'Gratuito'}`}
+          </Text>
           <View style={{ flex: 1 }} />
           <TouchableOpacity style={styles.planButton} onPress={() => router.push('/subscription')}>
             <Text style={styles.planButtonText}>

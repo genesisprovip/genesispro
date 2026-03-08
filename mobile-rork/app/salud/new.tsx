@@ -28,7 +28,7 @@ import {
 import { useAves } from '@/context/AvesContext';
 import { useSalud } from '@/context/SaludContext';
 import { COLORS } from '@/constants/colors';
-import { SPACING, BORDER_RADIUS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 
 type TipoRegistro = 'vacuna' | 'tratamiento' | 'enfermedad' | 'revision' | 'desparasitacion';
 
@@ -113,7 +113,7 @@ export default function NuevoRegistroSaludScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[COLORS.error, '#C62828']}
+        colors={[COLORS.backgroundDark, COLORS.backgroundDarkAlt]}
         style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}
       >
         <View style={styles.headerContent}>
@@ -336,7 +336,7 @@ export default function NuevoRegistroSaludScreen() {
             disabled={isLoading}
           >
             <LinearGradient
-              colors={[COLORS.error, '#C62828']}
+              colors={['#EC4899', '#DB2777']}
               style={styles.submitGradient}
             >
               {isLoading ? (

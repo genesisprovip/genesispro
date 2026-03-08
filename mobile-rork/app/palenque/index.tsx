@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,6 +6,9 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,13 +24,17 @@ import {
   ChevronRight,
   Globe,
   Lock,
+  Search,
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
+import { api } from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
+import LiveStreamBanner from '@/components/streaming/LiveStreamBanner';
 
 type TabType = 'mis_eventos' | 'publicos';
 
-type EstadoEvento = 'programado' | 'en_curso' | 'finalizado' | 'cancelado';
+type EstadoEvento = 'programado' | 'en_curso' | 'finalizado' | 'cancelado' | 'pausado';
 
 interface EventoPalenque {
   id: string;
@@ -39,109 +46,104 @@ interface EventoPalenque {
   tipo_derby: string;
   total_peleas: number;
   pelea_actual: number | null;
-  participantes: number;
+  total_participantes?: number | string;
   es_publico: boolean;
   codigo_acceso?: string;
 }
 
-// TODO: Replace with API call to GET /api/v1/palenque/eventos
-const MOCK_MIS_EVENTOS: EventoPalenque[] = [
-  {
-    id: '1',
-    nombre: 'Derby Regional Jalisco',
-    fecha: '2026-03-15',
-    hora_inicio: '10:00',
-    lugar: 'Palenque El Dorado, Guadalajara',
-    estado: 'en_curso',
-    tipo_derby: '3 cocks',
-    total_peleas: 20,
-    pelea_actual: 8,
-    participantes: 12,
-    es_publico: true,
-  },
-  {
-    id: '2',
-    nombre: 'Torneo Primavera 2026',
-    fecha: '2026-03-22',
-    hora_inicio: '09:00',
-    lugar: 'Arena Coliseo, León',
-    estado: 'programado',
-    tipo_derby: '5 cocks',
-    total_peleas: 30,
-    pelea_actual: null,
-    participantes: 8,
-    es_publico: false,
-    codigo_acceso: 'PRIM26',
-  },
-  {
-    id: '3',
-    nombre: 'Copa Navideña 2025',
-    fecha: '2025-12-20',
-    hora_inicio: '11:00',
-    lugar: 'Palenque San Marcos, Aguascalientes',
-    estado: 'finalizado',
-    tipo_derby: '3 cocks',
-    total_peleas: 18,
-    pelea_actual: null,
-    participantes: 10,
-    es_publico: true,
-  },
-];
-
-// TODO: Replace with API call to GET /api/v1/palenque/eventos/publicos
-const MOCK_PUBLICOS: EventoPalenque[] = [
-  {
-    id: '4',
-    nombre: 'Gran Derby Nacional',
-    fecha: '2026-04-05',
-    hora_inicio: '10:00',
-    lugar: 'Arena Nacional, CDMX',
-    estado: 'programado',
-    tipo_derby: '5 cocks',
-    total_peleas: 40,
-    pelea_actual: null,
-    participantes: 20,
-    es_publico: true,
-  },
-  {
-    id: '5',
-    nombre: 'Derby Costa Pacífico',
-    fecha: '2026-03-10',
-    hora_inicio: '09:30',
-    lugar: 'Palenque del Mar, Mazatlán',
-    estado: 'en_curso',
-    tipo_derby: '3 cocks',
-    total_peleas: 24,
-    pelea_actual: 15,
-    participantes: 16,
-    es_publico: true,
-  },
-];
-
-const ESTADO_CONFIG: Record<EstadoEvento, { color: string; bg: string; label: string }> = {
+const ESTADO_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
   programado: { color: COLORS.info, bg: COLORS.info + '18', label: 'Programado' },
   en_curso: { color: COLORS.success, bg: COLORS.success + '18', label: 'En Curso' },
   finalizado: { color: COLORS.textSecondary, bg: COLORS.textSecondary + '18', label: 'Finalizado' },
   cancelado: { color: COLORS.error, bg: COLORS.error + '18', label: 'Cancelado' },
+  pausado: { color: COLORS.warning, bg: COLORS.warning + '18', label: 'Pausado' },
 };
 
 export default function PalenqueScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<TabType>('mis_eventos');
+  const { user } = useAuth();
+  const isEmpresario = !!user?.plan_empresario;
+  const [activeTab, setActiveTab] = useState<TabType>(isEmpresario ? 'mis_eventos' : 'publicos');
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [misEventos, setMisEventos] = useState<EventoPalenque[]>([]);
+  const [publicos, setPublicos] = useState<EventoPalenque[]>([]);
+  const [empresarioActivo, setEmpresarioActivo] = useState(false);
+  const [liveEventIds, setLiveEventIds] = useState<Set<string>>(new Set());
+  const [codigoAcceso, setCodigoAcceso] = useState('');
 
-  const eventos = activeTab === 'mis_eventos' ? MOCK_MIS_EVENTOS : MOCK_PUBLICOS;
+  const eventos = activeTab === 'mis_eventos' ? misEventos : publicos;
 
-  // TODO: Replace with actual API refresh
+  const handleCodigoAcceso = async () => {
+    const code = codigoAcceso.trim().toUpperCase();
+    if (code.length < 4) {
+      Alert.alert('Error', 'Ingresa un codigo de acceso valido');
+      return;
+    }
+    try {
+      const res = await api.getEventoByCodigo(code);
+      if (res.success && res.data?.id) {
+        setCodigoAcceso('');
+        router.push(`/palenque/live?eventoId=${res.data.id}&code=${code}`);
+      } else {
+        Alert.alert('No encontrado', 'No se encontro ningun evento con ese codigo');
+      }
+    } catch {
+      Alert.alert('Error', 'No se pudo buscar el evento. Verifica el codigo e intenta de nuevo.');
+    }
+  };
+
+  const loadData = useCallback(async () => {
+    try {
+      if (activeTab === 'mis_eventos' && isEmpresario && api.isAuthenticated()) {
+        const [eventosRes, empresarioRes] = await Promise.all([
+          api.getEventos(),
+          api.getEmpresarioStatus().catch(() => null),
+        ]);
+        if (eventosRes.success) setMisEventos(eventosRes.data);
+        if (empresarioRes?.success) setEmpresarioActivo(empresarioRes.data.isActive);
+      } else {
+        const res = await api.getEventosPublicos();
+        if (res.success) setPublicos(res.data);
+      }
+      // Load active streams for both tabs
+      try {
+        const streamsRes = await api.getActiveStreams();
+        if (streamsRes.success && streamsRes.data?.streams) {
+          setLiveEventIds(new Set(streamsRes.data.streams.map((s: any) => s.evento_id)));
+        }
+      } catch { /* ignore */ }
+    } catch (error) {
+      console.log('Error loading eventos:', error);
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    setLoading(true);
+    loadData().finally(() => setLoading(false));
+  }, [activeTab]);
+
   const onRefresh = async () => {
     setRefreshing(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await loadData();
     setRefreshing(false);
   };
 
+  const enCurso = misEventos.filter(e => e.estado === 'en_curso').length;
+  const programados = misEventos.filter(e => e.estado === 'programado').length;
+
+  const handleCreateEvento = () => {
+    if (empresarioActivo) {
+      router.push('/palenque/new');
+    } else {
+      router.push('/empresario');
+    }
+  };
+
   const renderEvento = ({ item }: { item: EventoPalenque }) => {
-    const estadoConfig = ESTADO_CONFIG[item.estado];
+    const estadoConfig = ESTADO_CONFIG[item.estado] || ESTADO_CONFIG.programado;
+    const participantes = parseInt(String(item.total_participantes || '0'));
 
     return (
       <TouchableOpacity
@@ -156,11 +158,14 @@ export default function PalenqueScreen() {
               {estadoConfig.label}
             </Text>
           </View>
-          {item.es_publico ? (
-            <Globe size={16} color={COLORS.textSecondary} />
-          ) : (
-            <Lock size={16} color={COLORS.textSecondary} />
-          )}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {liveEventIds.has(item.id) && <LiveStreamBanner />}
+            {item.es_publico ? (
+              <Globe size={16} color={COLORS.textSecondary} />
+            ) : (
+              <Lock size={16} color={COLORS.textSecondary} />
+            )}
+          </View>
         </View>
 
         <Text style={styles.eventoNombre} numberOfLines={1}>{item.nombre}</Text>
@@ -173,13 +178,15 @@ export default function PalenqueScreen() {
                 day: 'numeric',
                 month: 'short',
                 year: 'numeric',
-              })} - {item.hora_inicio}
+              })} {item.hora_inicio ? `- ${item.hora_inicio.slice(0, 5)}` : ''}
             </Text>
           </View>
-          <View style={styles.metaItem}>
-            <MapPin size={13} color={COLORS.textSecondary} />
-            <Text style={styles.metaText} numberOfLines={1}>{item.lugar}</Text>
-          </View>
+          {item.lugar && (
+            <View style={styles.metaItem}>
+              <MapPin size={13} color={COLORS.textSecondary} />
+              <Text style={styles.metaText} numberOfLines={1}>{item.lugar}</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.eventoFooter}>
@@ -191,14 +198,16 @@ export default function PalenqueScreen() {
                 : `${item.total_peleas} peleas`}
             </Text>
           </View>
-          <View style={styles.footerStat}>
-            <Users size={14} color={COLORS.primary} />
-            <Text style={styles.footerStatText}>{item.participantes}</Text>
-          </View>
+          {participantes > 0 && (
+            <View style={styles.footerStat}>
+              <Users size={14} color={COLORS.primary} />
+              <Text style={styles.footerStatText}>{participantes}</Text>
+            </View>
+          )}
           <ChevronRight size={18} color={COLORS.textSecondary} />
         </View>
 
-        {item.estado === 'en_curso' && item.pelea_actual && (
+        {item.estado === 'en_curso' && item.pelea_actual && item.total_peleas > 0 && (
           <View style={styles.progressBarContainer}>
             <View
               style={[
@@ -226,116 +235,139 @@ export default function PalenqueScreen() {
             <Trophy size={24} color={COLORS.secondary} />
             <Text style={styles.headerTitle}>Palenque</Text>
           </View>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => router.push('/palenque/new')}
-          >
-            <Plus size={24} color={COLORS.textLight} />
-          </TouchableOpacity>
+          {isEmpresario ? (
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={handleCreateEvento}
+            >
+              <Plus size={24} color={COLORS.textLight} />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.addButton} />
+          )}
         </View>
 
-        {/* Stats row */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{MOCK_MIS_EVENTOS.length}</Text>
-            <Text style={styles.statLabel}>Mis Eventos</Text>
+        {isEmpresario ? (
+          <View style={styles.statsRow}>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>{misEventos.length}</Text>
+              <Text style={styles.statLabel}>Mis Eventos</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statCard}>
+              <Text style={[styles.statValue, { color: COLORS.success }]}>{enCurso}</Text>
+              <Text style={styles.statLabel}>En Curso</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statCard}>
+              <Text style={[styles.statValue, { color: COLORS.secondary }]}>{programados}</Text>
+              <Text style={styles.statLabel}>Proximos</Text>
+            </View>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: COLORS.success }]}>
-              {MOCK_MIS_EVENTOS.filter(e => e.estado === 'en_curso').length}
-            </Text>
-            <Text style={styles.statLabel}>En Curso</Text>
+        ) : (
+          <View style={styles.codigoAccesoRow}>
+            <View style={styles.codigoInputContainer}>
+              <Search size={18} color={COLORS.textSecondary} />
+              <TextInput
+                style={styles.codigoInput}
+                placeholder="Codigo de acceso"
+                placeholderTextColor={COLORS.placeholder}
+                value={codigoAcceso}
+                onChangeText={setCodigoAcceso}
+                autoCapitalize="characters"
+                maxLength={8}
+              />
+            </View>
+            <TouchableOpacity style={styles.codigoButton} onPress={handleCodigoAcceso}>
+              <Text style={styles.codigoButtonText}>Entrar</Text>
+            </TouchableOpacity>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: COLORS.secondary }]}>
-              {MOCK_MIS_EVENTOS.filter(e => e.estado === 'programado').length}
-            </Text>
-            <Text style={styles.statLabel}>Próximos</Text>
-          </View>
-        </View>
+        )}
       </LinearGradient>
 
-      {/* Tab selector */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'mis_eventos' && styles.tabActive]}
-          onPress={() => setActiveTab('mis_eventos')}
-        >
-          <Text style={[styles.tabText, activeTab === 'mis_eventos' && styles.tabTextActive]}>
-            Mis Eventos
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'publicos' && styles.tabActive]}
-          onPress={() => setActiveTab('publicos')}
-        >
-          <Text style={[styles.tabText, activeTab === 'publicos' && styles.tabTextActive]}>
-            Públicos
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Event list */}
-      <FlatList
-        data={eventos}
-        keyExtractor={(item) => item.id}
-        renderItem={renderEvento}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={COLORS.secondary}
-          />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Trophy size={64} color={COLORS.textDisabled} />
-            <Text style={styles.emptyTitle}>
-              {activeTab === 'mis_eventos' ? 'Sin eventos' : 'No hay eventos públicos'}
+      {isEmpresario && (
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'mis_eventos' && styles.tabActive]}
+            onPress={() => setActiveTab('mis_eventos')}
+          >
+            <Text style={[styles.tabText, activeTab === 'mis_eventos' && styles.tabTextActive]}>
+              Mis Eventos
             </Text>
-            <Text style={styles.emptyMessage}>
-              {activeTab === 'mis_eventos'
-                ? 'Crea tu primer evento de palenque'
-                : 'No hay eventos públicos disponibles en este momento'}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'publicos' && styles.tabActive]}
+            onPress={() => setActiveTab('publicos')}
+          >
+            <Text style={[styles.tabText, activeTab === 'publicos' && styles.tabTextActive]}>
+              Publicos
             </Text>
-            {activeTab === 'mis_eventos' && (
-              <TouchableOpacity
-                style={styles.emptyButton}
-                onPress={() => router.push('/palenque/new')}
-              >
-                <Text style={styles.emptyButtonText}>Crear Evento</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        }
-      />
+          </TouchableOpacity>
+        </View>
+      )}
 
-      {/* FAB */}
-      <TouchableOpacity
-        style={[styles.fab, SHADOWS.lg]}
-        activeOpacity={0.8}
-        onPress={() => router.push('/palenque/new')}
-      >
-        <LinearGradient
-          colors={[COLORS.secondary, COLORS.secondaryDark]}
-          style={styles.fabGradient}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.secondary} />
+        </View>
+      ) : (
+        <FlatList
+          data={eventos}
+          keyExtractor={(item) => item.id}
+          renderItem={renderEvento}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={COLORS.secondary}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Trophy size={64} color={COLORS.textDisabled} />
+              <Text style={styles.emptyTitle}>
+                {activeTab === 'mis_eventos' ? 'Sin eventos' : 'No hay eventos publicos'}
+              </Text>
+              <Text style={styles.emptyMessage}>
+                {activeTab === 'mis_eventos'
+                  ? 'Crea tu primer evento de palenque'
+                  : 'No hay eventos publicos disponibles en este momento'}
+              </Text>
+              {activeTab === 'mis_eventos' && isEmpresario && (
+                <TouchableOpacity
+                  style={styles.emptyButton}
+                  onPress={handleCreateEvento}
+                >
+                  <Text style={styles.emptyButtonText}>Crear Evento</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          }
+        />
+      )}
+
+      {isEmpresario && (
+        <TouchableOpacity
+          style={[styles.fab, SHADOWS.lg]}
+          activeOpacity={0.8}
+          onPress={handleCreateEvento}
         >
-          <Plus size={26} color={COLORS.textLight} />
-        </LinearGradient>
-      </TouchableOpacity>
+          <LinearGradient
+            colors={[COLORS.secondary, COLORS.secondaryDark]}
+            style={styles.fabGradient}
+          >
+            <Plus size={26} color={COLORS.textLight} />
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
+  container: { flex: 1, backgroundColor: COLORS.background },
   header: {
     paddingHorizontal: SPACING.md,
     paddingBottom: SPACING.lg,
@@ -349,30 +381,16 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'center', alignItems: 'center',
   },
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.textLight,
-  },
+  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: COLORS.textLight },
   addButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 44, height: 44, borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'center', alignItems: 'center',
   },
   statsRow: {
     flexDirection: 'row',
@@ -381,25 +399,10 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     alignItems: 'center',
   },
-  statCard: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: COLORS.textLight,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.5)',
-    marginTop: 2,
-  },
+  statCard: { flex: 1, alignItems: 'center' },
+  statDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.12)' },
+  statValue: { fontSize: 22, fontWeight: '700', color: COLORS.textLight },
+  statLabel: { fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 2 },
   tabContainer: {
     flexDirection: 'row',
     marginHorizontal: SPACING.md,
@@ -417,22 +420,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: BORDER_RADIUS.sm,
   },
-  tabActive: {
-    backgroundColor: COLORS.secondary,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-  },
-  tabTextActive: {
-    color: COLORS.textLight,
-  },
+  tabActive: { backgroundColor: COLORS.secondary },
+  tabText: { fontSize: 14, fontWeight: '600', color: COLORS.textSecondary },
+  tabTextActive: { color: COLORS.textLight },
   listContent: {
     paddingHorizontal: SPACING.md,
     paddingTop: SPACING.sm,
     paddingBottom: 100,
   },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   eventoCard: {
     backgroundColor: COLORS.card,
     borderRadius: BORDER_RADIUS.lg,
@@ -446,114 +442,83 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.sm,
   },
   estadoBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.round,
-    gap: 6,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: BORDER_RADIUS.round, gap: 6,
   },
-  estadoDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  estadoText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
+  estadoDot: { width: 7, height: 7, borderRadius: 4 },
+  estadoText: { fontSize: 12, fontWeight: '600' },
   eventoNombre: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: SPACING.sm,
+    fontSize: 17, fontWeight: '700',
+    color: COLORS.text, marginBottom: SPACING.sm,
   },
-  eventoMeta: {
-    gap: 6,
-    marginBottom: SPACING.sm,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  metaText: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    flex: 1,
-  },
+  eventoMeta: { gap: 6, marginBottom: SPACING.sm },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  metaText: { fontSize: 13, color: COLORS.textSecondary, flex: 1 },
   eventoFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center',
     paddingTop: SPACING.sm,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.divider,
+    borderTopWidth: 1, borderTopColor: COLORS.divider,
     gap: SPACING.md,
   },
-  footerStat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  footerStatText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: COLORS.text,
-  },
+  footerStat: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  footerStatText: { fontSize: 13, fontWeight: '500', color: COLORS.text },
   progressBarContainer: {
-    height: 3,
-    backgroundColor: COLORS.divider,
-    borderRadius: 2,
-    marginTop: SPACING.sm,
-    overflow: 'hidden',
+    height: 3, backgroundColor: COLORS.divider,
+    borderRadius: 2, marginTop: SPACING.sm, overflow: 'hidden',
   },
-  progressBar: {
-    height: '100%',
-    backgroundColor: COLORS.success,
-    borderRadius: 2,
-  },
-  emptyState: {
-    alignItems: 'center',
-    padding: SPACING.xl,
-    marginTop: SPACING.xl,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.text,
-    marginTop: SPACING.md,
-  },
+  progressBar: { height: '100%', backgroundColor: COLORS.success, borderRadius: 2 },
+  emptyState: { alignItems: 'center', padding: SPACING.xl, marginTop: SPACING.xl },
+  emptyTitle: { fontSize: 18, fontWeight: '600', color: COLORS.text, marginTop: SPACING.md },
   emptyMessage: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    marginTop: SPACING.sm,
-    maxWidth: 280,
+    fontSize: 14, color: COLORS.textSecondary,
+    textAlign: 'center', marginTop: SPACING.sm, maxWidth: 280,
   },
   emptyButton: {
-    marginTop: SPACING.lg,
-    backgroundColor: COLORS.secondary,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    marginTop: SPACING.lg, backgroundColor: COLORS.secondary,
+    paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
   },
-  emptyButtonText: {
-    color: COLORS.textLight,
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  emptyButtonText: { color: COLORS.textLight, fontSize: 16, fontWeight: '600' },
   fab: {
-    position: 'absolute',
-    right: SPACING.lg,
-    bottom: SPACING.lg,
-    borderRadius: 20,
-    overflow: 'hidden',
+    position: 'absolute', right: SPACING.lg, bottom: SPACING.lg,
+    borderRadius: 20, overflow: 'hidden',
   },
   fabGradient: {
-    width: 56,
-    height: 56,
-    borderRadius: 20,
-    justifyContent: 'center',
+    width: 56, height: 56, borderRadius: 20,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  codigoAccesoRow: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
     alignItems: 'center',
+  },
+  codigoInputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    gap: SPACING.sm,
+  },
+  codigoInput: {
+    flex: 1,
+    paddingVertical: SPACING.sm + 2,
+    fontSize: 15,
+    color: COLORS.textLight,
+    fontWeight: '600',
+    letterSpacing: 1,
+  },
+  codigoButton: {
+    backgroundColor: COLORS.secondary,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm + 2,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  codigoButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.textLight,
   },
 });

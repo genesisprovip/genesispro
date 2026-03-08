@@ -6,7 +6,14 @@ export interface User {
   telefono?: string;
   foto_perfil?: string;
   plan: 'basico' | 'pro' | 'premium';
+  plan_actual?: 'basico' | 'pro' | 'premium';
+  plan_elegido?: 'basico' | 'pro' | 'premium';
+  estado_cuenta?: 'trial' | 'activa' | 'activo' | 'vencido' | 'suspendido';
+  trial_inicio?: string;
+  trial_fin?: string;
+  trial_dias_restantes?: number;
   fecha_registro: string;
+  plan_empresario?: 'empresario_basico' | 'empresario_pro' | 'empresario_premium' | null;
 }
 
 export interface Ave {
