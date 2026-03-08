@@ -1,44 +1,87 @@
 {
   "expo": {
-    "name": "Markdown Analyzer",
-    "slug": "markdown-analyzer",
-    "version": "1.0.0",
+    "name": "GenesisPro",
+    "slug": "genesispro",
+    "version": "1.5.8",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "rork-app",
+    "scheme": "genesispro",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0F172A"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rork.markdown-analyzer"
+      "bundleIdentifier": "com.genesispro.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0F172A"
       },
-      "package": "app.rork.markdown_analyzer"
+      "package": "com.genesispro.app",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/f82dbac6-7a51-46a4-9e25-af9ab66535a1"
     },
     "plugins": [
       [
         "expo-router",
         {
-          "origin": "https://rork.com/"
+          "origin": "https://genesispro.vip/"
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-updates",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "GenesisPro necesita acceso a la camara para transmitir en vivo"
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "GenesisPro necesita acceso al microfono para transmitir en vivo"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 24,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 34
+          }
+        }
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": "https://genesispro.vip/"
+      },
+      "eas": {
+        "projectId": "f82dbac6-7a51-46a4-9e25-af9ab66535a1"
+      }
+    },
+    "owner": "auralink"
   }
 }
