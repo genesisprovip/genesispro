@@ -31,11 +31,8 @@
     "web": {
       "favicon": "./assets/images/favicon.png"
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
     "updates": {
-      "url": "https://u.expo.dev/f82dbac6-7a51-46a4-9e25-af9ab66535a1"
+      "enabled": false
     },
     "plugins": [
       [
@@ -46,7 +43,6 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "expo-updates",
       [
         "expo-camera",
         {
