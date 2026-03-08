@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<style>
+*{margin:0;padding:0}
+body{background:#000;overflow:hidden;width:100%;height:100%}
+video{width:100%;height:100%;object-fit:contain}
+#status{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  color:#fff;font-size:13px;font-family:sans-serif;text-align:center;display:none}
+</style>
+</head><body>
+<video id="player" autoplay playsinline></video>
+<div id="status"></div>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+<script>
+var urlParams = new URLSearchParams(window.location.search);
+var hlsUrl = urlParams.get('url');
+var muted = urlParams.get('muted') === '1';
+
+var video = document.getElementById('player');
+var statusEl = document.getElementById('status');
+var retryCount = 0;
+var maxRetries = 15;
+
+if (muted) video.muted = true;
+
+function sendMessage(type, data) {
+  if (window.ReactNativeWebView) {
+    window.ReactNativeWebView.postMessage(JSON.stringify({ type: type, data: data }));
+  }
+}
+
+function showStatus(msg) {
+  statusEl.textContent = msg;
+  statusEl.style.display = 'block';
+}
+function hideStatus() {
+  statusEl.style.display = 'none';
+}
+
+function startPlayer() {
+  if (!hlsUrl) {
+    showStatus('No stream URL');
+    sendMessage('status', 'error');
+    return;
+  }
+
+  // Extract base origin from hlsUrl to fix relative paths
+  var hlsOrigin = '';
+  try { hlsOrigin = new URL(hlsUrl).origin; } catch(e) {}
+
+  if (Hls.isSupported()) {
+    var hls = new Hls({
+      enableWorker: true,
+      lowLatencyMode: true,
+      liveSyncDurationCount: 3,
+      liveMaxLatencyDurationCount: 6,
+      liveDurationInfinity: true,
+      maxBufferLength: 10,
+      maxMaxBufferLength: 20,
+      maxBufferSize: 30 * 1024 * 1024,
+      maxBufferHole: 0.5,
+      highBufferWatchdogPeriod: 2,
+      nudgeMaxRetry: 5,
+      fragLoadingMaxRetry: 6,
+      fragLoadingMaxRetryTimeout: 16000,
+      manifestLoadingMaxRetry: 4,
+      levelLoadingMaxRetry: 4,
+      startFragPrefetch: true,
+      testBandwidth: true,
+      progressive: true,
+      backBufferLength: 10,
+      xhrSetup: function(xhr, url) {
+        // Fix absolute paths that resolve against wrong origin
+        if (url.startsWith('/live/') && hlsOrigin) {
+          xhr.open('GET', hlsOrigin + url, true);
+        }
+      },
+    });
+
+    hls.loadSource(hlsUrl);
+    hls.attachMedia(video);
+
+    hls.on(Hls.Events.MANIFEST_PARSED, function() {
+      sendMessage('status', 'playing');
+      hideStatus();
+      video.play().catch(function(){});
+      retryCount = 0;
+    });
+
+    hls.on(Hls.Events.ERROR, function(event, data) {
+      if (data.fatal) {
+        sendMessage('log', 'Fatal: ' + data.type + ' - ' + data.details);
+        if (retryCount < maxRetries) {
+          retryCount++;
+          showStatus('Reconectando... (' + retryCount + ')');
+          sendMessage('status', 'buffering');
+          setTimeout(function() {
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+              hls.startLoad();
+            } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+              hls.recoverMediaError();
+            } else {
+              hls.destroy();
+              startPlayer();
+            }
+          }, 2000);
+        } else {
+          sendMessage('status', 'error');
+          showStatus('Error de transmision');
+        }
+      }
+    });
+
+    hls.on(Hls.Events.FRAG_LOADED, function() {
+      if (retryCount > 0) retryCount = 0;
+      hideStatus();
+    });
+
+    // Keep near live edge
+    setInterval(function() {
+      if (video.buffered.length > 0) {
+        var liveEdge = video.buffered.end(video.buffered.length - 1);
+        var lag = liveEdge - video.currentTime;
+        if (lag > 8) {
+          video.currentTime = liveEdge - 2;
+        }
+      }
+    }, 5000);
+
+    window._hls = hls;
+
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = hlsUrl;
+    video.addEventListener('loadedmetadata', function() {
+      sendMessage('status', 'playing');
+      hideStatus();
+      video.play().catch(function(){});
+    });
+    video.addEventListener('error', function() {
+      if (retryCount < maxRetries) {
+        retryCount++;
+        sendMessage('status', 'buffering');
+        setTimeout(function() { video.load(); video.play(); }, 2000);
+      } else {
+        sendMessage('status', 'error');
+      }
+    });
+  } else {
+    sendMessage('status', 'error');
+    showStatus('Reproductor no compatible');
+  }
+
+  video.addEventListener('waiting', function() { sendMessage('status', 'buffering'); });
+  video.addEventListener('playing', function() { sendMessage('status', 'playing'); hideStatus(); });
+  video.addEventListener('stalled', function() { sendMessage('status', 'buffering'); });
+}
+
+// Listen for commands from React Native
+window.addEventListener('message', function(e) {
+  try {
+    var cmd = JSON.parse(e.data);
+    if (cmd.action === 'mute') video.muted = true;
+    if (cmd.action === 'unmute') video.muted = false;
+  } catch(ex) {}
+});
+document.addEventListener('message', function(e) {
+  try {
+    var cmd = JSON.parse(e.data);
+    if (cmd.action === 'mute') video.muted = true;
+    if (cmd.action === 'unmute') video.muted = false;
+  } catch(ex) {}
+});
+
+startPlayer();
+</script>
+</body></html>

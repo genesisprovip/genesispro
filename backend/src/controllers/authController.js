@@ -14,7 +14,11 @@ const logger = require('../config/logger');
  * POST /api/v1/auth/register
  */
 const register = asyncHandler(async (req, res) => {
-  const { email, password, nombre, telefono, ubicacion } = req.body;
+  const { email, password, nombre, telefono, ubicacion, referido_por, referido_evento_id, plan } = req.body;
+
+  // Validate plan if provided
+  const validPlans = ['basico', 'pro', 'premium'];
+  const planElegido = validPlans.includes(plan) ? plan : 'basico';
 
   // Check if email already exists
   const { rows: existing } = await db.query(
@@ -33,15 +37,32 @@ const register = asyncHandler(async (req, res) => {
   // Generate email verification token
   const verificationToken = crypto.randomBytes(32).toString('hex');
 
-  // Create user
+  // Create user with 15-day Premium trial
+  // plan_actual = 'premium' during trial (full access), plan_elegido = chosen plan (applied after trial)
   const { rows } = await db.query(
-    `INSERT INTO usuarios (email, password_hash, nombre, telefono, ubicacion)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, email, nombre, telefono, ubicacion, plan_actual, email_verificado, created_at`,
-    [email.toLowerCase(), passwordHash, nombre, telefono || null, ubicacion || null]
+    `INSERT INTO usuarios (email, password_hash, nombre, telefono, ubicacion, plan_actual, plan_elegido, estado_cuenta, trial_inicio, trial_fin, referido_por, referido_evento_id)
+     VALUES ($1, $2, $3, $4, $5, 'premium', $6, 'trial', NOW(), NOW() + INTERVAL '15 days', $7, $8)
+     RETURNING id, email, nombre, telefono, ubicacion, plan_actual, plan_elegido, email_verificado, estado_cuenta, trial_inicio, trial_fin, created_at`,
+    [email.toLowerCase(), passwordHash, nombre, telefono || null, ubicacion || null, planElegido, referido_por || null, referido_evento_id || null]
   );
 
   const user = rows[0];
+
+  // Create referral record if user was referred by an empresario
+  if (referido_por) {
+    try {
+      await db.query(
+        `INSERT INTO referidos (empresario_id, usuario_id, evento_id, estado)
+         VALUES ($1, $2, $3, 'registrado')
+         ON CONFLICT (usuario_id) DO NOTHING`,
+        [referido_por, user.id, referido_evento_id || null]
+      );
+      logger.info(`Referral created: empresario=${referido_por}, user=${user.id}`);
+    } catch (refError) {
+      // Don't fail registration if referral tracking fails
+      logger.error(`Error creating referral: ${refError.message}`);
+    }
+  }
 
   // Generate tokens
   const tokens = generateTokens(user.id);
@@ -67,7 +88,11 @@ const register = asyncHandler(async (req, res) => {
         telefono: user.telefono,
         ubicacion: user.ubicacion,
         plan_actual: user.plan_actual,
+        plan_elegido: user.plan_elegido,
         email_verificado: user.email_verificado,
+        estado_cuenta: user.estado_cuenta,
+        trial_inicio: user.trial_inicio,
+        trial_fin: user.trial_fin,
         created_at: user.created_at
       },
       tokens
@@ -85,7 +110,7 @@ const login = asyncHandler(async (req, res) => {
   // Find user
   const { rows } = await db.query(
     `SELECT id, email, password_hash, nombre, telefono, ubicacion,
-            plan_actual, email_verificado, foto_perfil, activo, created_at
+            plan_actual, plan_elegido, plan_empresario, email_verificado, foto_perfil, activo, estado_cuenta, trial_inicio, trial_fin, created_at
      FROM usuarios
      WHERE email = $1 AND deleted_at IS NULL`,
     [email.toLowerCase()]
@@ -122,11 +147,21 @@ const login = asyncHandler(async (req, res) => {
     [user.id, refreshTokenHash, device_info ? JSON.stringify(device_info) : null, ipAddress]
   );
 
-  // Update last access
-  await db.query(
-    'UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = $1',
-    [user.id]
-  );
+  // Check trial expiry and downgrade if needed
+  if (user.estado_cuenta === 'trial' && user.trial_fin && new Date(user.trial_fin) < new Date()) {
+    const downgradePlan = user.plan_elegido || 'basico';
+    await db.query(
+      `UPDATE usuarios SET estado_cuenta = 'vencido', plan_actual = $2, ultimo_acceso = NOW() WHERE id = $1`,
+      [user.id, downgradePlan]
+    );
+    user.estado_cuenta = 'vencido';
+    user.plan_actual = downgradePlan;
+  } else {
+    await db.query(
+      'UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = $1',
+      [user.id]
+    );
+  }
 
   logger.info(`User logged in: ${user.email}`);
 
@@ -141,8 +176,13 @@ const login = asyncHandler(async (req, res) => {
         telefono: user.telefono,
         ubicacion: user.ubicacion,
         plan_actual: user.plan_actual,
+        plan_elegido: user.plan_elegido || 'basico',
+        plan_empresario: user.plan_empresario || null,
         email_verificado: user.email_verificado,
         foto_perfil: user.foto_perfil,
+        estado_cuenta: user.estado_cuenta,
+        trial_inicio: user.trial_inicio,
+        trial_fin: user.trial_fin,
         created_at: user.created_at
       },
       tokens
@@ -228,7 +268,8 @@ const getProfile = asyncHandler(async (req, res) => {
   const { rows } = await db.query(
     `SELECT
       u.id, u.email, u.nombre, u.telefono, u.ubicacion,
-      u.foto_perfil, u.email_verificado, u.plan_actual,
+      u.foto_perfil, u.email_verificado, u.plan_actual, u.plan_elegido,
+      u.plan_empresario, u.estado_cuenta, u.trial_inicio, u.trial_fin,
       u.created_at, u.ultimo_acceso,
       l.max_aves, l.aves_actuales, l.max_fotos_por_ave,
       l.profundidad_genealogia, l.analytics_avanzado,
@@ -246,6 +287,24 @@ const getProfile = asyncHandler(async (req, res) => {
 
   const user = rows[0];
 
+  // Auto-downgrade expired trial - use plan_elegido instead of hardcoded 'basico'
+  if (user.estado_cuenta === 'trial' && user.trial_fin && new Date(user.trial_fin) < new Date()) {
+    const downgradePlan = user.plan_elegido || 'basico';
+    await db.query(
+      `UPDATE usuarios SET estado_cuenta = 'vencido', plan_actual = $2 WHERE id = $1`,
+      [req.userId, downgradePlan]
+    );
+    user.estado_cuenta = 'vencido';
+    user.plan_actual = downgradePlan;
+  }
+
+  // Calculate trial days remaining
+  let trialDiasRestantes = null;
+  if (user.estado_cuenta === 'trial' && user.trial_fin) {
+    const diff = new Date(user.trial_fin).getTime() - Date.now();
+    trialDiasRestantes = Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  }
+
   res.json({
     success: true,
     data: {
@@ -258,6 +317,12 @@ const getProfile = asyncHandler(async (req, res) => {
         foto_perfil: user.foto_perfil,
         email_verificado: user.email_verificado,
         plan_actual: user.plan_actual,
+        plan_elegido: user.plan_elegido || 'basico',
+        estado_cuenta: user.estado_cuenta,
+        trial_inicio: user.trial_inicio,
+        trial_fin: user.trial_fin,
+        trial_dias_restantes: trialDiasRestantes,
+        plan_empresario: user.plan_empresario || null,
         created_at: user.created_at,
         ultimo_acceso: user.ultimo_acceso
       },

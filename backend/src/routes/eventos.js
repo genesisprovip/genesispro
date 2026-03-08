@@ -12,6 +12,46 @@ const { validateRequest: validate } = require('../middleware/validator');
 const { body, param, query } = require('express-validator');
 const db = require('../config/database');
 const logger = require('../config/logger');
+const { EMPRESARIO_CONFIG } = require('../config/stripe');
+
+/**
+ * Verify user has active empresario subscription and hasn't exceeded event limit
+ */
+async function verificarMembresiaEmpresario(userId) {
+  const { rows: [user] } = await db.query(
+    `SELECT u.plan_empresario, se.estado
+     FROM usuarios u
+     LEFT JOIN suscripciones_empresario se ON u.suscripcion_empresario_id = se.id
+     WHERE u.id = $1 AND u.deleted_at IS NULL`,
+    [userId]
+  );
+
+  if (!user?.plan_empresario || user.estado !== 'activa') {
+    throw Errors.forbidden('Necesitas una membresía de Empresario para crear eventos. Suscríbete desde tu perfil.');
+  }
+
+  const config = EMPRESARIO_CONFIG[user.plan_empresario];
+  if (!config) {
+    throw Errors.forbidden('Plan empresario no válido');
+  }
+
+  // Check monthly event limit
+  if (config.maxEventosMes !== null) {
+    const { rows: [count] } = await db.query(
+      `SELECT COUNT(*) FROM eventos_palenque
+       WHERE organizador_id = $1
+         AND deleted_at IS NULL
+         AND date_trunc('month', created_at) = date_trunc('month', NOW())`,
+      [userId]
+    );
+
+    if (parseInt(count.count) >= config.maxEventosMes) {
+      throw Errors.forbidden(`Has alcanzado el límite de ${config.maxEventosMes} eventos este mes. Actualiza a Empresario Pro para eventos ilimitados.`);
+    }
+  }
+
+  return config;
+}
 
 // ============================================
 // Validation Schemas
@@ -33,7 +73,17 @@ const eventoValidation = [
   body('entrada_costo').optional().isFloat({ min: 0 }).withMessage('Costo de entrada debe ser positivo'),
   body('imagen_url').optional().isLength({ max: 500 }).withMessage('URL de imagen muy larga'),
   body('pesaje_abre').optional().matches(/^\d{2}:\d{2}(:\d{2})?$/).withMessage('Hora de pesaje inválida (HH:MM)'),
-  body('pesaje_cierra').optional().matches(/^\d{2}:\d{2}(:\d{2})?$/).withMessage('Hora de pesaje inválida (HH:MM)')
+  body('pesaje_cierra').optional().matches(/^\d{2}:\d{2}(:\d{2})?$/).withMessage('Hora de pesaje inválida (HH:MM)'),
+  body('programa').optional().isLength({ max: 100 }).withMessage('Programa muy largo'),
+  body('costo_inscripcion').optional().isInt({ min: 0 }).withMessage('Costo de inscripción debe ser positivo'),
+  body('costo_por_pelea').optional().isInt({ min: 0 }).withMessage('Costo por pelea debe ser positivo'),
+  body('premio_campeon').optional().isInt({ min: 0 }).withMessage('Premio debe ser positivo'),
+  body('costos_extra').optional().isArray().withMessage('Costos extra debe ser un array'),
+  body('aves_por_partido').optional().isInt({ min: 1, max: 20 }).withMessage('Aves por partido: 1-20'),
+  body('reglas_navaja').optional().isLength({ max: 500 }).withMessage('Reglas de navaja muy largas'),
+  body('contacto_organizador').optional().isLength({ max: 300 }).withMessage('Contacto muy largo'),
+  body('hora_peleas').optional().matches(/^\d{2}:\d{2}(:\d{2})?$/).withMessage('Hora de peleas inválida (HH:MM)'),
+  body('ubicacion').optional().isLength({ max: 500 }).withMessage('Ubicación muy larga')
 ];
 
 const updateEventoValidation = [
@@ -50,7 +100,17 @@ const updateEventoValidation = [
   body('entrada_costo').optional().isFloat({ min: 0 }).withMessage('Costo de entrada debe ser positivo'),
   body('imagen_url').optional().isLength({ max: 500 }).withMessage('URL de imagen muy larga'),
   body('pesaje_abre').optional().matches(/^\d{2}:\d{2}(:\d{2})?$/).withMessage('Hora de pesaje inválida (HH:MM)'),
-  body('pesaje_cierra').optional().matches(/^\d{2}:\d{2}(:\d{2})?$/).withMessage('Hora de pesaje inválida (HH:MM)')
+  body('pesaje_cierra').optional().matches(/^\d{2}:\d{2}(:\d{2})?$/).withMessage('Hora de pesaje inválida (HH:MM)'),
+  body('programa').optional().isLength({ max: 100 }).withMessage('Programa muy largo'),
+  body('costo_inscripcion').optional().isInt({ min: 0 }).withMessage('Costo de inscripción debe ser positivo'),
+  body('costo_por_pelea').optional().isInt({ min: 0 }).withMessage('Costo por pelea debe ser positivo'),
+  body('premio_campeon').optional().isInt({ min: 0 }).withMessage('Premio debe ser positivo'),
+  body('costos_extra').optional().isArray().withMessage('Costos extra debe ser un array'),
+  body('aves_por_partido').optional().isInt({ min: 1, max: 20 }).withMessage('Aves por partido: 1-20'),
+  body('reglas_navaja').optional().isLength({ max: 500 }).withMessage('Reglas de navaja muy largas'),
+  body('contacto_organizador').optional().isLength({ max: 300 }).withMessage('Contacto muy largo'),
+  body('hora_peleas').optional().matches(/^\d{2}:\d{2}(:\d{2})?$/).withMessage('Hora de peleas inválida (HH:MM)'),
+  body('ubicacion').optional().isLength({ max: 500 }).withMessage('Ubicación muy larga')
 ];
 
 // ============================================
@@ -98,6 +158,59 @@ router.get('/publicos',
         totalPages: Math.ceil(total / limit)
       }
     });
+  })
+);
+
+/**
+ * @route   GET /api/v1/eventos/por-codigo/:codigo
+ * @desc    Get event info by access code (public, read-only for visitors)
+ * @access  Public
+ */
+router.get('/por-codigo/:codigo',
+  param('codigo').isLength({ min: 4, max: 12 }).withMessage('Código de acceso inválido'),
+  validate,
+  asyncHandler(async (req, res) => {
+    const { codigo } = req.params;
+
+    const { rows } = await db.query(
+      `SELECT e.id, e.nombre, e.fecha, e.hora_inicio, e.lugar, e.estado,
+              e.total_peleas, e.pelea_actual, e.tipo_derby, e.formato_derby,
+              u.nombre AS organizador_nombre
+       FROM eventos_palenque e
+       JOIN usuarios u ON e.organizador_id = u.id
+       WHERE e.codigo_acceso = $1 AND e.deleted_at IS NULL`,
+      [codigo.toUpperCase()]
+    );
+
+    if (rows.length === 0) {
+      throw Errors.notFound('Evento con ese código');
+    }
+
+    const evento = rows[0];
+
+    if (evento.estado === 'cancelado') {
+      throw Errors.badRequest('Este evento ha sido cancelado');
+    }
+
+    res.json({ success: true, data: evento });
+  })
+);
+
+/**
+ * @route   GET /api/v1/eventos/:id/avisos
+ * @desc    Public: get announcements for an event
+ * @access  Public
+ */
+router.get('/:id/avisos',
+  uuidParam('id'),
+  validate,
+  asyncHandler(async (req, res) => {
+    const { rows } = await db.query(
+      `SELECT id, mensaje, tipo, created_at FROM avisos_evento
+       WHERE evento_id = $1 ORDER BY created_at DESC LIMIT 50`,
+      [req.params.id]
+    );
+    res.json({ success: true, data: rows });
   })
 );
 
@@ -239,10 +352,50 @@ router.post('/',
   eventoValidation,
   validate,
   asyncHandler(async (req, res) => {
+    // Verify empresario membership
+    const config = await verificarMembresiaEmpresario(req.userId);
+
+    // Check simultaneous active events limit
+    if (config.maxEventosSimultaneos !== null) {
+      const { rows: [activeCount] } = await db.query(
+        `SELECT COUNT(*) FROM eventos_palenque
+         WHERE organizador_id = $1
+           AND deleted_at IS NULL
+           AND estado IN ('programado', 'en_curso')`,
+        [req.userId]
+      );
+
+      const activeEvents = parseInt(activeCount.count);
+
+      if (activeEvents >= config.maxEventosSimultaneos) {
+        // Check if user has extra events available
+        const { rows: [userData] } = await db.query(
+          'SELECT COALESCE(eventos_extra_disponibles, 0) AS extras FROM usuarios WHERE id = $1',
+          [req.userId]
+        );
+
+        if (parseInt(userData.extras) > 0) {
+          // Consume one extra event credit
+          await db.query(
+            'UPDATE usuarios SET eventos_extra_disponibles = eventos_extra_disponibles - 1 WHERE id = $1',
+            [req.userId]
+          );
+          logger.info(`User ${req.userId} used an extra event credit. Remaining: ${parseInt(userData.extras) - 1}`);
+        } else {
+          throw Errors.forbidden(
+            `Has alcanzado el limite de ${config.maxEventosSimultaneos} eventos simultaneos activos. ` +
+            `Finaliza un evento existente o compra un evento extra ($299 MXN).`
+          );
+        }
+      }
+    }
+
     const {
-      nombre, descripcion, fecha, hora_inicio, lugar, direccion,
-      tipo_derby, reglas, total_peleas, es_publico, entrada_costo, imagen_url,
-      pesaje_abre, pesaje_cierra
+      nombre, descripcion, fecha, hora_inicio, lugar, direccion, ubicacion,
+      tipo_derby, formato_derby, reglas, total_peleas, es_publico, entrada_costo, imagen_url,
+      pesaje_abre, pesaje_cierra, programa,
+      costo_inscripcion, costo_por_pelea, premio_campeon, costos_extra,
+      aves_por_partido, reglas_navaja, contacto_organizador, hora_peleas
     } = req.body;
 
     // Generate access code
@@ -253,15 +406,22 @@ router.post('/',
     const { rows } = await db.query(
       `INSERT INTO eventos_palenque (
         organizador_id, nombre, descripcion, fecha, hora_inicio, lugar, direccion,
-        tipo_derby, reglas, total_peleas, es_publico, entrada_costo, imagen_url,
-        pesaje_abre, pesaje_cierra, codigo_acceso, estado
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'programado')
+        tipo_derby, formato_derby, reglas, total_peleas, es_publico, entrada_costo, imagen_url,
+        pesaje_abre, pesaje_cierra, codigo_acceso, estado,
+        costo_inscripcion, costo_por_pelea, premio_campeon, costos_extra,
+        aves_por_partido, reglas_navaja, contacto_organizador, hora_peleas
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'programado',
+        $18, $19, $20, $21, $22, $23, $24, $25)
       RETURNING *`,
       [
         req.userId, nombre, descripcion || null, fecha, hora_inicio || null,
-        lugar || null, direccion || null, tipo_derby || null, reglas || null,
+        lugar || null, ubicacion || direccion || null, tipo_derby || programa || null,
+        formato_derby || 'normal', reglas || null,
         total_peleas || 0, es_publico || false, entrada_costo || null,
-        imagen_url || null, pesaje_abre || null, pesaje_cierra || null, codigo_acceso
+        imagen_url || null, pesaje_abre || null, pesaje_cierra || null, codigo_acceso,
+        costo_inscripcion || 0, costo_por_pelea || 0, premio_campeon || 0,
+        costos_extra ? JSON.stringify(costos_extra) : '[]',
+        aves_por_partido || 3, reglas_navaja || null, contacto_organizador || null, hora_peleas || null
       ]
     );
 
@@ -308,7 +468,9 @@ router.put('/:id',
     const allowedFields = [
       'nombre', 'descripcion', 'fecha', 'hora_inicio', 'lugar', 'direccion',
       'tipo_derby', 'reglas', 'total_peleas', 'es_publico', 'entrada_costo', 'imagen_url',
-      'pesaje_abre', 'pesaje_cierra'
+      'pesaje_abre', 'pesaje_cierra', 'programa', 'formato_derby',
+      'costo_inscripcion', 'costo_por_pelea', 'premio_campeon', 'costos_extra',
+      'aves_por_partido', 'reglas_navaja', 'contacto_organizador', 'hora_peleas', 'ubicacion'
     ];
 
     const updates = [];
@@ -747,6 +909,64 @@ router.put('/:id/participantes/:participanteId',
       success: true,
       data: rows[0]
     });
+  })
+);
+
+// ============================================
+// AVISOS (Announcements)
+// ============================================
+
+/**
+ * @route   POST /api/v1/eventos/:id/avisos
+ * @desc    Send announcement to everyone in the event
+ * @access  Private (organizer only)
+ */
+router.post('/:id/avisos',
+  uuidParam('id'),
+  body('mensaje').notEmpty().isLength({ max: 500 }).withMessage('Mensaje requerido (max 500 caracteres)'),
+  body('tipo').optional().isIn(['general', 'urgente', 'info']).withMessage('Tipo invalido'),
+  validate,
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    // Verify organizer
+    const { rows: ev } = await db.query(
+      `SELECT organizador_id FROM eventos_palenque WHERE id = $1 AND deleted_at IS NULL`, [id]
+    );
+    if (ev.length === 0) throw Errors.notFound('Evento');
+    if (ev[0].organizador_id !== req.userId) throw Errors.forbidden('Solo el organizador puede enviar avisos');
+
+    const { mensaje, tipo } = req.body;
+
+    const { rows } = await db.query(
+      `INSERT INTO avisos_evento (evento_id, mensaje, tipo) VALUES ($1, $2, $3) RETURNING *`,
+      [id, mensaje, tipo || 'general']
+    );
+
+    res.status(201).json({ success: true, data: rows[0] });
+  })
+);
+
+/**
+ * @route   DELETE /api/v1/eventos/:id/avisos/:avisoId
+ * @desc    Delete an announcement
+ * @access  Private (organizer only)
+ */
+router.delete('/:id/avisos/:avisoId',
+  uuidParam('id'),
+  uuidParam('avisoId'),
+  validate,
+  asyncHandler(async (req, res) => {
+    const { id, avisoId } = req.params;
+
+    const { rows: ev } = await db.query(
+      `SELECT organizador_id FROM eventos_palenque WHERE id = $1 AND deleted_at IS NULL`, [id]
+    );
+    if (ev.length === 0) throw Errors.notFound('Evento');
+    if (ev[0].organizador_id !== req.userId) throw Errors.forbidden('Solo el organizador');
+
+    await db.query(`DELETE FROM avisos_evento WHERE id = $1 AND evento_id = $2`, [avisoId, id]);
+    res.json({ success: true, data: { message: 'Aviso eliminado' } });
   })
 );
 

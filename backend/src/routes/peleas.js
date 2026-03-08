@@ -10,9 +10,9 @@ const { asyncHandler, Errors } = require('../middleware/errorHandler');
 const { validateRequest: validate } = require('../middleware/validator');
 const { body, param, query } = require('express-validator');
 const db = require('../config/database');
-
-// All routes require authentication
-router.use(authenticateJWT);
+const logger = require('../config/logger');
+const notificationsRouter = require('./notifications');
+const { notifyEventoParticipants, sendPushNotification } = notificationsRouter;
 
 // ============================================
 // Validation Helpers
@@ -39,6 +39,7 @@ const peleaValidation = [
 const resultadoValidation = [
   body('resultado').notEmpty().isIn(['rojo', 'verde', 'empate', 'tabla', 'cancelada']).withMessage('Resultado invalido'),
   body('duracion_minutos').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Duracion debe ser positiva'),
+  body('duracion_segundos').optional({ nullable: true }).isInt({ min: 0 }).withMessage('Duracion en segundos debe ser positiva'),
   body('tipo_victoria').optional({ nullable: true }).isIn(['gallo_huido', 'descalificacion']).withMessage('Tipo de victoria invalido'),
   body('notas').optional({ nullable: true }).isLength({ max: 1000 })
 ];
@@ -63,6 +64,121 @@ async function verifyOrganizador(eventoId, userId, client = null) {
 }
 
 // ============================================
+// Helper: notify partidos whose fight is approaching
+// Sends notifications at 8, 5, and 3 fights away
+// ============================================
+
+async function notifyUpcomingFighters(eventoId, currentPeleaNum, eventoNombre) {
+  const alertAt = [8, 5, 3]; // fights away to notify
+
+  for (const offset of alertAt) {
+    const upcomingNum = currentPeleaNum + offset;
+
+    // Find the upcoming pelea and its partidos
+    const { rows } = await db.query(`
+      SELECT p.numero_pelea, p.anillo_rojo, p.anillo_verde,
+        p.partido_rojo_id, p.partido_verde_id,
+        ad_r.partido_id AS partido_derby_rojo_id,
+        ad_v.partido_id AS partido_derby_verde_id
+      FROM peleas p
+      LEFT JOIN aves_derby ad_r ON ad_r.id = p.ave_roja_derby_id
+      LEFT JOIN aves_derby ad_v ON ad_v.id = p.ave_verde_derby_id
+      WHERE p.evento_id = $1 AND p.numero_pelea = $2 AND p.estado = 'programada'
+    `, [eventoId, upcomingNum]);
+
+    if (rows.length === 0) continue;
+
+    const pelea = rows[0];
+    const msgPrefix = offset === 3 ? 'PREPARA TU GALLO' : 'Tu pelea se acerca';
+    const bodyText = `Pelea #${pelea.numero_pelea} - Faltan ${offset} peleas para tu turno`;
+
+    // Collect user IDs to notify (partido_rojo_id and partido_verde_id if they are users)
+    const userIds = [];
+    if (pelea.partido_rojo_id) userIds.push(pelea.partido_rojo_id);
+    if (pelea.partido_verde_id) userIds.push(pelea.partido_verde_id);
+
+    // Also try to find partido owners via aves_derby -> partidos_derby
+    if (pelea.partido_derby_rojo_id) {
+      const { rows: pdRows } = await db.query(
+        `SELECT usuario_id FROM partidos_derby WHERE id = $1 AND usuario_id IS NOT NULL`,
+        [pelea.partido_derby_rojo_id]
+      );
+      if (pdRows.length > 0 && !userIds.includes(pdRows[0].usuario_id)) {
+        userIds.push(pdRows[0].usuario_id);
+      }
+    }
+    if (pelea.partido_derby_verde_id) {
+      const { rows: pdRows } = await db.query(
+        `SELECT usuario_id FROM partidos_derby WHERE id = $1 AND usuario_id IS NOT NULL`,
+        [pelea.partido_derby_verde_id]
+      );
+      if (pdRows.length > 0 && !userIds.includes(pdRows[0].usuario_id)) {
+        userIds.push(pdRows[0].usuario_id);
+      }
+    }
+
+    if (userIds.length === 0) continue;
+
+    // Get push tokens for these users
+    const { rows: tokenRows } = await db.query(`
+      SELECT DISTINCT token FROM push_tokens
+      WHERE usuario_id = ANY($1) AND activo = true
+    `, [userIds]);
+
+    const tokens = tokenRows.map(r => r.token);
+    if (tokens.length > 0) {
+      await sendPushNotification(tokens, `${msgPrefix} - ${eventoNombre}`, bodyText, {
+        tipo: 'pelea_proxima',
+        eventoId,
+        peleaNumero: pelea.numero_pelea,
+        peleasRestantes: offset,
+      });
+      logger.info(`Notified ${tokens.length} users: fight #${pelea.numero_pelea} is ${offset} away`);
+    }
+  }
+}
+
+// ============================================
+// PUBLIC ROUTES (no auth required, read-only)
+// ============================================
+
+/**
+ * @route   GET /api/v1/peleas/publico/evento/:eventoId
+ * @desc    Public read-only list of fights for an event (for visitors)
+ * @access  Public
+ */
+router.get('/publico/evento/:eventoId',
+  uuidParam('eventoId'),
+  validate,
+  asyncHandler(async (req, res) => {
+    const { eventoId } = req.params;
+
+    const { rows } = await db.query(
+      `SELECT
+        p.id, p.numero_pelea, p.estado, p.resultado,
+        p.peso_rojo, p.peso_verde, p.placa_rojo, p.placa_verde,
+        p.anillo_rojo, p.anillo_verde, p.duracion_minutos,
+        p.tipo_victoria, p.notas, p.ronda_id,
+        rd.numero_ronda,
+        ur.nombre AS partido_rojo_nombre,
+        ua.nombre AS partido_verde_nombre
+      FROM peleas p
+      LEFT JOIN usuarios ur ON ur.id = p.partido_rojo_id
+      LEFT JOIN usuarios ua ON ua.id = p.partido_verde_id
+      LEFT JOIN rondas_derby rd ON rd.id = p.ronda_id
+      WHERE p.evento_id = $1
+      ORDER BY p.numero_pelea ASC`,
+      [eventoId]
+    );
+
+    res.json({ success: true, data: rows });
+  })
+);
+
+// All remaining routes require authentication
+router.use(authenticateJWT);
+
+// ============================================
 // GET /evento/:eventoId - List fights for event
 // ============================================
 
@@ -80,11 +196,13 @@ router.get('/evento/:eventoId',
     const { rows } = await db.query(
       `SELECT
         p.*,
+        rd.numero_ronda,
         ur.nombre AS partido_rojo_nombre,
         ua.nombre AS partido_verde_nombre,
         ar.codigo_identidad AS ave_roja_codigo,
         aa.codigo_identidad AS ave_verde_codigo
       FROM peleas p
+      LEFT JOIN rondas_derby rd ON rd.id = p.ronda_id
       LEFT JOIN usuarios ur ON ur.id = p.partido_rojo_id
       LEFT JOIN usuarios ua ON ua.id = p.partido_verde_id
       LEFT JOIN aves ar ON ar.id = p.ave_roja_id
@@ -405,7 +523,11 @@ router.post('/:id/resultado',
   validate,
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { resultado, duracion_minutos, tipo_victoria, notas } = req.body;
+    const { resultado, duracion_minutos, duracion_segundos, tipo_victoria, notas } = req.body;
+
+    // Support both duracion_segundos (preferred) and duracion_minutos (legacy)
+    const totalSeconds = duracion_segundos != null ? duracion_segundos : (duracion_minutos != null ? Math.round(duracion_minutos * 60) : null);
+    const duracionMinutosValue = totalSeconds != null ? Math.round(totalSeconds / 60) : null;
 
     const { rows: existing } = await db.query(
       `SELECT * FROM peleas WHERE id = $1 AND estado != 'cancelada'`,
@@ -434,7 +556,7 @@ router.post('/:id/resultado',
           updated_at = NOW()
         WHERE id = $5
         RETURNING *`,
-        [resultado, duracion_minutos || null, tipo_victoria || null, notas, id]
+        [resultado, duracionMinutosValue, tipo_victoria || null, notas, id]
       );
 
       // Update related bets: mark as ganada/perdida based on resultado
@@ -462,6 +584,47 @@ router.post('/:id/resultado',
 
       return updated[0];
     });
+
+    // Send push notification to event participants (fire-and-forget)
+    try {
+      const { rows: eventoRows } = await db.query(
+        `SELECT nombre FROM eventos_palenque WHERE id = $1`,
+        [pelea.evento_id]
+      );
+      const eventoNombre = eventoRows.length > 0 ? eventoRows[0].nombre : 'Evento';
+
+      // Format duration as MM:SS from seconds
+      let duracionStr = '';
+      if (totalSeconds != null) {
+        const mins = Math.floor(totalSeconds / 60);
+        const secs = totalSeconds % 60;
+        duracionStr = ` en ${mins}:${String(secs).padStart(2, '0')}`;
+      }
+
+      let bodyText;
+      if (resultado === 'rojo') {
+        bodyText = `Gana ROJO${duracionStr}`;
+      } else if (resultado === 'verde') {
+        bodyText = `Gana VERDE${duracionStr}`;
+      } else if (resultado === 'empate' || resultado === 'tabla') {
+        bodyText = `TABLAS${duracionStr}`;
+      } else {
+        bodyText = `Pelea cancelada`;
+      }
+
+      notifyEventoParticipants(
+        pelea.evento_id,
+        `Pelea #${pelea.numero_pelea} - ${eventoNombre}`,
+        bodyText,
+        { tipo: 'resultado_pelea', peleaId: id, resultado }
+      ).catch(err => logger.error('Error sending fight result notification:', err));
+
+      // Notify partidos whose fights are coming up (8, 5, 3 fights away)
+      notifyUpcomingFighters(pelea.evento_id, pelea.numero_pelea, eventoNombre)
+        .catch(err => logger.error('Error sending upcoming fight notifications:', err));
+    } catch (notifError) {
+      logger.error('Error preparing fight result notification:', notifError);
+    }
 
     res.json({ success: true, data: result });
   })

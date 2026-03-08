@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>GenesisPro - Transmitir en Vivo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0F172A;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        /* Embedded mode: full black, no chrome */
+        body.embedded {
+            background: #000;
+        }
+        body.embedded .header,
+        body.embedded .controls,
+        body.embedded .status-bar,
+        body.embedded .debug-log,
+        body.embedded .video-overlay { display: none !important; }
+        body.embedded .video-container { flex: 1; }
+        body.embedded #localVideo { width: 100%; height: 100%; object-fit: cover; }
+
+        .header {
+            background: linear-gradient(135deg, #0F172A, #1E293B);
+            padding: 16px;
+            text-align: center;
+            border-bottom: 1px solid #334155;
+        }
+        .header h1 { font-size: 18px; color: #10B981; }
+        .header p { font-size: 12px; color: #94A3B8; margin-top: 4px; }
+
+        .video-container {
+            flex: 1;
+            position: relative;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #localVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .video-overlay {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-live { background: #EF4444; }
+        .badge-ready { background: #F59E0B; }
+        .badge-off { background: #64748B; }
+
+        .controls {
+            background: #1E293B;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .btn {
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: opacity 0.2s;
+        }
+        .btn:active { opacity: 0.8; }
+        .btn-start { background: #10B981; color: #fff; }
+        .btn-stop { background: #EF4444; color: #fff; }
+        .btn-switch { background: #6366F1; color: #fff; font-size: 14px; padding: 10px; }
+
+        .status-bar {
+            background: #0F172A;
+            padding: 12px 16px;
+            text-align: center;
+            font-size: 13px;
+            color: #94A3B8;
+            border-top: 1px solid #334155;
+        }
+        .status-bar.connected { color: #10B981; }
+        .status-bar.error { color: #EF4444; }
+
+        .setup-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            text-align: center;
+        }
+        .setup-screen h2 { color: #10B981; margin-bottom: 8px; }
+        .setup-screen p { color: #94A3B8; font-size: 14px; margin-bottom: 24px; }
+
+        .btn-row { display: flex; gap: 8px; }
+        .btn-row .btn { flex: 1; }
+
+        .timer {
+            font-size: 20px;
+            font-weight: 700;
+            color: #EF4444;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .debug-log {
+            background: #0F172A;
+            padding: 8px 16px;
+            font-size: 11px;
+            color: #64748B;
+            max-height: 80px;
+            overflow-y: auto;
+            border-top: 1px solid #1E293B;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div id="setupScreen" class="setup-screen">
+        <h2>Transmision en Vivo</h2>
+        <p>Necesitas permitir acceso a la camara y microfono</p>
+        <button class="btn btn-start" onclick="initBroadcast()">Iniciar Camara</button>
+    </div>
+
+    <div id="broadcastScreen" style="display:none; flex-direction:column; flex:1;">
+        <div class="header">
+            <h1>GenesisPro Live</h1>
+            <p id="eventName">Transmision en Vivo</p>
+        </div>
+
+        <div class="video-container">
+            <video id="localVideo" autoplay muted playsinline></video>
+            <div class="video-overlay">
+                <span id="statusBadge" class="badge badge-ready">LISTO</span>
+                <span id="timerBadge" class="timer" style="display:none;">00:00</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="btn-row">
+                <button id="startBtn" class="btn btn-start" onclick="startStreaming()">Transmitir</button>
+                <button id="switchBtn" class="btn btn-switch" onclick="switchCamera()">Cambiar Cam</button>
+            </div>
+            <button id="stopBtn" class="btn btn-stop" style="display:none;" onclick="stopStreaming()">Detener Transmision</button>
+        </div>
+
+        <div id="statusBar" class="status-bar">Camara lista. Presiona "Transmitir" para iniciar.</div>
+        <div id="debugLog" class="debug-log"></div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const streamKey = urlParams.get('key');
+        const eventoNombre = urlParams.get('evento') || 'Transmision en Vivo';
+        const isEmbedded = urlParams.get('embedded') === '1';
+
+        // WebSocket signaling through nginx WSS proxy (direction=send for WebRTC ingest)
+        const SIGNALLING_URL = 'wss://live.genesispro.vip/ws/live/' + streamKey + '?direction=send';
+
+        let localStream = null;
+        let peerConnection = null;
+        let ws = null;
+        let isStreaming = false;
+        let timerInterval = null;
+        let startTime = null;
+        let facingMode = 'environment';
+        let omeSessionId = null;
+        let omePeerId = null;
+        let wakeLock = null;
+
+        // Send message to React Native WebView (when embedded)
+        function sendToApp(type, data) {
+            if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: type, data: data }));
+            }
+        }
+
+        // Keep screen on while broadcasting
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    log('Pantalla bloqueada (no se apagara)');
+                    wakeLock.addEventListener('release', () => {
+                        log('Wake lock liberado');
+                    });
+                }
+            } catch (e) {
+                log('Wake lock no disponible: ' + e.message);
+            }
+        }
+
+        // Re-acquire wake lock when page becomes visible again
+        document.addEventListener('visibilitychange', async () => {
+            if (document.visibilityState === 'visible' && isStreaming) {
+                await requestWakeLock();
+            }
+        });
+
+        function log(msg) {
+            console.log(msg);
+            sendToApp('log', msg);
+            const el = document.getElementById('debugLog');
+            if (el) {
+                el.textContent += new Date().toLocaleTimeString() + ' ' + msg + '\n';
+                el.scrollTop = el.scrollHeight;
+            }
+        }
+
+        async function initBroadcast() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: facingMode,
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        frameRate: { ideal: 24 }
+                    },
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+
+                document.getElementById('localVideo').srcObject = localStream;
+                document.getElementById('setupScreen').style.display = 'none';
+                const bs = document.getElementById('broadcastScreen');
+                bs.style.display = 'flex';
+                document.getElementById('eventName').textContent = eventoNombre;
+                log('Camara iniciada OK');
+
+                // In embedded mode, auto-start streaming
+                if (isEmbedded) {
+                    startStreaming();
+                }
+            } catch (err) {
+                log('Error camara: ' + err.message);
+                sendToApp('error', 'camera_denied');
+                if (!isEmbedded) {
+                    alert('Error al acceder a la camara: ' + err.message);
+                }
+            }
+        }
+
+        async function startStreaming() {
+            if (!localStream || !streamKey) {
+                if (!isEmbedded) alert('No hay camara activa o falta el stream key');
+                sendToApp('status', 'error');
+                return;
+            }
+
+            const statusBar = document.getElementById('statusBar');
+            if (statusBar) {
+                statusBar.textContent = 'Conectando...';
+                statusBar.className = 'status-bar';
+            }
+            sendToApp('status', 'connecting');
+
+            log('Conectando a: ' + SIGNALLING_URL);
+
+            try {
+                ws = new WebSocket(SIGNALLING_URL);
+
+                ws.onopen = () => {
+                    log('WebSocket conectado, enviando request_offer...');
+
+                    // OvenMediaEngine signaling protocol:
+                    // 1. Client sends request_offer
+                    // 2. Server responds with offer + candidates
+                    // 3. Client sends answer
+                    ws.send(JSON.stringify({
+                        command: 'request_offer'
+                    }));
+                };
+
+                ws.onmessage = async (event) => {
+                    try {
+                        const msg = JSON.parse(event.data);
+                        log('Recibido: ' + msg.command);
+
+                        if (msg.command === 'offer') {
+                            // Save session IDs from OME (required for answer/candidate)
+                            omeSessionId = msg.id;
+                            omePeerId = msg.peer_id;
+                            log('Session id=' + omeSessionId + ' peer_id=' + omePeerId);
+
+                            // OME sent us an offer
+                            peerConnection = createPeerConnection();
+
+                            // Add local tracks BEFORE setting remote description
+                            localStream.getTracks().forEach(track => {
+                                peerConnection.addTrack(track, localStream);
+                            });
+
+                            // Set remote description (OME's offer)
+                            await peerConnection.setRemoteDescription(
+                                new RTCSessionDescription(msg.sdp)
+                            );
+
+                            // Add ICE candidates from OME
+                            if (msg.candidates) {
+                                for (const candidate of msg.candidates) {
+                                    try {
+                                        await peerConnection.addIceCandidate(
+                                            new RTCIceCandidate(candidate)
+                                        );
+                                    } catch (e) {
+                                        log('ICE candidate error: ' + e.message);
+                                    }
+                                }
+                            }
+
+                            // Create and send answer with session IDs
+                            const answer = await peerConnection.createAnswer();
+                            await peerConnection.setLocalDescription(answer);
+
+                            ws.send(JSON.stringify({
+                                command: 'answer',
+                                id: omeSessionId,
+                                peer_id: omePeerId,
+                                sdp: peerConnection.localDescription
+                            }));
+
+                            log('Answer enviado con id=' + omeSessionId);
+
+                        } else if (msg.command === 'candidate') {
+                            // Additional ICE candidate
+                            if (peerConnection && msg.candidates) {
+                                for (const candidate of msg.candidates) {
+                                    try {
+                                        await peerConnection.addIceCandidate(
+                                            new RTCIceCandidate(candidate)
+                                        );
+                                    } catch (e) {
+                                        log('ICE candidate error: ' + e.message);
+                                    }
+                                }
+                            }
+                        } else if (msg.command === 'error') {
+                            log('Error del servidor: ' + (msg.message || JSON.stringify(msg)));
+                            if (statusBar) {
+                                statusBar.textContent = 'Error: ' + (msg.message || 'Error del servidor');
+                                statusBar.className = 'status-bar error';
+                            }
+                            sendToApp('status', 'error');
+                        }
+                    } catch (e) {
+                        log('Error procesando mensaje: ' + e.message);
+                    }
+                };
+
+                ws.onerror = (err) => {
+                    log('WebSocket error');
+                    if (statusBar) {
+                        statusBar.textContent = 'Error de conexion WebSocket';
+                        statusBar.className = 'status-bar error';
+                    }
+                    sendToApp('status', 'error');
+                };
+
+                ws.onclose = (event) => {
+                    log('WebSocket cerrado: code=' + event.code + ' reason=' + event.reason);
+                    if (isStreaming) {
+                        // Auto-reconnect
+                        sendToApp('status', 'reconnecting');
+                        setTimeout(() => { startStreaming(); }, 3000);
+                    } else if (statusBar) {
+                        statusBar.textContent = 'Conexion cerrada. Intenta de nuevo.';
+                        statusBar.className = 'status-bar error';
+                    }
+                };
+
+            } catch (err) {
+                log('Error: ' + err.message);
+                if (statusBar) {
+                    statusBar.textContent = 'Error: ' + err.message;
+                    statusBar.className = 'status-bar error';
+                }
+                sendToApp('status', 'error');
+            }
+        }
+
+        function createPeerConnection() {
+            const pc = new RTCPeerConnection({
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' }
+                ]
+            });
+
+            pc.onicecandidate = (event) => {
+                if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
+                    log('Enviando ICE candidate local');
+                    ws.send(JSON.stringify({
+                        command: 'candidate',
+                        id: omeSessionId,
+                        peer_id: omePeerId,
+                        candidates: [event.candidate]
+                    }));
+                }
+            };
+
+            pc.oniceconnectionstatechange = () => {
+                log('ICE state: ' + pc.iceConnectionState);
+                const statusBar = document.getElementById('statusBar');
+
+                switch (pc.iceConnectionState) {
+                    case 'connected':
+                    case 'completed':
+                        onStreamingStarted();
+                        break;
+                    case 'disconnected':
+                        if (statusBar) {
+                            statusBar.textContent = 'Conexion perdida, intentando reconectar...';
+                            statusBar.className = 'status-bar error';
+                        }
+                        sendToApp('status', 'reconnecting');
+                        break;
+                    case 'failed':
+                        if (statusBar) {
+                            statusBar.textContent = 'Conexion fallida';
+                            statusBar.className = 'status-bar error';
+                        }
+                        sendToApp('status', 'error');
+                        break;
+                }
+            };
+
+            pc.onconnectionstatechange = () => {
+                log('Connection state: ' + pc.connectionState);
+            };
+
+            return pc;
+        }
+
+        function onStreamingStarted() {
+            if (isStreaming) return;
+            isStreaming = true;
+
+            var badge = document.getElementById('statusBadge');
+            if (badge) {
+                badge.textContent = 'EN VIVO';
+                badge.className = 'badge badge-live';
+            }
+            var timer = document.getElementById('timerBadge');
+            if (timer) timer.style.display = 'inline';
+            var startBtn = document.getElementById('startBtn');
+            if (startBtn) startBtn.style.display = 'none';
+            var stopBtn = document.getElementById('stopBtn');
+            if (stopBtn) stopBtn.style.display = 'block';
+
+            const statusBar = document.getElementById('statusBar');
+            if (statusBar) {
+                statusBar.textContent = 'Transmitiendo en vivo';
+                statusBar.className = 'status-bar connected';
+            }
+
+            startTime = Date.now();
+            timerInterval = setInterval(updateTimer, 1000);
+            requestWakeLock();
+            log('TRANSMISION EN VIVO');
+            sendToApp('status', 'live');
+        }
+
+        function updateTimer() {
+            if (!startTime) return;
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+            const secs = (elapsed % 60).toString().padStart(2, '0');
+            var timer = document.getElementById('timerBadge');
+            if (timer) timer.textContent = mins + ':' + secs;
+        }
+
+        function stopStreaming() {
+            isStreaming = false;
+
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+
+            var badge = document.getElementById('statusBadge');
+            if (badge) {
+                badge.textContent = 'DETENIDO';
+                badge.className = 'badge badge-off';
+            }
+            var timer = document.getElementById('timerBadge');
+            if (timer) timer.style.display = 'none';
+            var startBtn = document.getElementById('startBtn');
+            if (startBtn) startBtn.style.display = 'block';
+            var stopBtn = document.getElementById('stopBtn');
+            if (stopBtn) stopBtn.style.display = 'none';
+
+            if (wakeLock) {
+                wakeLock.release();
+                wakeLock = null;
+            }
+
+            if (localStream) {
+                localStream.getTracks().forEach(t => t.stop());
+                localStream = null;
+            }
+
+            var statusBar = document.getElementById('statusBar');
+            if (statusBar) {
+                statusBar.textContent = 'Transmision detenida';
+                statusBar.className = 'status-bar';
+            }
+            log('Transmision detenida');
+            sendToApp('status', 'stopped');
+        }
+
+        async function switchCamera() {
+            facingMode = facingMode === 'environment' ? 'user' : 'environment';
+
+            if (localStream) {
+                localStream.getTracks().forEach(t => t.stop());
+            }
+
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: facingMode,
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        frameRate: { ideal: 24 }
+                    },
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+
+                document.getElementById('localVideo').srcObject = localStream;
+
+                if (peerConnection && isStreaming) {
+                    const senders = peerConnection.getSenders();
+                    const videoTrack = localStream.getVideoTracks()[0];
+                    const audioTrack = localStream.getAudioTracks()[0];
+
+                    for (const sender of senders) {
+                        if (sender.track && sender.track.kind === 'video' && videoTrack) {
+                            await sender.replaceTrack(videoTrack);
+                        }
+                        if (sender.track && sender.track.kind === 'audio' && audioTrack) {
+                            await sender.replaceTrack(audioTrack);
+                        }
+                    }
+                }
+                log('Camara cambiada a: ' + facingMode);
+            } catch (err) {
+                log('Error al cambiar camara: ' + err.message);
+                if (!isEmbedded) alert('Error al cambiar camara: ' + err.message);
+            }
+        }
+
+        // Listen for commands from React Native WebView
+        window.addEventListener('message', function(e) {
+            try {
+                var cmd = JSON.parse(e.data);
+                if (cmd.action === 'stop') stopStreaming();
+                if (cmd.action === 'switchCamera') switchCamera();
+            } catch(ex) {}
+        });
+        // Also for Android
+        document.addEventListener('message', function(e) {
+            try {
+                var cmd = JSON.parse(e.data);
+                if (cmd.action === 'stop') stopStreaming();
+                if (cmd.action === 'switchCamera') switchCamera();
+            } catch(ex) {}
+        });
+
+        // In embedded mode, auto-start immediately
+        if (isEmbedded) {
+            document.body.classList.add('embedded');
+            document.getElementById('setupScreen').style.display = 'none';
+            document.getElementById('broadcastScreen').style.display = 'flex';
+            initBroadcast();
+        }
+    </script>
+</body>
+</html>

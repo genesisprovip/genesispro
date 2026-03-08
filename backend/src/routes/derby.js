@@ -11,9 +11,145 @@ const { validateRequest: validate } = require('../middleware/validator');
 const { body, param, query } = require('express-validator');
 const db = require('../config/database');
 
-router.use(authenticateJWT);
-
 const uuidParam = (field) => param(field).isUUID().withMessage(`${field} invalido`);
+
+// Generate random alphanumeric code (6 chars)
+function generarCodigoAcceso() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // No I/O/0/1 to avoid confusion
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+// ============================================
+// PUBLIC ROUTES (no auth, read-only for visitors)
+// ============================================
+
+/**
+ * GET /api/v1/derby/:eventoId/partido-por-codigo/:codigo
+ * Public: validate partido code and return partido info with their fights
+ */
+router.get('/:eventoId/partido-por-codigo/:codigo',
+  uuidParam('eventoId'),
+  param('codigo').notEmpty().isLength({ min: 4, max: 10 }),
+  validate,
+  asyncHandler(async (req, res) => {
+    const { eventoId, codigo } = req.params;
+
+    const { rows } = await db.query(
+      `SELECT p.id, p.nombre, p.numero_partido, p.puntos, p.es_comodin, p.codigo_acceso
+       FROM partidos_derby p
+       WHERE p.evento_id = $1 AND UPPER(p.codigo_acceso) = UPPER($2) AND p.estado = 'activo'`,
+      [eventoId, codigo]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Codigo de partido no valido para este evento' });
+    }
+
+    // Get this partido's fights
+    const partido = rows[0];
+    const { rows: peleas } = await db.query(
+      `SELECT p.id, p.numero_pelea, p.estado, p.resultado,
+        p.anillo_rojo, p.peso_rojo, p.placa_rojo,
+        p.anillo_verde, p.peso_verde, p.placa_verde,
+        p.ave_roja_derby_id, p.ave_verde_derby_id,
+        p.duracion_minutos, p.tipo_victoria
+       FROM peleas p
+       LEFT JOIN aves_derby ar ON ar.id = p.ave_roja_derby_id
+       LEFT JOIN aves_derby av ON av.id = p.ave_verde_derby_id
+       WHERE p.evento_id = $1
+         AND (ar.partido_id = $2 OR av.partido_id = $2)
+       ORDER BY p.numero_pelea ASC`,
+      [eventoId, partido.id]
+    );
+
+    // Enrich each fight with partido perspective (which corner am I?)
+    const misPeleas = peleas.map(pelea => {
+      // Check if this partido's ave is on rojo or verde side
+      // We need to query aves_derby to know
+      return pelea;
+    });
+
+    // Get aves for this partido
+    const { rows: misAves } = await db.query(
+      `SELECT id, numero_ave, peso, anillo, placa, color, estado, ronda_asignada
+       FROM aves_derby WHERE partido_id = $1 ORDER BY numero_ave ASC`,
+      [partido.id]
+    );
+
+    // Determine which corner for each fight
+    for (const pelea of misPeleas) {
+      const aveRojaEsMia = misAves.some(a => a.id === pelea.ave_roja_derby_id);
+      const aveVerdeEsMia = misAves.some(a => a.id === pelea.ave_verde_derby_id);
+      pelea.mi_esquina = aveRojaEsMia ? 'rojo' : aveVerdeEsMia ? 'verde' : null;
+      pelea.mi_anillo = aveRojaEsMia ? pelea.anillo_rojo : pelea.anillo_verde;
+      pelea.mi_peso = aveRojaEsMia ? pelea.peso_rojo : pelea.peso_verde;
+      pelea.oponente_nombre = aveRojaEsMia ? pelea.placa_verde : pelea.placa_rojo;
+      pelea.oponente_anillo = aveRojaEsMia ? pelea.anillo_verde : pelea.anillo_rojo;
+      pelea.oponente_peso = aveRojaEsMia ? pelea.peso_verde : pelea.peso_rojo;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        partido,
+        peleas: misPeleas,
+        aves: misAves
+      }
+    });
+  })
+);
+
+/**
+ * GET /api/v1/derby/:eventoId/tabla-publica
+ * Public standings table for visitors
+ */
+router.get('/:eventoId/tabla-publica',
+  uuidParam('eventoId'),
+  validate,
+  asyncHandler(async (req, res) => {
+    const { eventoId } = req.params;
+
+    const { rows } = await db.query(
+      `SELECT p.id, p.nombre AS nombre_partido, p.numero_partido, p.puntos, p.estado, p.es_comodin,
+        (SELECT COUNT(*) FROM aves_derby a WHERE a.partido_id = p.id) AS total_aves,
+        (SELECT COUNT(*) FROM aves_derby a WHERE a.partido_id = p.id AND a.estado = 'disponible') AS aves_disponibles,
+        (SELECT COUNT(*) FROM peleas pl
+          JOIN aves_derby ar ON ar.id = pl.ave_roja_derby_id
+          WHERE ar.partido_id = p.id AND pl.resultado = 'rojo' AND pl.estado = 'finalizada') +
+        (SELECT COUNT(*) FROM peleas pl
+          JOIN aves_derby av ON av.id = pl.ave_verde_derby_id
+          WHERE av.partido_id = p.id AND pl.resultado = 'verde' AND pl.estado = 'finalizada')
+        AS victorias,
+        (SELECT COUNT(*) FROM peleas pl
+          JOIN aves_derby ar ON ar.id = pl.ave_roja_derby_id
+          WHERE ar.partido_id = p.id AND pl.resultado = 'verde' AND pl.estado = 'finalizada') +
+        (SELECT COUNT(*) FROM peleas pl
+          JOIN aves_derby av ON av.id = pl.ave_verde_derby_id
+          WHERE av.partido_id = p.id AND pl.resultado = 'rojo' AND pl.estado = 'finalizada')
+        AS derrotas,
+        (SELECT COUNT(*) FROM peleas pl
+          JOIN aves_derby ar ON ar.id = pl.ave_roja_derby_id
+          WHERE ar.partido_id = p.id AND (pl.resultado = 'tabla' OR pl.resultado = 'empate') AND pl.estado = 'finalizada') +
+        (SELECT COUNT(*) FROM peleas pl
+          JOIN aves_derby av ON av.id = pl.ave_verde_derby_id
+          WHERE av.partido_id = p.id AND (pl.resultado = 'tabla' OR pl.resultado = 'empate') AND pl.estado = 'finalizada')
+        AS tablas
+      FROM partidos_derby p
+      WHERE p.evento_id = $1 AND p.estado = 'activo'
+      ORDER BY p.puntos DESC, victorias DESC, p.numero_partido ASC`,
+      [eventoId]
+    );
+
+    res.json({ success: true, data: rows });
+  })
+);
+
+// All routes below require authentication
+router.use(authenticateJWT);
 
 // Helper: verify organizer
 async function verifyOrganizador(eventoId, userId) {
@@ -24,6 +160,17 @@ async function verifyOrganizador(eventoId, userId) {
   if (rows.length === 0) throw Errors.notFound('Evento');
   if (rows[0].organizador_id !== userId) throw Errors.forbidden('Solo el organizador');
   return rows[0];
+}
+
+// Helper: verify registration is still open (no sorteo done yet)
+async function verificarRegistroAbierto(eventoId) {
+  const { rows } = await db.query(
+    `SELECT id FROM rondas_derby WHERE evento_id = $1 LIMIT 1`,
+    [eventoId]
+  );
+  if (rows.length > 0) {
+    throw Errors.badRequest('Registro cerrado: el sorteo ya fue realizado. Elimina las rondas para volver a abrir el registro.');
+  }
 }
 
 // ============================================
@@ -67,6 +214,7 @@ router.post('/:eventoId/partidos',
   asyncHandler(async (req, res) => {
     const { eventoId } = req.params;
     await verifyOrganizador(eventoId, req.userId);
+    await verificarRegistroAbierto(eventoId);
 
     const { nombre, usuario_id, notas } = req.body;
 
@@ -77,10 +225,22 @@ router.post('/:eventoId/partidos',
     );
     const numero = maxRows[0].next_num;
 
+    // Generate unique codigo_acceso
+    let codigoAcceso;
+    let intentos = 0;
+    while (intentos < 10) {
+      codigoAcceso = generarCodigoAcceso();
+      const { rows: existing } = await db.query(
+        `SELECT id FROM partidos_derby WHERE codigo_acceso = $1`, [codigoAcceso]
+      );
+      if (existing.length === 0) break;
+      intentos++;
+    }
+
     const { rows } = await db.query(
-      `INSERT INTO partidos_derby (evento_id, usuario_id, nombre, numero_partido, notas)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [eventoId, usuario_id || null, nombre, numero, notas || null]
+      `INSERT INTO partidos_derby (evento_id, usuario_id, nombre, numero_partido, notas, codigo_acceso)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [eventoId, usuario_id || null, nombre, numero, notas || null, codigoAcceso]
     );
 
     res.status(201).json({ success: true, data: rows[0] });
@@ -142,6 +302,7 @@ router.delete('/partidos/:id',
     );
     if (existing.length === 0) throw Errors.notFound('Partido');
     if (existing[0].organizador_id !== req.userId) throw Errors.forbidden('Solo el organizador');
+    await verificarRegistroAbierto(existing[0].evento_id);
 
     await db.query(`DELETE FROM aves_derby WHERE partido_id = $1`, [id]);
     await db.query(`DELETE FROM partidos_derby WHERE id = $1`, [id]);
@@ -201,6 +362,7 @@ router.post('/:eventoId/aves',
   asyncHandler(async (req, res) => {
     const { eventoId } = req.params;
     await verifyOrganizador(eventoId, req.userId);
+    await verificarRegistroAbierto(eventoId);
 
     const { partido_id, peso, anillo, placa, color } = req.body;
 
@@ -286,6 +448,7 @@ router.delete('/aves/:id',
     );
     if (existing.length === 0) throw Errors.notFound('Ave');
     if (existing[0].organizador_id !== req.userId) throw Errors.forbidden('Solo el organizador');
+    await verificarRegistroAbierto(existing[0].evento_id);
 
     await db.query(`DELETE FROM aves_derby WHERE id = $1`, [id]);
     res.json({ success: true, data: { message: 'Ave eliminada' } });
@@ -317,6 +480,76 @@ router.get('/:eventoId/rondas',
     );
 
     res.json({ success: true, data: rows });
+  })
+);
+
+/**
+ * DELETE /api/v1/derby/rondas/:rondaId
+ * Delete a round and its fights (only if no fights have started)
+ */
+router.delete('/rondas/:rondaId',
+  uuidParam('rondaId'),
+  validate,
+  asyncHandler(async (req, res) => {
+    const { rondaId } = req.params;
+
+    // Get ronda with evento info
+    const { rows: rondaRows } = await db.query(
+      `SELECT r.*, e.organizador_id FROM rondas_derby r
+       JOIN eventos_palenque e ON e.id = r.evento_id
+       WHERE r.id = $1`, [rondaId]
+    );
+    if (rondaRows.length === 0) throw Errors.notFound('Ronda');
+    if (rondaRows[0].organizador_id !== req.userId) throw Errors.forbidden('Solo el organizador');
+
+    const ronda = rondaRows[0];
+
+    // Check no fights have started or finished
+    const { rows: started } = await db.query(
+      `SELECT COUNT(*) AS cnt FROM peleas WHERE ronda_id = $1 AND estado != 'programada'`,
+      [rondaId]
+    );
+    if (parseInt(started[0].cnt) > 0) {
+      throw Errors.badRequest('No se puede eliminar: hay peleas iniciadas o finalizadas en esta ronda');
+    }
+
+    // Get ave IDs from fights in this round to reset ronda_asignada
+    const { rows: peleaAves } = await db.query(
+      `SELECT ave_roja_derby_id, ave_verde_derby_id FROM peleas WHERE ronda_id = $1`,
+      [rondaId]
+    );
+
+    const aveIds = peleaAves.flatMap(p => [p.ave_roja_derby_id, p.ave_verde_derby_id]).filter(Boolean);
+
+    // Delete fights in this round
+    await db.query(`DELETE FROM peleas WHERE ronda_id = $1`, [rondaId]);
+
+    // Reset aves ronda_asignada
+    if (aveIds.length > 0) {
+      await db.query(
+        `UPDATE aves_derby SET ronda_asignada = NULL, updated_at = NOW() WHERE id = ANY($1)`,
+        [aveIds]
+      );
+    }
+
+    // Delete the round
+    await db.query(`DELETE FROM rondas_derby WHERE id = $1`, [rondaId]);
+
+    // Update total_peleas and reset pelea_actual if needed
+    const remainingPeleas = await db.query(
+      `SELECT COUNT(*) AS cnt FROM peleas WHERE evento_id = $1`, [ronda.evento_id]
+    );
+    const newTotal = parseInt(remainingPeleas.rows[0].cnt);
+    await db.query(
+      `UPDATE eventos_palenque SET
+        total_peleas = $2,
+        pelea_actual = CASE WHEN pelea_actual > $2 THEN GREATEST($2, 1) ELSE pelea_actual END,
+        updated_at = NOW()
+      WHERE id = $1`,
+      [ronda.evento_id, newTotal]
+    );
+
+    res.json({ success: true, data: { message: 'Ronda eliminada. Puedes agregar partidos y volver a sortear.' } });
   })
 );
 
@@ -398,7 +631,7 @@ router.post('/:eventoId/sorteo',
               p.es_comodin AS partido_comodin, p.estado AS partido_estado
        FROM aves_derby a
        JOIN partidos_derby p ON p.id = a.partido_id
-       WHERE a.evento_id = $1 AND a.estado = 'disponible' AND p.estado = 'activo'
+       WHERE a.evento_id = $1 AND a.estado = 'disponible' AND a.ronda_asignada IS NULL AND p.estado = 'activo'
        ORDER BY a.peso ASC`,
       [eventoId]
     );
@@ -559,6 +792,15 @@ router.post('/:eventoId/sorteo',
     // Check for unpaired (impar)
     const sinParear = candidatos.filter((_, i) => !usados.has(i));
 
+    // Update total_peleas to match actual peleas count
+    await db.query(
+      `UPDATE eventos_palenque SET
+        total_peleas = (SELECT COUNT(*) FROM peleas WHERE evento_id = $1),
+        updated_at = NOW()
+      WHERE id = $1`,
+      [eventoId]
+    );
+
     res.json({
       success: true,
       data: {
@@ -611,10 +853,11 @@ router.post('/:eventoId/comodin',
       [eventoId]
     );
 
+    const codigoComodin = generarCodigoAcceso();
     const { rows: partido } = await db.query(
-      `INSERT INTO partidos_derby (evento_id, nombre, numero_partido, es_comodin)
-       VALUES ($1, $2, $3, true) RETURNING *`,
-      [eventoId, nombre + ' (Comodín)', maxP[0].n]
+      `INSERT INTO partidos_derby (evento_id, nombre, numero_partido, es_comodin, codigo_acceso)
+       VALUES ($1, $2, $3, true, $4) RETURNING *`,
+      [eventoId, nombre + ' (Comodín)', maxP[0].n, codigoComodin]
     );
 
     // Create comodin ave
@@ -664,6 +907,12 @@ router.post('/:eventoId/comodin',
         ave[0].id, anillo, peso / 1000, nombre + ' (Comodín)',
         navajaDerecha
       ]
+    );
+
+    // Update total_peleas
+    await db.query(
+      `UPDATE eventos_palenque SET total_peleas = (SELECT COUNT(*) FROM peleas WHERE evento_id = $1), updated_at = NOW() WHERE id = $1`,
+      [eventoId]
     );
 
     res.status(201).json({

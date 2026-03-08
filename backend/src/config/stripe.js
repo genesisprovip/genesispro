@@ -57,7 +57,61 @@ const PRICE_IDS = {
   pro_yearly: process.env.STRIPE_PRICE_PRO_YEARLY || '',
   premium_monthly: process.env.STRIPE_PRICE_PREMIUM_MONTHLY || '',
   premium_yearly: process.env.STRIPE_PRICE_PREMIUM_YEARLY || '',
+  // Empresario Palenque
+  empresario_basico: process.env.STRIPE_PRICE_EMPRESARIO_BASICO || '',
+  empresario_pro: process.env.STRIPE_PRICE_EMPRESARIO_PRO || '',
+  empresario_premium: process.env.STRIPE_PRICE_EMPRESARIO_PREMIUM || '',
 };
+
+// Empresario plan config
+const EMPRESARIO_CONFIG = {
+  empresario_basico: {
+    nombre: 'Empresario Basico',
+    precio: 799, // MXN/mes
+    maxEventosMes: 4, // can buy extras at $299 each
+    maxEventosSimultaneos: 2,
+    cartel: true,
+    avisos: true,
+    participantesIlimitados: true,
+    estadisticasEvento: false,
+    streamingEnVivo: false,
+    estadisticasAlcance: false,
+    comisionesReferidos: false,
+  },
+  empresario_pro: {
+    nombre: 'Empresario Pro',
+    precio: 1999, // MXN/mes
+    maxEventosMes: null, // unlimited
+    maxEventosSimultaneos: 5,
+    cartel: true,
+    avisos: true,
+    participantesIlimitados: true,
+    estadisticasEvento: true,
+    streamingEnVivo: false,
+    estadisticasAlcance: false,
+    comisionesReferidos: false,
+  },
+  empresario_premium: {
+    nombre: 'Empresario Premium',
+    precio: 2999, // MXN/mes
+    maxEventosMes: null, // unlimited
+    maxEventosSimultaneos: 10,
+    cartel: true,
+    avisos: true,
+    participantesIlimitados: true,
+    estadisticasEvento: true,
+    streamingEnVivo: true,
+    estadisticasAlcance: true,
+    comisionesReferidos: true,
+  },
+};
+
+function getEmpresarioPlanFromPriceId(priceId) {
+  if (priceId === PRICE_IDS.empresario_basico) return 'empresario_basico';
+  if (priceId === PRICE_IDS.empresario_pro) return 'empresario_pro';
+  if (priceId === PRICE_IDS.empresario_premium) return 'empresario_premium';
+  return null;
+}
 
 function getPlanFromPriceId(priceId) {
   if (priceId === PRICE_IDS.basico_monthly || priceId === PRICE_IDS.basico_yearly) return 'basico';
@@ -78,7 +132,9 @@ function getBillingInterval(priceId) {
 module.exports = {
   stripe,
   PLAN_CONFIG,
+  EMPRESARIO_CONFIG,
   PRICE_IDS,
   getPlanFromPriceId,
+  getEmpresarioPlanFromPriceId,
   getBillingInterval,
 };

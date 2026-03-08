@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GenesisPro - Gestión Profesional de Gallos de Combate</title>
+  <meta name="description" content="GenesisPro: la app para criadores, galleros y empresarios de palenque. Control de aves, derby, salud, genética y eventos en vivo.">
+  <meta property="og:title" content="GenesisPro - Gestión de Gallos de Combate">
+  <meta property="og:description" content="La app profesional para criadores, galleros y empresarios de palenque. Registra aves, organiza derbys, controla eventos en vivo.">
+  <meta property="og:image" content="https://genesispro.vip/palenque/logo.png">
+  <meta property="og:url" content="https://genesispro.vip">
+  <link rel="icon" href="/palenque/logo.png" type="image/png">
+  <style>
+    :root {
+      --bg: #0F172A;
+      --bg-alt: #1E293B;
+      --primary: #10B981;
+      --primary-dark: #059669;
+      --secondary: #F59E0B;
+      --accent: #6366F1;
+      --text: #F8FAFC;
+      --text-sec: #94A3B8;
+      --gold: #D4AF37;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+
+    /* Hero */
+    .hero {
+      min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 40px 20px; position: relative;
+      background: radial-gradient(ellipse at center top, #1E293B 0%, #0F172A 70%);
+    }
+    .hero::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="%2310B98110" stroke-width="0.5"/><circle cx="50" cy="50" r="30" fill="none" stroke="%23F59E0B08" stroke-width="0.3"/></svg>') center/400px repeat;
+      pointer-events: none;
+    }
+    .hero-content { position: relative; z-index: 1; max-width: 800px; }
+    .logo-hero { width: 160px; height: 160px; border-radius: 30px; margin-bottom: 24px; filter: drop-shadow(0 0 30px rgba(16,185,129,0.3)); }
+    .hero h1 { font-size: 48px; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, var(--primary), var(--secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .hero .tagline { font-size: 20px; color: var(--text-sec); margin-bottom: 40px; line-height: 1.5; }
+    .hero .tagline strong { color: var(--text); }
+
+    /* Download buttons */
+    .download-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-bottom: 40px; }
+    .dl-btn {
+      display: inline-flex; align-items: center; gap: 12px; padding: 16px 32px;
+      border-radius: 14px; font-size: 17px; font-weight: 700; text-decoration: none;
+      transition: all 0.3s; border: none; cursor: pointer;
+    }
+    .dl-btn-primary { background: var(--primary); color: white; }
+    .dl-btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(16,185,129,0.3); }
+    .dl-btn-outline { background: transparent; color: var(--text); border: 2px solid var(--primary); }
+    .dl-btn-outline:hover { background: rgba(16,185,129,0.1); transform: translateY(-2px); }
+    .dl-btn svg { width: 24px; height: 24px; fill: currentColor; }
+
+    /* Features */
+    .features {
+      padding: 80px 20px; background: var(--bg-alt);
+    }
+    .features-grid {
+      max-width: 1000px; margin: 0 auto;
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;
+    }
+    .feature-card {
+      background: var(--bg); border-radius: 16px; padding: 32px;
+      border: 1px solid #334155; transition: border-color 0.3s;
+    }
+    .feature-card:hover { border-color: var(--primary); }
+    .feature-icon { font-size: 40px; margin-bottom: 16px; }
+    .feature-card h3 { font-size: 20px; margin-bottom: 8px; }
+    .feature-card p { color: var(--text-sec); line-height: 1.6; font-size: 15px; }
+    .section-title { text-align: center; font-size: 36px; font-weight: 800; margin-bottom: 16px; }
+    .section-subtitle { text-align: center; color: var(--text-sec); font-size: 18px; margin-bottom: 48px; }
+
+    /* Palenque section */
+    .palenque-section {
+      padding: 80px 20px; text-align: center;
+      background: linear-gradient(135deg, #7F1D1D20, #0F172A, #F59E0B10);
+    }
+    .palenque-features {
+      max-width: 700px; margin: 0 auto; text-align: left;
+    }
+    .palenque-item {
+      display: flex; gap: 16px; align-items: flex-start; margin-bottom: 20px;
+      padding: 16px; background: rgba(255,255,255,0.03); border-radius: 12px;
+    }
+    .palenque-item .icon { font-size: 28px; flex-shrink: 0; }
+    .palenque-item h4 { font-size: 16px; margin-bottom: 4px; }
+    .palenque-item p { font-size: 14px; color: var(--text-sec); }
+
+    /* CTA */
+    .cta-section {
+      padding: 80px 20px; text-align: center;
+      background: radial-gradient(ellipse at center, #10B98115, transparent 60%);
+    }
+    .cta-section .logo-small { width: 80px; height: 80px; border-radius: 16px; margin-bottom: 20px; }
+
+    /* Footer */
+    .footer {
+      padding: 40px 20px; text-align: center; border-top: 1px solid #334155;
+      color: var(--text-sec); font-size: 14px;
+    }
+    .footer a { color: var(--primary); text-decoration: none; }
+
+    /* Stats */
+    .stats { display: flex; justify-content: center; gap: 48px; flex-wrap: wrap; margin: 40px 0; }
+    .stat { text-align: center; }
+    .stat-num { font-size: 32px; font-weight: 800; color: var(--primary); }
+    .stat-lbl { font-size: 13px; color: var(--text-sec); text-transform: uppercase; letter-spacing: 1px; }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .hero h1 { font-size: 32px; }
+      .hero .tagline { font-size: 16px; }
+      .logo-hero { width: 120px; height: 120px; }
+      .section-title { font-size: 28px; }
+      .download-buttons { flex-direction: column; align-items: center; }
+      .stats { gap: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-content">
+    <img src="/palenque/logo.png" alt="GenesisPro" class="logo-hero">
+    <h1>GenesisPro</h1>
+    <p class="tagline">
+      La app profesional para <strong>criadores</strong>, <strong>galleros</strong> y <strong>empresarios de palenque</strong>.<br>
+      Controla tus aves, organiza derbys, registra salud y genética.
+    </p>
+
+    <div class="download-buttons">
+      <a href="#descargar" class="dl-btn dl-btn-primary">
+        <svg viewBox="0 0 24 24"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+        App Store
+      </a>
+      <a href="#descargar" class="dl-btn dl-btn-primary">
+        <svg viewBox="0 0 24 24"><path d="M3.18 23.04L13.22 12 3.18.96c-.12.16-.18.38-.18.64v20.8c0 .26.06.48.18.64zm1.78 1.02l11.2-6.36-2.48-2.48-8.72 8.84zm13.34-7.6L5.72 9.14l8.72 8.84 2.48-2.48zm1.88-1.06c.56-.32.82-.72.82-1.18v-.44c0-.46-.26-.86-.82-1.18L17.3 11l-2.74 2.74 2.74 2.74 2.88-1.08z"/></svg>
+        Google Play
+      </a>
+      <a href="/palenque" class="dl-btn dl-btn-outline">
+        Panel de Palenque
+      </a>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num">100%</div>
+        <div class="stat-lbl">Gratuita</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">Mexico</div>
+        <div class="stat-lbl">Hecho en</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">24/7</div>
+        <div class="stat-lbl">Disponible</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features" id="funciones">
+  <h2 class="section-title">Todo lo que necesitas</h2>
+  <p class="section-subtitle">Una sola app para manejar tu criadero, tus aves y tus eventos</p>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">🐓</div>
+      <h3>Registro de Aves</h3>
+      <p>Controla cada gallo: peso, color, linaje, marcas de identificacion, historial de combates y mas.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🧬</div>
+      <h3>Genealogia</h3>
+      <p>Arbol genealogico completo. Controla cruces, lineas de sangre y selecciona los mejores ejemplares.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⚔️</div>
+      <h3>Combates y Derby</h3>
+      <p>Registra cada pelea: resultado, duracion, tipo de victoria. Estadisticas completas por ave.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">💊</div>
+      <h3>Salud y Medicacion</h3>
+      <p>Calendario de vacunas, tratamientos, desparasitaciones. Nunca olvides una dosis.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🍽️</div>
+      <h3>Alimentacion</h3>
+      <p>Programas de alimentacion personalizados. Control de peso y nutricion para cada ave.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📊</div>
+      <h3>Analiticas</h3>
+      <p>Graficas y estadisticas: tasa de victoria, rendimiento por linea, tendencias de salud.</p>
+    </div>
+  </div>
+</section>
+
+<!-- PALENQUE MODULE -->
+<section class="palenque-section" id="palenque">
+  <h2 class="section-title">Modulo Palenque</h2>
+  <p class="section-subtitle">Para empresarios y organizadores de eventos</p>
+
+  <div class="palenque-features">
+    <div class="palenque-item">
+      <div class="icon">📋</div>
+      <div>
+        <h4>Crea Eventos Completos</h4>
+        <p>Derby, octerola, compromiso. Define costos, reglas, horarios y genera el cartel automaticamente.</p>
+      </div>
+    </div>
+    <div class="palenque-item">
+      <div class="icon">🎲</div>
+      <div>
+        <h4>Sorteo Automatico</h4>
+        <p>Emparejamiento por peso con margen configurable. Multiples rondas, ganadores vs perdedores, comodin.</p>
+      </div>
+    </div>
+    <div class="palenque-item">
+      <div class="icon">🔴</div>
+      <div>
+        <h4>Control en Vivo</h4>
+        <p>Panel de control del evento en tiempo real. Inicia peleas, registra resultados, avanza el cotejo.</p>
+      </div>
+    </div>
+    <div class="palenque-item">
+      <div class="icon">📊</div>
+      <div>
+        <h4>Tabla de Posiciones</h4>
+        <p>Puntos automaticos: Victoria 2, Tablas 1, Derrota 0. Tabla actualizada pelea a pelea.</p>
+      </div>
+    </div>
+    <div class="palenque-item">
+      <div class="icon">📱</div>
+      <div>
+        <h4>Los Galleros Siguen el Evento</h4>
+        <p>Con el codigo de acceso, los participantes ven las peleas en vivo desde su celular.</p>
+      </div>
+    </div>
+    <div class="palenque-item">
+      <div class="icon">📄</div>
+      <div>
+        <h4>Cartel y PDF</h4>
+        <p>Genera el cartel de tu evento con plantillas profesionales. Descarga PDF o comparte por WhatsApp.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section" id="descargar">
+  <img src="/palenque/logo.png" alt="GenesisPro" class="logo-small">
+  <h2 class="section-title">Descarga GenesisPro</h2>
+  <p class="section-subtitle">Disponible para iOS y Android. Comienza gratis.</p>
+
+  <div class="download-buttons">
+    <a href="#" class="dl-btn dl-btn-primary">
+      <svg viewBox="0 0 24 24"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+      App Store
+    </a>
+    <a href="#" class="dl-btn dl-btn-primary">
+      <svg viewBox="0 0 24 24"><path d="M3.18 23.04L13.22 12 3.18.96c-.12.16-.18.38-.18.64v20.8c0 .26.06.48.18.64zm1.78 1.02l11.2-6.36-2.48-2.48-8.72 8.84zm13.34-7.6L5.72 9.14l8.72 8.84 2.48-2.48zm1.88-1.06c.56-.32.82-.72.82-1.18v-.44c0-.46-.26-.86-.82-1.18L17.3 11l-2.74 2.74 2.74 2.74 2.88-1.08z"/></svg>
+      Google Play
+    </a>
+  </div>
+
+  <p style="color: var(--text-sec); margin-top: 24px; font-size: 14px;">
+    Proximamente en las tiendas de aplicaciones.<br>
+    Contacto: <a href="mailto:genesispro.app@outlook.com" style="color: var(--primary);">genesispro.app@outlook.com</a>
+  </p>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <p>&copy; 2026 GenesisPro. Todos los derechos reservados.</p>
+  <p style="margin-top: 8px;">
+    <a href="/palenque">Panel Palenque</a>
+  </p>
+</footer>
+
+</body>
+</html>

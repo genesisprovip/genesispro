@@ -37,7 +37,8 @@
     "uuid": "^9.0.0",
     "compression": "^1.7.4",
     "express-rate-limit": "^7.1.5",
-    "stripe": "^20.4.0"
+    "stripe": "^20.4.0",
+    "@sentry/node": "^9.5.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2",

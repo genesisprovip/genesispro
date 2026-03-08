@@ -2,6 +2,7 @@
  * Global Error Handler Middleware
  */
 
+const Sentry = require('@sentry/node');
 const logger = require('../config/logger');
 
 /**
@@ -84,6 +85,15 @@ const errorHandler = (err, req, res, next) => {
       body: req.body,
       user: req.user?.id
     });
+    // Send unexpected/server errors to Sentry
+    if (process.env.SENTRY_DSN) {
+      Sentry.withScope((scope) => {
+        scope.setTag('url', req.originalUrl);
+        scope.setTag('method', req.method);
+        if (req.userId) scope.setUser({ id: req.userId });
+        Sentry.captureException(err);
+      });
+    }
   } else if (process.env.NODE_ENV === 'development') {
     logger.warn('Client error:', {
       message: err.message,

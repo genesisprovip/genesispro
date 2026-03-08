@@ -9,6 +9,11 @@ const { stripe, PLAN_CONFIG, getPlanFromPriceId, getBillingInterval } = require(
 const { authenticateJWT } = require('../middleware/auth');
 const { Errors, asyncHandler } = require('../middleware/errorHandler');
 const logger = require('../config/logger');
+const {
+  handleEmpresarioCheckoutCompleted,
+  handleEmpresarioSubscriptionUpdated,
+  handleEmpresarioSubscriptionDeleted,
+} = require('./empresario');
 
 // ─── POST /checkout - Create Stripe Checkout Session ───
 router.post('/checkout', authenticateJWT, asyncHandler(async (req, res) => {
@@ -103,7 +108,7 @@ router.get('/status', authenticateJWT, asyncHandler(async (req, res) => {
   const userId = req.userId;
 
   const { rows: [user] } = await db.query(
-    `SELECT u.id, u.plan_actual, u.stripe_customer_id,
+    `SELECT u.id, u.plan_actual, u.plan_elegido, u.stripe_customer_id,
             s.id as sub_id, s.stripe_subscription_id, s.stripe_price_id,
             s.tipo_pago, s.fecha_inicio, s.fecha_expiracion, s.estado as sub_estado
      FROM usuarios u
@@ -135,6 +140,7 @@ router.get('/status', authenticateJWT, asyncHandler(async (req, res) => {
     success: true,
     data: {
       plan: user.plan_actual,
+      planElegido: user.plan_elegido || 'basico',
       hasSubscription: !!user.stripe_subscription_id,
       isExpired: isExpired && !user.stripe_subscription_id,
       billingInterval: user.tipo_pago || null,
@@ -185,6 +191,84 @@ router.get('/invoices', authenticateJWT, asyncHandler(async (req, res) => {
   res.json({ success: true, data: { invoices } });
 }));
 
+// ─── PUT /change-plan - Change user plan ───
+router.put('/change-plan', authenticateJWT, asyncHandler(async (req, res) => {
+  const { plan } = req.body;
+  const userId = req.userId;
+
+  // Validate plan
+  const validPlans = ['basico', 'pro', 'premium'];
+  if (!plan || !validPlans.includes(plan)) {
+    throw Errors.badRequest('Plan inválido. Opciones: basico, pro, premium');
+  }
+
+  // Get current user state
+  const { rows: [user] } = await db.query(
+    'SELECT id, plan_actual, plan_elegido, estado_cuenta, suscripcion_activa_id FROM usuarios WHERE id = $1 AND deleted_at IS NULL',
+    [userId]
+  );
+
+  if (!user) throw Errors.notFound('Usuario');
+
+  // If user has active paid subscription, store as plan_elegido (change at end of period)
+  if (user.estado_cuenta === 'activa' && user.suscripcion_activa_id) {
+    await db.query(
+      'UPDATE usuarios SET plan_elegido = $1, updated_at = NOW() WHERE id = $2',
+      [plan, userId]
+    );
+
+    logger.info(`User ${userId} scheduled plan change to ${plan} (active subscription)`);
+
+    return res.json({
+      success: true,
+      message: `Plan cambiará a ${plan} al finalizar el periodo actual`,
+      data: {
+        plan_actual: user.plan_actual,
+        plan_elegido: plan,
+        cambio_inmediato: false
+      }
+    });
+  }
+
+  // If user is on trial, update plan_elegido (keep premium during trial)
+  if (user.estado_cuenta === 'trial') {
+    await db.query(
+      'UPDATE usuarios SET plan_elegido = $1, updated_at = NOW() WHERE id = $2',
+      [plan, userId]
+    );
+
+    logger.info(`User ${userId} chose plan ${plan} during trial`);
+
+    return res.json({
+      success: true,
+      message: `Plan ${plan} seleccionado. Se aplicará al terminar tu periodo de prueba.`,
+      data: {
+        plan_actual: 'premium',
+        plan_elegido: plan,
+        cambio_inmediato: false
+      }
+    });
+  }
+
+  // If user is vencido or no active subscription, change immediately
+  await db.query(
+    'UPDATE usuarios SET plan_actual = $1, plan_elegido = $1, updated_at = NOW() WHERE id = $2',
+    [plan, userId]
+  );
+
+  logger.info(`User ${userId} changed plan to ${plan} immediately`);
+
+  res.json({
+    success: true,
+    message: `Plan actualizado a ${plan}`,
+    data: {
+      plan_actual: plan,
+      plan_elegido: plan,
+      cambio_inmediato: true
+    }
+  });
+}));
+
 // ─── GET /plans - Available Plans ───
 router.get('/plans', asyncHandler(async (req, res) => {
   const { rows: plans } = await db.query(
@@ -207,18 +291,33 @@ router.post('/webhook', async (req, res) => {
   }
 
   try {
+    const obj = event.data.object;
+    const isEmpresario = obj.metadata?.type === 'empresario';
+
     switch (event.type) {
       case 'checkout.session.completed':
-        await handleCheckoutCompleted(event.data.object);
+        if (isEmpresario) {
+          await handleEmpresarioCheckoutCompleted(obj);
+        } else {
+          await handleCheckoutCompleted(obj);
+        }
         break;
       case 'customer.subscription.updated':
-        await handleSubscriptionUpdated(event.data.object);
+        if (isEmpresario) {
+          await handleEmpresarioSubscriptionUpdated(obj);
+        } else {
+          await handleSubscriptionUpdated(obj);
+        }
         break;
       case 'customer.subscription.deleted':
-        await handleSubscriptionDeleted(event.data.object);
+        if (isEmpresario) {
+          await handleEmpresarioSubscriptionDeleted(obj);
+        } else {
+          await handleSubscriptionDeleted(obj);
+        }
         break;
       case 'invoice.payment_failed':
-        await handleInvoiceFailed(event.data.object);
+        await handleInvoiceFailed(obj);
         break;
       default:
         logger.info(`[Stripe Webhook] Unhandled event: ${event.type}`);

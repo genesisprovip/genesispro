@@ -47,6 +47,23 @@ services:
     networks:
       - genesispro-net
 
+  # OvenMediaEngine - Live Streaming
+  ome:
+    image: airensoft/ovenmediaengine:latest
+    container_name: genesispro-ome
+    restart: unless-stopped
+    ports:
+      - "1935:1935"
+      - "3333:3333"
+      - "3334:3334"
+      - "3478:3478"
+      - "10000-10005:10000-10005/udp"
+      - "127.0.0.1:8081:8081"
+    volumes:
+      - ./ome/Server.xml:/opt/ovenmediaengine/bin/origin_conf/Server.xml
+    networks:
+      - genesispro-net
+
   # Nginx Reverse Proxy
   nginx:
     image: nginx:alpine

@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GenesisPro Palenque - Panel de Control</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
     :root {
       --bg: #0F172A;
@@ -31,7 +33,8 @@
     .login-box { background: var(--bg-alt); border-radius: 20px; padding: 48px; width: 100%; max-width: 420px; text-align: center; }
     .login-box h1 { font-size: 28px; margin-bottom: 8px; }
     .login-box p { color: var(--text-secondary); margin-bottom: 32px; }
-    .login-box .logo { font-size: 48px; margin-bottom: 16px; }
+    .login-box .logo { margin-bottom: 16px; }
+    .login-box .logo img { width: 80px; height: 80px; border-radius: 16px; }
 
     /* Form elements */
     .form-group { margin-bottom: 16px; text-align: left; }
@@ -78,6 +81,7 @@
 
     .progress-bar { height: 6px; background: var(--bg); border-radius: 3px; margin-top: 12px; overflow: hidden; }
     .progress-bar .fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width 0.5s; }
+    .filter-active { background: var(--primary) !important; color: white !important; border-color: var(--primary) !important; }
 
     /* Event detail */
     #event-detail { display: none; }
@@ -162,7 +166,7 @@
 <!-- LOGIN SCREEN -->
 <div id="login-screen">
   <div class="login-box">
-    <div class="logo">🐓</div>
+    <div class="logo"><img src="logo.png" alt="GenesisPro"></div>
     <h1>GenesisPro</h1>
     <p>Panel de Palenque</p>
     <div class="form-group">
@@ -181,7 +185,7 @@
 <!-- DASHBOARD -->
 <div id="dashboard">
   <div class="topbar">
-    <h2>🐓 GenesisPro <span style="color: var(--text-secondary); font-weight: 400;">Palenque</span></h2>
+    <h2 style="display:flex; align-items:center; gap:10px;"><img src="logo.png" alt="" style="width:36px; height:36px; border-radius:8px;"> GenesisPro <span style="color: var(--text-secondary); font-weight: 400;">Palenque</span></h2>
     <div class="user-info">
       <span class="user-name" id="user-name"></span>
       <button class="btn btn-outline btn-sm" onclick="logout()">Salir</button>
@@ -189,9 +193,14 @@
   </div>
 
   <div class="main-content" id="events-list">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
       <h2>Mis Eventos</h2>
       <button class="btn btn-secondary" onclick="showCreateEvent()">+ Nuevo Evento</button>
+    </div>
+    <div style="display:flex; gap:8px; margin-bottom:20px;" id="event-filters">
+      <button class="btn btn-sm filter-active" onclick="filterEvents('todos')" data-filter="todos">Todos</button>
+      <button class="btn btn-outline btn-sm" onclick="filterEvents('activos')" data-filter="activos">Activos</button>
+      <button class="btn btn-outline btn-sm" onclick="filterEvents('finalizados')" data-filter="finalizados">Finalizados</button>
     </div>
     <div class="events-grid" id="events-grid"></div>
   </div>
@@ -256,8 +265,45 @@
         </select>
       </div>
     </div>
+    <div style="border-top: 1px solid var(--border); margin: 16px 0; padding-top: 16px;">
+      <label style="font-size: 13px; font-weight: 700; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.5px;">Costos (Plumas / Pesos)</label>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Inscripción por Partido</label>
+        <input type="number" id="ev-costo-inscripcion" placeholder="5000" min="0">
+      </div>
+      <div class="form-group">
+        <label>Apuesta por Pelea</label>
+        <input type="number" id="ev-costo-pelea" placeholder="2000" min="0">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Premio al Campeón</label>
+        <input type="number" id="ev-premio" placeholder="50000" min="0">
+      </div>
+      <div class="form-group">
+        <label>Aves por Partido</label>
+        <input type="number" id="ev-aves-partido" value="3" min="1" max="20">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Hora de Peleas</label>
+        <input type="time" id="ev-hora-peleas" value="15:00">
+      </div>
+      <div class="form-group">
+        <label>Contacto (Tel/WhatsApp)</label>
+        <input type="text" id="ev-contacto" placeholder="315 123 4567">
+      </div>
+    </div>
     <div class="form-group">
-      <label>Reglas</label>
+      <label>Reglas de Navaja</label>
+      <input type="text" id="ev-reglas-navaja" placeholder="Navaja mexicana 1 pulgada, 1 linea">
+    </div>
+    <div class="form-group">
+      <label>Reglas Generales</label>
       <textarea id="ev-reglas" placeholder="Reglas del evento..."></textarea>
     </div>
     <div class="form-group">
@@ -346,6 +392,46 @@
   </div>
 </div>
 
+<!-- SORTEO RESULT MODAL -->
+<div class="modal-overlay" id="sorteo-result-modal">
+  <div class="modal" style="max-width: 600px;">
+    <h2>Resultado del Sorteo</h2>
+    <div id="sorteo-result-content"></div>
+    <div style="display: flex; gap: 12px; margin-top: 24px;">
+      <button class="btn btn-primary" onclick="closeModal('sorteo-result-modal'); showEventDetail(currentEventId);" style="flex:1;">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<!-- COMODIN MODAL -->
+<div class="modal-overlay" id="comodin-modal">
+  <div class="modal">
+    <h2>Agregar Comodin</h2>
+    <div id="comodin-info" style="margin-bottom: 16px;"></div>
+    <div class="form-group">
+      <label>Nombre del Partido Comodin</label>
+      <input type="text" id="comodin-nombre" placeholder="Nombre del gallero o criadero">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Peso del ave (gramos)</label>
+        <input type="number" id="comodin-peso" min="500" max="5000">
+      </div>
+      <div class="form-group">
+        <label>Anillo (opcional)</label>
+        <input type="text" id="comodin-anillo" placeholder="Ej: COM-01">
+      </div>
+    </div>
+    <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 8px;">
+      El comodin completa la pelea faltante. No es elegible para premio.
+    </p>
+    <div style="display: flex; gap: 12px; margin-top: 16px;">
+      <button class="btn btn-outline" onclick="closeModal('comodin-modal'); showEventDetail(currentEventId);" style="flex:1;">Omitir</button>
+      <button class="btn btn-secondary" onclick="agregarComodin()" style="flex:1;">Agregar Comodin</button>
+    </div>
+  </div>
+</div>
+
 <!-- EDIT EVENT MODAL -->
 <div class="modal-overlay" id="edit-event-modal">
   <div class="modal">
@@ -399,8 +485,45 @@
         </select>
       </div>
     </div>
+    <div style="border-top: 1px solid var(--border); margin: 16px 0; padding-top: 16px;">
+      <label style="font-size: 13px; font-weight: 700; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.5px;">Costos (Plumas / Pesos)</label>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Inscripción por Partido</label>
+        <input type="number" id="edit-costo-inscripcion" placeholder="5000" min="0">
+      </div>
+      <div class="form-group">
+        <label>Apuesta por Pelea</label>
+        <input type="number" id="edit-costo-pelea" placeholder="2000" min="0">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Premio al Campeón</label>
+        <input type="number" id="edit-premio" placeholder="50000" min="0">
+      </div>
+      <div class="form-group">
+        <label>Aves por Partido</label>
+        <input type="number" id="edit-aves-partido" value="3" min="1" max="20">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Hora de Peleas</label>
+        <input type="time" id="edit-hora-peleas">
+      </div>
+      <div class="form-group">
+        <label>Contacto (Tel/WhatsApp)</label>
+        <input type="text" id="edit-contacto" placeholder="315 123 4567">
+      </div>
+    </div>
     <div class="form-group">
-      <label>Reglas</label>
+      <label>Reglas de Navaja</label>
+      <input type="text" id="edit-reglas-navaja" placeholder="Navaja mexicana 1 pulgada, 1 linea">
+    </div>
+    <div class="form-group">
+      <label>Reglas Generales</label>
       <textarea id="edit-reglas"></textarea>
     </div>
     <div class="form-group">
@@ -490,6 +613,107 @@
   </div>
 </div>
 
+<!-- CARTEL MODAL -->
+<div class="modal-overlay" id="cartel-modal">
+  <div class="modal" style="max-width: 900px; max-height: 95vh; overflow-y: auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
+      <h2>Cartel del Evento</h2>
+      <div style="display:flex; gap:8px;">
+        <select id="cartel-template" onchange="renderCartel()" style="width:auto;">
+          <option value="genesis" selected>Genesis Low Poly</option>
+          <option value="clasico">Clasico Rojo/Dorado</option>
+          <option value="elegante">Elegante Oscuro</option>
+          <option value="fiesta">Fiesta Colorido</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Upload de imagenes para el cartel Genesis -->
+    <div id="cartel-images-panel" style="margin-bottom:16px; padding:16px; background:var(--bg-alt); border-radius:var(--radius); border:1px solid var(--border);">
+      <label style="font-size:12px; color:var(--text-secondary); display:block; margin-bottom:8px; font-weight:600;">Imagenes del Cartel</label>
+      <div id="cartel-img-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;"></div>
+      <label class="btn btn-outline" style="font-size:11px; padding:6px 14px; cursor:pointer; display:inline-flex; align-items:center; gap:4px;">
+        + Agregar imagen
+        <input type="file" accept="image/png,image/webp,image/svg+xml,image/jpeg" onchange="addCartelImage(event)" style="display:none;">
+      </label>
+      <span style="font-size:10px; color:var(--text-secondary); margin-left:8px;">Arrastra las imagenes en el cartel para posicionar</span>
+      <!-- Marco / Plantilla -->
+      <div style="padding-top:12px; margin-top:12px; border-top:1px solid var(--border);">
+        <label style="font-size:12px; color:var(--text-secondary); display:block; margin-bottom:8px; font-weight:600;">Marco / Plantilla</label>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <div id="preview-frame" style="width:50px; height:70px; border-radius:6px; border:2px solid var(--primary); overflow:hidden; background:var(--bg); flex-shrink:0; cursor:pointer;" onclick="selectFrame(-1)">
+            <img src="cartel-frame.png" style="width:100%;height:100%;object-fit:cover;">
+          </div>
+          <div id="frames-gallery" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+          <label class="btn btn-outline" style="font-size:11px; padding:6px 12px; cursor:pointer; white-space:nowrap;">
+            + Agregar marco
+            <input type="file" accept="image/*" onchange="addCustomFrame(event)" style="display:none;">
+          </label>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:8px; align-items:center;">
+          <label style="font-size:10px; color:var(--text-secondary); white-space:nowrap;">Color texto:</label>
+          <select id="cartel-text-color" onchange="renderCartel()" style="width:auto; font-size:11px; padding:3px 6px;">
+            <option value="dark">Oscuro (fondo claro)</option>
+            <option value="light">Claro (fondo oscuro)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div id="cartel-container" style="display:flex; justify-content:center; margin-bottom: 20px;">
+      <div id="cartel-preview"></div>
+    </div>
+
+    <div style="display: flex; gap: 12px;">
+      <button class="btn btn-outline" onclick="closeModal('cartel-modal')" style="flex:1;">Cerrar</button>
+      <button class="btn btn-primary" onclick="descargarCartelPDF()" style="flex:1;">&#x1F4E5; Descargar PDF</button>
+      <button class="btn btn-secondary" onclick="compartirCartel()" style="flex:1;">&#x1F4E4; Compartir</button>
+    </div>
+  </div>
+</div>
+
+<!-- APUESTA MODAL -->
+<div class="modal-overlay" id="apuesta-modal">
+  <div class="modal">
+    <h2>Registrar Apuesta</h2>
+    <div class="form-group">
+      <label>Pelea #</label>
+      <select id="ap-pelea"></select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Apostador</label>
+        <input type="text" id="ap-apostador" placeholder="Nombre del apostador">
+      </div>
+      <div class="form-group">
+        <label>Contraparte</label>
+        <input type="text" id="ap-contraparte" placeholder="Nombre contraparte (opcional)">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Apuesta a favor de</label>
+        <select id="ap-favor">
+          <option value="rojo">Rojo</option>
+          <option value="verde">Verde</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Monto ($)</label>
+        <input type="number" id="ap-monto" placeholder="1000" min="1">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notas (opcional)</label>
+      <input type="text" id="ap-notas" placeholder="Notas...">
+    </div>
+    <div style="display: flex; gap: 12px; margin-top: 24px;">
+      <button class="btn btn-outline" onclick="closeModal('apuesta-modal')" style="flex:1;">Cancelar</button>
+      <button class="btn btn-primary" onclick="registrarApuesta()" style="flex:1;">Registrar Apuesta</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -500,6 +724,7 @@ let currentUser = null;
 let currentEventId = null;
 let currentPeleaId = null;
 let selectedResult = null;
+let autoRefreshInterval = null;
 
 function formatTime(isoStr) {
   if (!isoStr) return '';
@@ -565,67 +790,108 @@ async function showDashboard() {
 }
 
 // ─── EVENTS LIST ───
+let allEventos = [];
+let currentFilter = 'todos';
+
+function filterEvents(filter) {
+  currentFilter = filter;
+  document.querySelectorAll('#event-filters button').forEach(b => {
+    b.classList.toggle('filter-active', b.dataset.filter === filter);
+    b.classList.toggle('btn-outline', b.dataset.filter !== filter);
+  });
+  renderEventsList();
+}
+
+function renderEventsList() {
+  const grid = document.getElementById('events-grid');
+  let eventos = allEventos;
+  if (currentFilter === 'activos') eventos = allEventos.filter(e => e.estado !== 'finalizado');
+  if (currentFilter === 'finalizados') eventos = allEventos.filter(e => e.estado === 'finalizado');
+
+  if (eventos.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state" style="grid-column: 1/-1;">
+        <h3>${currentFilter === 'finalizados' ? 'Sin eventos finalizados' : currentFilter === 'activos' ? 'Sin eventos activos' : 'Sin eventos todavía'}</h3>
+        <p>${currentFilter === 'todos' ? 'Crea tu primer evento para comenzar' : 'No hay eventos en esta categoría'}</p>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = eventos.map(ev => {
+    const fecha = new Date(ev.fecha).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    const totalPeleasReal = ev.total_peleas || 0;
+    const pct = totalPeleasReal > 0 ? Math.round((ev.pelea_actual / totalPeleasReal) * 100) : 0;
+    const estado = ev.estado.replace('_', ' ');
+    return `
+      <div class="event-card" onclick="showEventDetail('${ev.id}')">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <h3>${ev.nombre}</h3>
+          <span class="badge badge-${ev.estado}">${estado}${ev.estado === 'finalizado' ? ' 🏆' : ''}</span>
+        </div>
+        <div class="meta">
+          <span>📅 ${fecha}${ev.hora_inicio ? ' · ' + ev.hora_inicio.slice(0,5) : ''}</span>
+          <span>📍 ${ev.lugar || 'Sin lugar'}</span>
+          ${ev.pesaje_abre ? `<span>⚖️ Pesaje: ${ev.pesaje_abre.slice(0,5)} - ${(ev.pesaje_cierra || '').slice(0,5)}</span>` : ''}
+          <span>⚔️ ${ev.total_peleas || 0} peleas${ev.estado === 'en_curso' ? ' · Pelea ' + ev.pelea_actual : ''}${ev.aves_por_partido ? ' · ' + ev.aves_por_partido + ' aves/partido' : ''}</span>
+          <span>🔑 Código: <strong>${ev.codigo_acceso || '---'}</strong></span>
+        </div>
+        ${ev.total_peleas > 0 && ev.estado === 'en_curso' ? `
+          <div class="progress-bar"><div class="fill" style="width:${pct}%"></div></div>
+        ` : ''}
+      </div>`;
+  }).join('');
+}
+
 async function showEventsList() {
+  stopAutoRefresh();
   document.getElementById('events-list').style.display = 'block';
   document.getElementById('event-detail').style.display = 'none';
   currentEventId = null;
 
   try {
     const res = await api('/eventos');
-    const eventos = res.data;
-    const grid = document.getElementById('events-grid');
-
-    if (eventos.length === 0) {
-      grid.innerHTML = `
-        <div class="empty-state" style="grid-column: 1/-1;">
-          <h3>Sin eventos todavía</h3>
-          <p>Crea tu primer evento para comenzar</p>
-        </div>`;
-      return;
-    }
-
-    grid.innerHTML = eventos.map(ev => {
-      const fecha = new Date(ev.fecha).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-      const pct = ev.total_peleas > 0 ? Math.round((ev.pelea_actual / ev.total_peleas) * 100) : 0;
-      const estado = ev.estado.replace('_', ' ');
-      return `
-        <div class="event-card" onclick="showEventDetail('${ev.id}')">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <h3>${ev.nombre}</h3>
-            <span class="badge badge-${ev.estado}">${estado}</span>
-          </div>
-          <div class="meta">
-            <span>📅 ${fecha}${ev.hora_inicio ? ' · ' + ev.hora_inicio.slice(0,5) : ''}</span>
-            <span>📍 ${ev.lugar || 'Sin lugar'}</span>
-            ${ev.pesaje_abre ? `<span>⚖️ Pesaje: ${ev.pesaje_abre.slice(0,5)} - ${(ev.pesaje_cierra || '').slice(0,5)}</span>` : ''}
-            <span>⚔️ ${ev.total_peleas} peleas${ev.estado === 'en_curso' ? ' · Pelea ' + ev.pelea_actual + ' de ' + ev.total_peleas : ''}</span>
-            <span>🔑 Código: <strong>${ev.codigo_acceso || '---'}</strong></span>
-          </div>
-          ${ev.total_peleas > 0 && ev.estado === 'en_curso' ? `
-            <div class="progress-bar"><div class="fill" style="width:${pct}%"></div></div>
-          ` : ''}
-        </div>`;
-    }).join('');
+    allEventos = res.data;
+    renderEventsList();
   } catch (e) {
     toast('Error cargando eventos: ' + e.message, true);
   }
 }
 
 // ─── EVENT DETAIL ───
+function stopAutoRefresh() {
+  if (autoRefreshInterval) {
+    clearInterval(autoRefreshInterval);
+    autoRefreshInterval = null;
+  }
+}
+
+function startAutoRefresh(id) {
+  stopAutoRefresh();
+  autoRefreshInterval = setInterval(() => {
+    if (currentEventId === id && document.getElementById('event-detail').style.display !== 'none') {
+      showEventDetail(id);
+    } else {
+      stopAutoRefresh();
+    }
+  }, 10000);
+}
+
 async function showEventDetail(id) {
   currentEventId = id;
   document.getElementById('events-list').style.display = 'none';
   document.getElementById('event-detail').style.display = 'block';
 
   try {
-    const [evRes, peleasRes, partRes, derbyPartRes, derbyAvesRes, derbyRondasRes, derbyTablaRes] = await Promise.all([
+    const [evRes, peleasRes, partRes, derbyPartRes, derbyAvesRes, derbyRondasRes, derbyTablaRes, apuestasRes, balanceRes] = await Promise.all([
       api(`/eventos/${id}`),
       api(`/peleas/evento/${id}`),
       api(`/eventos/${id}/participantes`),
       api(`/derby/${id}/partidos`).catch(() => ({ data: [] })),
       api(`/derby/${id}/aves`).catch(() => ({ data: [] })),
       api(`/derby/${id}/rondas`).catch(() => ({ data: [] })),
-      api(`/derby/${id}/tabla`).catch(() => ({ data: [] }))
+      api(`/derby/${id}/tabla`).catch(() => ({ data: [] })),
+      api(`/apuestas/evento/${id}`).catch(() => ({ data: [] })),
+      api(`/apuestas/balance/${id}`).catch(() => ({ data: { por_apostador: [], resumen: {} } }))
     ]);
 
     const ev = evRes.data;
@@ -636,6 +902,8 @@ async function showEventDetail(id) {
     const derbyAves = derbyAvesRes.data || [];
     const derbyRondas = derbyRondasRes.data || [];
     const derbyTabla = derbyTablaRes.data || [];
+    const apuestas = apuestasRes.data || [];
+    const balance = balanceRes.data || { por_apostador: [], resumen: {} };
 
     const fecha = new Date(ev.fecha).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     const finalizadas = peleas.filter(p => p.estado === 'finalizada').length;
@@ -649,10 +917,12 @@ async function showEventDetail(id) {
           <div class="live-label">Evento programado</div>
           <div class="live-counter" style="color: var(--accent);">⏳</div>
           <p style="color: var(--text-secondary); margin-bottom: 20px;">
-            ${peleas.length > 0 ? `${peleas.length} peleas en el cotejo. Listo para iniciar.` : 'Agrega peleas al cotejo antes de iniciar.'}
+            ${peleas.length > 0 ? `${peleas.length} peleas en el cotejo. Listo para iniciar.` : 'Registra partidos, aves y ejecuta el sorteo.'}
           </p>
           <div class="control-buttons">
             ${peleas.length > 0 ? `<button class="btn btn-primary btn-lg" onclick="startEvent('${id}')">▶ Iniciar Evento</button>` : ''}
+            ${peleas.length > 0 && derbyRondas.length > 0 && peleas.every(p => p.estado === 'programada')
+              ? `<button class="btn btn-outline btn-sm" onclick="rehacerSorteo('${derbyRondas[derbyRondas.length - 1].id}')">↩ Rehacer Sorteo</button>` : ''}
           </div>
         </div>`;
     } else if (ev.estado === 'en_curso' || ev.estado === 'pausado') {
@@ -664,7 +934,8 @@ async function showEventDetail(id) {
         ? peleas.filter(p => p.ronda_id === rondaActual.id)
         : peleas;
       const todasFinalizadas = peleasRondaActual.length > 0 && peleasRondaActual.every(p => p.estado === 'finalizada');
-      const hayAvesDisponibles = derbyAves.filter(a => a.estado === 'disponible').length >= 2;
+      const ningunaIniciada = peleasRondaActual.length > 0 && peleasRondaActual.every(p => p.estado === 'programada');
+      const hayAvesDisponibles = derbyAves.filter(a => a.estado === 'disponible' && !a.ronda_asignada).length >= 2;
       const rondaNum = rondaActual ? rondaActual.numero_ronda : 0;
 
       controlHTML = `
@@ -672,7 +943,7 @@ async function showEventDetail(id) {
           <div class="live-label">${ev.estado === 'pausado' ? '⏸ EVENTO PAUSADO' : '🔴 EN VIVO'}</div>
           ${rondaNum > 0 ? `<div style="color: var(--secondary); font-size: 14px; font-weight: 600; margin: 4px 0;">RONDA ${rondaNum}</div>` : ''}
           <div class="live-counter">${ev.pelea_actual}</div>
-          <div class="live-label">de ${ev.total_peleas} peleas</div>
+          <div class="live-label">de ${peleas.length} peleas · Ronda ${rondaNum || '—'} de ${ev.aves_por_partido || '?'}</div>
 
           ${todasFinalizadas && hayAvesDisponibles ? `
             <div style="margin: 20px 0; padding: 16px; background: rgba(245,158,11,0.1); border-radius: 10px; border: 1px solid rgba(245,158,11,0.3);">
@@ -705,15 +976,67 @@ async function showEventDetail(id) {
               ${currentFight.estado === 'en_curso' ? `<button class="btn btn-secondary" onclick="showResultModal('${currentFight.id}', ${currentFight.numero_pelea})">🏆 Resultado</button>` : ''}
             ` : ''}
             ${!todasFinalizadas ? `<button class="btn btn-next" onclick="nextFight('${id}')">⏭ Siguiente Pelea</button>` : ''}
+            ${ningunaIniciada && rondaActual ? `<button class="btn btn-outline btn-sm" onclick="rehacerSorteo('${rondaActual.id}')">↩ Rehacer Sorteo</button>` : ''}
             <button class="btn btn-outline" onclick="togglePause('${id}', '${ev.estado}')">${ev.estado === 'pausado' ? '▶ Reanudar' : '⏸ Pausar'}</button>
             <button class="btn btn-danger btn-sm" onclick="endEvent('${id}')">⏹ Finalizar</button>
           </div>
         </div>`;
     } else {
+      // Evento finalizado — show champion
+      const campeon = derbyTabla.length > 0 ? derbyTabla[0] : null;
+      const subcampeon = derbyTabla.length > 1 ? derbyTabla[1] : null;
+      const tercero = derbyTabla.length > 2 ? derbyTabla[2] : null;
+      const totalPeleasFinal = peleas.filter(p => p.estado === 'finalizada').length;
+      const duraciones = peleas.filter(p => p.duracion_minutos).map(p => parseFloat(p.duracion_minutos));
+      const avgDuracion = duraciones.length > 0 ? (duraciones.reduce((a, b) => a + b, 0) / duraciones.length).toFixed(1) : null;
+
       controlHTML = `
-        <div class="control-panel">
-          <div class="live-label">Evento Finalizado</div>
-          <div class="live-counter" style="color: var(--text-secondary);">✅</div>
+        <div class="control-panel" style="background: linear-gradient(135deg, #0F172A 0%, #1a2744 50%, #0F172A 100%); position:relative; overflow:hidden;">
+          <div style="position:absolute; top:0; left:0; right:0; bottom:0; background: radial-gradient(circle at 50% 0%, rgba(245,158,11,0.15) 0%, transparent 60%); pointer-events:none;"></div>
+          <div style="position:relative; z-index:1;">
+            <div style="font-size:40px; margin-bottom:4px;">🏆</div>
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:2px; color:var(--secondary); font-weight:700; margin-bottom:8px;">Campeón del Derby</div>
+            ${campeon ? `
+              <div style="font-size:28px; font-weight:800; color:#F59E0B; margin-bottom:4px;">${campeon.nombre}</div>
+              <div style="display:flex; justify-content:center; gap:20px; margin:12px 0; font-size:14px;">
+                <span style="color:var(--primary);"><strong>${campeon.puntos}</strong> pts</span>
+                <span style="color:var(--primary);">${campeon.victorias || 0}V</span>
+                <span style="color:var(--text-secondary);">${campeon.tablas || 0}T</span>
+                <span style="color:var(--rojo);">${campeon.derrotas || 0}D</span>
+              </div>
+              ${ev.premio_campeon ? `<div style="color:var(--secondary); font-size:16px; font-weight:600; margin-top:4px;">Premio: $${Number(ev.premio_campeon).toLocaleString()}</div>` : ''}
+            ` : '<div style="color:var(--text-secondary);">Sin datos de posiciones</div>'}
+
+            ${subcampeon || tercero ? `
+              <div style="display:flex; justify-content:center; gap:24px; margin-top:20px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.1);">
+                ${subcampeon ? `
+                  <div style="text-align:center;">
+                    <div style="font-size:20px;">🥈</div>
+                    <div style="font-weight:700; color:var(--text); font-size:14px;">${subcampeon.nombre}</div>
+                    <div style="color:var(--text-secondary); font-size:12px;">${subcampeon.puntos} pts · ${subcampeon.victorias || 0}V</div>
+                  </div>
+                ` : ''}
+                ${tercero ? `
+                  <div style="text-align:center;">
+                    <div style="font-size:20px;">🥉</div>
+                    <div style="font-weight:700; color:var(--text); font-size:14px;">${tercero.nombre}</div>
+                    <div style="color:var(--text-secondary); font-size:12px;">${tercero.puntos} pts · ${tercero.victorias || 0}V</div>
+                  </div>
+                ` : ''}
+              </div>
+            ` : ''}
+
+            <div style="display:flex; justify-content:center; gap:16px; margin-top:20px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.1); font-size:13px; color:var(--text-secondary);">
+              <span>⚔️ ${totalPeleasFinal} peleas</span>
+              <span>🔄 ${derbyRondas.length} rondas</span>
+              <span>🐓 ${derbyPartidos.filter(p => !p.es_comodin).length} partidos</span>
+              ${avgDuracion ? `<span>⏱️ ${avgDuracion} min promedio</span>` : ''}
+            </div>
+
+            <div style="margin-top:16px;">
+              <button class="btn btn-secondary btn-sm" onclick="exportarResultadosPDF()">📄 Exportar Resultados PDF</button>
+            </div>
+          </div>
         </div>`;
     }
 
@@ -726,11 +1049,16 @@ async function showEventDetail(id) {
               <span>📅 ${fecha}${ev.hora_inicio ? ' · ' + ev.hora_inicio.slice(0,5) : ''}</span>
               <span>📍 ${ev.lugar || 'Sin lugar'}</span>
               ${ev.pesaje_abre ? `<span>⚖️ Pesaje: ${ev.pesaje_abre.slice(0,5)} - ${(ev.pesaje_cierra || '').slice(0,5)}</span>` : ''}
-              <span>⚔️ ${ev.total_peleas} peleas${ev.tipo_derby ? ' · ' + ev.tipo_derby : ''}</span>
+              <span>⚔️ ${peleas.length} peleas · ${derbyRondas.length} ronda${derbyRondas.length !== 1 ? 's' : ''}${ev.tipo_derby ? ' · ' + ev.tipo_derby : ''}</span>
+              ${ev.aves_por_partido ? `<span>🐓 ${ev.aves_por_partido} aves por partido · ${derbyPartidos.length} partidos</span>` : ''}
+              ${ev.costo_inscripcion ? `<span>💰 Inscripción: $${Number(ev.costo_inscripcion).toLocaleString()} · Pelea: $${Number(ev.costo_por_pelea || 0).toLocaleString()}</span>` : ''}
+              ${ev.premio_campeon ? `<span>🏆 Premio: $${Number(ev.premio_campeon).toLocaleString()}</span>` : ''}
+              ${ev.contacto_organizador ? `<span>📱 ${ev.contacto_organizador}</span>` : ''}
             </div>
           </div>
           <div style="display:flex; gap:8px; align-items:center;">
             <span class="badge badge-${ev.estado}" style="font-size:14px; padding:6px 16px;">${ev.estado.replace('_',' ')}</span>
+            <button class="btn btn-secondary btn-sm" onclick="showCartelPreview()">📋 Generar Cartel</button>
             ${ev.estado !== 'finalizado' ? `<button class="btn btn-outline btn-sm" onclick="showEditEvent()">✏️ Editar</button>` : ''}
           </div>
         </div>
@@ -744,12 +1072,12 @@ async function showEventDetail(id) {
 
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-number">${ev.total_peleas}</div>
-          <div class="stat-label">Total Peleas</div>
+          <div class="stat-number">${derbyRondas.length}<span style="font-size:16px; color:var(--text-secondary);">/${ev.aves_por_partido || '?'}</span></div>
+          <div class="stat-label">Rondas</div>
         </div>
         <div class="stat-card">
-          <div class="stat-number" style="color: var(--primary);">${finalizadas}</div>
-          <div class="stat-label">Finalizadas</div>
+          <div class="stat-number">${finalizadas}<span style="font-size:16px; color:var(--text-secondary);">/${peleas.length}</span></div>
+          <div class="stat-label">Peleas</div>
         </div>
         <div class="stat-card">
           <div class="stat-number" style="color: var(--rojo);">${rojosGanan}</div>
@@ -830,11 +1158,93 @@ async function showEventDetail(id) {
           </div>
         `).join('') : '<p style="color: var(--text-secondary);">Comparte el código de acceso para que los partidos se unan</p>'}
       </div>
+
+      <div id="avisos-section"></div>
+      <div id="apuestas-section"></div>
     `;
+    renderAvisosSection(ev);
     renderDerbySection(ev, derbyPartidos, derbyAves, derbyRondas, derbyTabla);
+    renderApuestasSection(ev, apuestas, balance, peleas);
+
+    // Auto-refresh when event is live
+    if (ev.estado === 'en_curso' || ev.estado === 'pausado') {
+      if (!autoRefreshInterval) startAutoRefresh(id);
+    } else {
+      stopAutoRefresh();
+    }
   } catch (e) {
     toast('Error: ' + e.message, true);
   }
+}
+
+// ─── AVISOS SECTION ───
+async function renderAvisosSection(ev) {
+  const el = document.getElementById('avisos-section');
+  if (!el) return;
+
+  let avisos = [];
+  try {
+    const res = await api(`/eventos/${ev.id}/avisos`);
+    avisos = res.data || [];
+  } catch (e) { /* ignore */ }
+
+  el.innerHTML = `
+    <div style="background:var(--bg-alt); border-radius:var(--radius); padding:24px; margin-bottom:24px;">
+      <h3 style="margin-bottom:16px; display:flex; align-items:center; gap:8px;">
+        📢 Avisos al Público
+        <span style="font-size:12px; color:var(--text-secondary); font-weight:400;">Visible para todos en el evento</span>
+      </h3>
+
+      <div style="margin-bottom:16px;">
+        <textarea id="aviso-mensaje" placeholder="Ej: Propietario de camioneta Chevrolet blanca placas DFG6T3, favor de moverla ya que obstruye el paso..."
+          style="width:100%; font-size:14px; min-height:80px; margin-bottom:8px; resize:vertical;" maxlength="500"></textarea>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <select id="aviso-tipo" style="width:130px;">
+            <option value="general">General</option>
+            <option value="urgente">Urgente</option>
+            <option value="info">Info</option>
+          </select>
+          <button class="btn btn-secondary btn-sm" onclick="enviarAviso()">📢 Enviar Aviso</button>
+        </div>
+      </div>
+
+      ${avisos.length > 0 ? `
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          ${avisos.map(a => `
+            <div style="background:var(--bg); padding:12px 16px; border-radius:8px; display:flex; align-items:center; gap:12px;
+              ${a.tipo === 'urgente' ? 'border-left:3px solid var(--error);' : a.tipo === 'info' ? 'border-left:3px solid var(--accent);' : 'border-left:3px solid var(--secondary);'}">
+              <div style="flex:1;">
+                <p style="margin:0; font-size:14px;">${a.mensaje}</p>
+                <small style="color:var(--text-secondary);">${new Date(a.created_at).toLocaleTimeString('es-MX', {hour:'2-digit',minute:'2-digit'})}
+                  ${a.tipo === 'urgente' ? ' · <span style="color:var(--error);">URGENTE</span>' : ''}</small>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="eliminarAviso('${ev.id}','${a.id}')" style="padding:4px 8px; font-size:11px;">✕</button>
+            </div>
+          `).join('')}
+        </div>
+      ` : '<p style="color:var(--text-secondary); font-size:13px;">No hay avisos. Envía un mensaje para que todos los asistentes lo vean.</p>'}
+    </div>
+  `;
+}
+
+async function enviarAviso() {
+  const mensaje = document.getElementById('aviso-mensaje').value.trim();
+  if (!mensaje) { toast('Escribe un mensaje', true); return; }
+  const tipo = document.getElementById('aviso-tipo').value;
+  try {
+    await api(`/eventos/${currentEventId}/avisos`, 'POST', { mensaje, tipo });
+    document.getElementById('aviso-mensaje').value = '';
+    toast('Aviso enviado');
+    showEventDetail(currentEventId);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function eliminarAviso(eventoId, avisoId) {
+  try {
+    await api(`/eventos/${eventoId}/avisos/${avisoId}`, 'DELETE');
+    toast('Aviso eliminado');
+    showEventDetail(currentEventId);
+  } catch (e) { toast(e.message, true); }
 }
 
 // ─── DERBY SECTION ───
@@ -842,17 +1252,21 @@ function renderDerbySection(ev, partidos, aves, rondas, tabla) {
   const el = document.getElementById('derby-section');
   if (!el) return;
 
-  const avesDisponibles = aves.filter(a => a.estado === 'disponible').length;
+  const avesDisponibles = aves.filter(a => a.estado === 'disponible' && !a.ronda_asignada).length;
+  const registroCerrado = rondas.length > 0;
 
   el.innerHTML = `
     <div class="cotejo-section" style="margin-top: 24px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
         <h3>Derby · Registro y Sorteo</h3>
+        ${registroCerrado ? `<span style="font-size:11px; background:#FEF3C7; color:#92400E; padding:3px 10px; border-radius:12px; font-weight:600;">Registro cerrado (sorteo realizado)</span>` : ''}
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           ${ev.estado !== 'finalizado' ? `
-            <button class="btn btn-secondary btn-sm" onclick="showAddPartido()">+ Partido</button>
-            ${partidos.length > 0 ? `<button class="btn btn-outline btn-sm" onclick="showAddAve()">+ Registrar Ave</button>` : ''}
-            ${avesDisponibles >= 2 ? `<button class="btn btn-primary btn-sm" onclick="showSorteoModal()">🎲 Sorteo Ronda ${rondas.length + 1}</button>` : ''}
+            ${!registroCerrado ? `
+              <button class="btn btn-secondary btn-sm" onclick="showAddPartido()">+ Partido</button>
+              ${partidos.length > 0 ? `<button class="btn btn-outline btn-sm" onclick="showAddAve()">+ Registrar Ave</button>` : ''}
+            ` : ''}
+            ${avesDisponibles >= 2 ? `<button class="btn btn-primary btn-sm" onclick="showSorteoModal()">&#x1F3B2; Sorteo Ronda ${rondas.length + 1}</button>` : ''}
           ` : ''}
         </div>
       </div>
@@ -896,6 +1310,7 @@ function renderDerbySection(ev, partidos, aves, rondas, tabla) {
             <tr>
               <th>#</th>
               <th>Partido</th>
+              <th>Código</th>
               <th>Aves</th>
               <th>Estado</th>
               ${ev.estado !== 'finalizado' ? '<th>Acción</th>' : ''}
@@ -906,12 +1321,13 @@ function renderDerbySection(ev, partidos, aves, rondas, tabla) {
               <tr>
                 <td>${p.numero_partido}</td>
                 <td>${p.nombre}${p.es_comodin ? ' <small style="color:var(--secondary);">(Comodín)</small>' : ''}</td>
+                <td><code style="background:var(--bg);padding:2px 8px;border-radius:4px;font-weight:700;color:var(--secondary);letter-spacing:1px;cursor:pointer;" onclick="navigator.clipboard.writeText('${p.codigo_acceso || ''}');toast('Código copiado')">${p.codigo_acceso || '-'}</code></td>
                 <td>${p.total_aves} (${p.aves_disponibles} disp.)</td>
                 <td><span class="badge badge-${p.estado === 'activo' ? 'programado' : 'finalizado'}">${p.estado}</span></td>
                 ${ev.estado !== 'finalizado' ? `
                   <td>
                     ${p.estado === 'activo' ? `<button class="btn btn-outline btn-sm" onclick="retirarPartido('${p.id}')">Retirar</button>` : ''}
-                    ${p.total_aves == 0 ? `<button class="btn btn-danger btn-sm" onclick="eliminarPartido('${p.id}')">✕</button>` : ''}
+                    ${!registroCerrado && p.total_aves == 0 ? `<button class="btn btn-danger btn-sm" onclick="eliminarPartido('${p.id}')">&#x2715;</button>` : ''}
                   </td>
                 ` : ''}
               </tr>
@@ -1039,6 +1455,8 @@ function showSorteoModal() {
   document.getElementById('sorteo-modal').classList.add('active');
 }
 
+let pendingComodin = null;
+
 async function ejecutarSorteo() {
   const margen = parseInt(document.getElementById('sorteo-margen').value) || 80;
   const ganVsPerd = document.getElementById('sorteo-ganvsperd').checked;
@@ -1049,11 +1467,88 @@ async function ejecutarSorteo() {
     });
     closeModal('sorteo-modal');
     const data = res.data;
-    let msg = `Ronda ${data.ronda.numero_ronda}: ${data.total_pareados} peleas generadas`;
-    if (data.sin_parear.length > 0) {
-      msg += ` · ${data.sin_parear.length} sin pareja (comodín disponible)`;
+
+    // Build result display
+    let html = `<div style="margin-bottom:16px;">
+      <span class="badge badge-en_curso" style="font-size:14px; padding:6px 14px;">Ronda ${data.ronda.numero_ronda}</span>
+      <span style="color:var(--text-secondary); margin-left:8px;">${data.total_pareados} peleas generadas</span>
+    </div>`;
+
+    html += '<div style="display:flex; flex-direction:column; gap:8px;">';
+    for (const p of data.peleas) {
+      const nd = p.navaja_derecha ? ` <span style="color:var(--secondary); font-size:11px;">NAVAJA DERECHA</span>` : '';
+      html += `<div style="background:var(--bg); padding:12px; border-radius:8px; display:flex; align-items:center; gap:8px;">
+        <span style="color:var(--rojo); font-weight:700;">${p.rojo.partido}</span>
+        <span style="color:var(--text-secondary); font-size:12px;">(${p.rojo.peso}g)</span>
+        <span style="color:var(--text-secondary); margin:0 4px;">vs</span>
+        <span style="color:var(--verde); font-weight:700;">${p.verde.partido}</span>
+        <span style="color:var(--text-secondary); font-size:12px;">(${p.verde.peso}g)</span>
+        <span style="color:var(--text-secondary); font-size:11px; margin-left:auto;">diff: ${p.diff_peso}g</span>
+        ${nd}
+      </div>`;
     }
-    toast(msg);
+    html += '</div>';
+
+    if (data.sin_parear && data.sin_parear.length > 0) {
+      const sp = data.sin_parear[0];
+      pendingComodin = sp;
+      html += `<div style="margin-top:16px; padding:14px; background:rgba(245,158,11,0.1); border-radius:10px; border:1px solid rgba(245,158,11,0.3);">
+        <div style="font-weight:700; color:var(--secondary);">⚠️ 1 ave sin pareja</div>
+        <div style="color:var(--text-secondary); font-size:14px; margin-top:4px;">
+          <strong>${sp.partido}</strong> · ${sp.peso}g · Anillo: ${sp.anillo || '---'}
+        </div>
+        <div style="color:var(--text-secondary); font-size:13px; margin-top:8px;">
+          Puedes agregar un <strong>comodín</strong> para completar la pelea, o dejarlo sin pelear esta ronda.
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('sorteo-result-modal'); showComodinModal();" style="margin-top:10px;">Agregar Comodín</button>
+      </div>`;
+    }
+
+    document.getElementById('sorteo-result-content').innerHTML = html;
+    document.getElementById('sorteo-result-modal').classList.add('active');
+  } catch (e) { toast(e.message, true); }
+}
+
+function showComodinModal() {
+  if (!pendingComodin) return;
+  const sp = pendingComodin;
+  document.getElementById('comodin-info').innerHTML = `
+    <div style="padding:12px; background:var(--bg); border-radius:8px;">
+      <div style="color:var(--text-secondary); font-size:12px; text-transform:uppercase;">Ave sin pareja</div>
+      <div style="font-weight:700; margin-top:4px;">${sp.partido} · ${sp.peso}g · Anillo: ${sp.anillo || '---'}</div>
+    </div>`;
+  document.getElementById('comodin-peso').value = sp.peso;
+  document.getElementById('comodin-nombre').value = '';
+  document.getElementById('comodin-anillo').value = '';
+  document.getElementById('comodin-modal').classList.add('active');
+}
+
+async function agregarComodin() {
+  if (!pendingComodin) return;
+  const nombre = document.getElementById('comodin-nombre').value.trim();
+  const peso = parseInt(document.getElementById('comodin-peso').value);
+  const anillo = document.getElementById('comodin-anillo').value.trim();
+  if (!nombre) { toast('Escribe el nombre del partido comodín', true); return; }
+  if (!peso) { toast('Ingresa el peso del ave', true); return; }
+  try {
+    await api(`/derby/${currentEventId}/comodin`, 'POST', {
+      nombre,
+      peso,
+      anillo: anillo || null,
+      ave_sin_pareja_id: pendingComodin.ave_id
+    });
+    closeModal('comodin-modal');
+    toast('Comodín agregado. Pelea creada.');
+    pendingComodin = null;
+    showEventDetail(currentEventId);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function rehacerSorteo(rondaId) {
+  if (!confirm('¿Eliminar la ronda actual y sus peleas? Podrás agregar partidos/aves y volver a sortear.')) return;
+  try {
+    await api(`/derby/rondas/${rondaId}`, 'DELETE');
+    toast('Ronda eliminada. Agrega partidos si necesitas y vuelve a sortear.');
     showEventDetail(currentEventId);
   } catch (e) { toast(e.message, true); }
 }
@@ -1104,6 +1599,13 @@ function showEditEvent() {
   document.getElementById('edit-reglas').value = ev.reglas || '';
   document.getElementById('edit-publico').checked = ev.es_publico || false;
   document.getElementById('edit-formato').value = ev.formato_derby || 'normal';
+  document.getElementById('edit-costo-inscripcion').value = ev.costo_inscripcion || '';
+  document.getElementById('edit-costo-pelea').value = ev.costo_por_pelea || '';
+  document.getElementById('edit-premio').value = ev.premio_campeon || '';
+  document.getElementById('edit-aves-partido').value = ev.aves_por_partido || 3;
+  document.getElementById('edit-hora-peleas').value = ev.hora_peleas ? ev.hora_peleas.slice(0,5) : '';
+  document.getElementById('edit-contacto').value = ev.contacto_organizador || '';
+  document.getElementById('edit-reglas-navaja').value = ev.reglas_navaja || '';
   // Set programa
   const knownTypes = ['derby','octerola','compromiso','derby_capotes','torneo'];
   if (knownTypes.includes(ev.tipo_derby)) {
@@ -1129,10 +1631,18 @@ async function guardarEvento() {
       hora_inicio: document.getElementById('edit-hora').value || null,
       lugar: document.getElementById('edit-lugar').value || null,
       tipo_derby: tipoSel === 'otro' ? tipoCustom : tipoSel,
+      formato_derby: document.getElementById('edit-formato').value,
       reglas: document.getElementById('edit-reglas').value || null,
       es_publico: document.getElementById('edit-publico').checked,
       pesaje_abre: document.getElementById('edit-pesaje-abre').value || null,
-      pesaje_cierra: document.getElementById('edit-pesaje-cierra').value || null
+      pesaje_cierra: document.getElementById('edit-pesaje-cierra').value || null,
+      costo_inscripcion: parseInt(document.getElementById('edit-costo-inscripcion').value) || 0,
+      costo_por_pelea: parseInt(document.getElementById('edit-costo-pelea').value) || 0,
+      premio_campeon: parseInt(document.getElementById('edit-premio').value) || 0,
+      aves_por_partido: parseInt(document.getElementById('edit-aves-partido').value) || 3,
+      hora_peleas: document.getElementById('edit-hora-peleas').value || null,
+      contacto_organizador: document.getElementById('edit-contacto').value || null,
+      reglas_navaja: document.getElementById('edit-reglas-navaja').value || null
     });
     closeModal('edit-event-modal');
     toast('Evento actualizado');
@@ -1154,10 +1664,18 @@ async function crearEvento() {
       hora_inicio: document.getElementById('ev-hora').value || null,
       lugar: document.getElementById('ev-lugar').value || null,
       tipo_derby: tipoSel === 'otro' ? tipoCustom : tipoSel,
+      formato_derby: document.getElementById('ev-formato').value,
       reglas: document.getElementById('ev-reglas').value || null,
       es_publico: document.getElementById('ev-publico').checked,
       pesaje_abre: document.getElementById('ev-pesaje-abre').value || null,
-      pesaje_cierra: document.getElementById('ev-pesaje-cierra').value || null
+      pesaje_cierra: document.getElementById('ev-pesaje-cierra').value || null,
+      costo_inscripcion: parseInt(document.getElementById('ev-costo-inscripcion').value) || 0,
+      costo_por_pelea: parseInt(document.getElementById('ev-costo-pelea').value) || 0,
+      premio_campeon: parseInt(document.getElementById('ev-premio').value) || 0,
+      aves_por_partido: parseInt(document.getElementById('ev-aves-partido').value) || 3,
+      hora_peleas: document.getElementById('ev-hora-peleas').value || null,
+      contacto_organizador: document.getElementById('ev-contacto').value || null,
+      reglas_navaja: document.getElementById('ev-reglas-navaja').value || null
     });
     closeModal('create-event-modal');
     toast('Evento creado exitosamente');
@@ -1283,10 +1801,357 @@ function showCreateEvent() {
   document.getElementById('ev-hora').value = '14:00';
   document.getElementById('ev-lugar').value = '';
   document.getElementById('ev-reglas').value = '';
+  document.getElementById('ev-formato').value = 'normal';
+  document.getElementById('ev-costo-inscripcion').value = '';
+  document.getElementById('ev-costo-pelea').value = '';
+  document.getElementById('ev-premio').value = '';
+  document.getElementById('ev-aves-partido').value = '3';
+  document.getElementById('ev-hora-peleas').value = '15:00';
+  document.getElementById('ev-contacto').value = '';
+  document.getElementById('ev-reglas-navaja').value = '';
   document.getElementById('create-event-modal').classList.add('active');
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+// ─── CARTEL IMAGE UPLOADS (Dynamic Multi-Image) ───
+let cartelImagesList = []; // Array of {data, x, y, size, rot, mirror}
+let cartelDragState = null; // {index, startX, startY, origX, origY}
+let cartelSelectedImg = -1; // index of selected image for controls
+
+function addCartelImage(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    cartelImagesList.push({ data: e.target.result, x: 200, y: 300, size: 130, rot: 0, mirror: false });
+    cartelSelectedImg = cartelImagesList.length - 1;
+    saveCartelImages();
+    renderCartelImgList();
+    renderCartel();
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
+}
+
+function removeCartelImage(index) {
+  cartelImagesList.splice(index, 1);
+  if (cartelSelectedImg >= cartelImagesList.length) cartelSelectedImg = cartelImagesList.length - 1;
+  saveCartelImages();
+  renderCartelImgList();
+  renderCartel();
+}
+
+function selectCartelImage(index) {
+  cartelSelectedImg = index;
+  renderCartelImgList();
+  renderCartel();
+}
+
+function updateCartelImgProp(index, prop, value) {
+  if (!cartelImagesList[index]) return;
+  cartelImagesList[index][prop] = prop === 'mirror' ? !cartelImagesList[index].mirror : Number(value);
+  saveCartelImages();
+  renderCartel();
+  if (prop === 'mirror') renderCartelImgList();
+}
+
+function resetCartelImg(index) {
+  if (!cartelImagesList[index]) return;
+  Object.assign(cartelImagesList[index], { x: 200, y: 300, size: 130, rot: 0, mirror: false });
+  saveCartelImages();
+  renderCartelImgList();
+  renderCartel();
+}
+
+function saveCartelImages() {
+  try {
+    const toSave = cartelImagesList.map(img => ({ ...img }));
+    localStorage.setItem('cartel_images_list', JSON.stringify(toSave));
+  } catch(e) {
+    toast('Imagenes muy grandes para guardar. Se usaran solo en esta sesion.', true);
+  }
+}
+
+function renderCartelImgList() {
+  const container = document.getElementById('cartel-img-list');
+  if (!container) return;
+  if (cartelImagesList.length === 0) {
+    container.innerHTML = '<div style="font-size:11px; color:var(--text-secondary); padding:8px; text-align:center;">Sin imagenes. Agrega una con el boton de abajo.</div>';
+    return;
+  }
+  container.innerHTML = `<div style="display:flex; gap:6px; flex-wrap:wrap;">${cartelImagesList.map((img, i) => {
+    const selected = i === cartelSelectedImg;
+    return `<div style="width:48px; height:48px; border-radius:6px; border:2px solid ${selected ? 'var(--primary)' : 'var(--border)'}; overflow:hidden; cursor:pointer; position:relative; flex-shrink:0;" onclick="selectCartelImage(${i})" title="Imagen ${i+1}">
+      <img src="${img.data}" style="width:100%;height:100%;object-fit:contain;">
+      <button onclick="event.stopPropagation(); removeCartelImage(${i})" style="position:absolute;top:-1px;right:-1px;width:16px;height:16px;border-radius:50%;background:var(--error);color:white;border:none;font-size:9px;cursor:pointer;line-height:16px;padding:0;">x</button>
+    </div>`;
+  }).join('')}</div>
+  <div style="font-size:10px; color:var(--text-secondary); margin-top:4px;">Selecciona una imagen y editala directo en el cartel</div>`;
+}
+
+// Frame gallery management
+let cartelFrames = []; // Array of {name, data} for custom frames
+let activeFrameIndex = -1; // -1 = default frame
+
+function addCustomFrame(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const frame = { name: file.name.slice(0, 20), data: e.target.result };
+    cartelFrames.push(frame);
+    activeFrameIndex = cartelFrames.length - 1;
+    saveFrames();
+    renderFrameGallery();
+    renderCartel();
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
+}
+
+function selectFrame(index) {
+  activeFrameIndex = index;
+  localStorage.setItem('cartel_active_frame', index);
+  renderFrameGallery();
+  renderCartel();
+}
+
+function removeFrame(index, evt) {
+  evt.stopPropagation();
+  cartelFrames.splice(index, 1);
+  if (activeFrameIndex >= cartelFrames.length) activeFrameIndex = -1;
+  if (activeFrameIndex === index) activeFrameIndex = -1;
+  saveFrames();
+  renderFrameGallery();
+  renderCartel();
+}
+
+function saveFrames() {
+  // Save frame list (careful with localStorage size)
+  try {
+    localStorage.setItem('cartel_frames', JSON.stringify(cartelFrames));
+    localStorage.setItem('cartel_active_frame', activeFrameIndex);
+  } catch(e) {
+    toast('Marco muy grande para guardar. Se usara solo en esta sesion.', true);
+  }
+}
+
+function getActiveFrameUrl() {
+  if (activeFrameIndex >= 0 && cartelFrames[activeFrameIndex]) {
+    return cartelFrames[activeFrameIndex].data;
+  }
+  return 'cartel-frame.png'; // default
+}
+
+function renderFrameGallery() {
+  const container = document.getElementById('frames-gallery');
+  if (!container) return;
+  // Default frame thumbnail
+  const defaultBorder = activeFrameIndex === -1 ? 'var(--primary)' : 'var(--border)';
+  let html = `<div onclick="selectFrame(-1)" style="width:50px;height:70px;border-radius:6px;border:2px solid ${defaultBorder};overflow:hidden;cursor:pointer;flex-shrink:0;" title="Marco predeterminado">
+    <img src="cartel-frame.png" style="width:100%;height:100%;object-fit:cover;">
+  </div>`;
+  // Custom frames
+  cartelFrames.forEach((f, i) => {
+    const border = activeFrameIndex === i ? 'var(--primary)' : 'var(--border)';
+    html += `<div style="position:relative;width:50px;height:70px;flex-shrink:0;">
+      <div onclick="selectFrame(${i})" style="width:100%;height:100%;border-radius:6px;border:2px solid ${border};overflow:hidden;cursor:pointer;">
+        <img src="${f.data}" style="width:100%;height:100%;object-fit:cover;">
+      </div>
+      <button onclick="removeFrame(${i},event)" style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:var(--error);color:white;border:none;font-size:8px;cursor:pointer;line-height:14px;padding:0;">x</button>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+function loadSavedCartelImages() {
+  // Migrate old left/right format to new array format
+  const oldLeft = localStorage.getItem('cartel_img_left');
+  const oldRight = localStorage.getItem('cartel_img_right');
+  if (oldLeft || oldRight) {
+    if (oldLeft) {
+      const x = parseInt(localStorage.getItem('cartel_pos_left_x') || '0');
+      const y = parseInt(localStorage.getItem('cartel_pos_left_y') || '20');
+      const size = parseInt(localStorage.getItem('cartel_pos_left_size') || '130');
+      const rot = parseInt(localStorage.getItem('cartel_pos_left_rot') || '0');
+      const mirror = localStorage.getItem('cartel_mirror_left') === 'true';
+      cartelImagesList.push({ data: oldLeft, x, y, size, rot, mirror });
+    }
+    if (oldRight) {
+      const x = parseInt(localStorage.getItem('cartel_pos_right_x') || '0');
+      const y = parseInt(localStorage.getItem('cartel_pos_right_y') || '20');
+      const size = parseInt(localStorage.getItem('cartel_pos_right_size') || '130');
+      const rot = parseInt(localStorage.getItem('cartel_pos_right_rot') || '0');
+      const mirror = localStorage.getItem('cartel_mirror_right') === 'true';
+      cartelImagesList.push({ data: oldRight, x: 600 - size - x, y, size, rot, mirror });
+    }
+    // Clean old keys
+    ['left','right'].forEach(s => {
+      localStorage.removeItem(`cartel_img_${s}`);
+      ['x','y','size','rot'].forEach(p => localStorage.removeItem(`cartel_pos_${s}_${p}`));
+      localStorage.removeItem(`cartel_mirror_${s}`);
+    });
+    saveCartelImages();
+  }
+  // Load new format
+  try {
+    const saved = localStorage.getItem('cartel_images_list');
+    if (saved) cartelImagesList = JSON.parse(saved);
+  } catch(e) {}
+  if (cartelImagesList.length > 0) cartelSelectedImg = 0;
+  // Load saved frames
+  try {
+    const savedFrames = localStorage.getItem('cartel_frames');
+    if (savedFrames) cartelFrames = JSON.parse(savedFrames);
+    const savedActive = localStorage.getItem('cartel_active_frame');
+    if (savedActive !== null) activeFrameIndex = parseInt(savedActive);
+  } catch(e) {}
+  // Load text color preference
+  const savedColor = localStorage.getItem('cartel_text_color');
+  if (savedColor) {
+    const sel = document.getElementById('cartel-text-color');
+    if (sel) sel.value = savedColor;
+  }
+  renderFrameGallery();
+  renderCartelImgList();
+}
+
+// ─── Interactive drag/resize/rotate on cartel preview ───
+let cartelDragInit = false;
+function initCartelDrag() {
+  const preview = document.getElementById('cartel-preview');
+  if (!preview || cartelDragInit) return;
+  cartelDragInit = true;
+  preview.addEventListener('mousedown', onCartelPointerDown);
+  preview.addEventListener('mousemove', onCartelPointerMove);
+  preview.addEventListener('mouseup', onCartelPointerUp);
+  preview.addEventListener('mouseleave', onCartelPointerUp);
+  preview.addEventListener('touchstart', onCartelPointerDown, { passive: false });
+  preview.addEventListener('touchmove', onCartelPointerMove, { passive: false });
+  preview.addEventListener('touchend', onCartelPointerUp);
+  // Deselect when clicking cartel background
+  preview.addEventListener('click', (e) => {
+    if (!e.target.closest('.cartel-drag-img') && !e.target.closest('.cartel-handle')) {
+      cartelSelectedImg = -1;
+      renderCartelImgList();
+      renderCartel();
+    }
+  });
+}
+
+function getCartelScale() {
+  const preview = document.getElementById('cartel-preview');
+  if (!preview) return 1;
+  return preview.offsetWidth / 600;
+}
+
+function getPointerXY(e) {
+  if (e.touches && e.touches.length > 0) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  return { x: e.clientX, y: e.clientY };
+}
+
+function onCartelPointerDown(e) {
+  const ptr = getPointerXY(e);
+  const elAtPoint = e.target || document.elementFromPoint(ptr.x, ptr.y);
+
+  // Check for action handles first (mirror, delete, rotate, resize)
+  const handle = elAtPoint?.closest('.cartel-handle');
+  if (handle) {
+    const action = handle.dataset.action;
+    const imgContainer = handle.closest('.cartel-drag-img');
+    const index = imgContainer ? parseInt(imgContainer.dataset.imgIndex) : cartelSelectedImg;
+    if (index < 0 || !cartelImagesList[index]) return;
+
+    if (action === 'mirror') {
+      cartelImagesList[index].mirror = !cartelImagesList[index].mirror;
+      saveCartelImages();
+      renderCartelImgList();
+      renderCartel();
+      e.preventDefault();
+      return;
+    }
+    if (action === 'delete') {
+      removeCartelImage(index);
+      e.preventDefault();
+      return;
+    }
+    if (action === 'rotate') {
+      const img = cartelImagesList[index];
+      const rect = imgContainer.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      cartelDragState = { action: 'rotate', index, cx, cy, origRot: img.rot, startAngle: Math.atan2(ptr.y - cy, ptr.x - cx) };
+      e.preventDefault();
+      return;
+    }
+    if (action && action.startsWith('resize')) {
+      const img = cartelImagesList[index];
+      cartelDragState = { action: 'resize', index, startX: ptr.x, startY: ptr.y, origSize: img.size };
+      e.preventDefault();
+      return;
+    }
+  }
+
+  // Check for drag on image body
+  const dragTarget = elAtPoint?.closest('.cartel-drag-img');
+  if (!dragTarget) return;
+  const index = parseInt(dragTarget.dataset.imgIndex);
+  if (cartelSelectedImg !== index) {
+    cartelSelectedImg = index;
+    renderCartelImgList();
+    renderCartel();
+  }
+  const img = cartelImagesList[index];
+  if (!img) return;
+  cartelDragState = { action: 'move', index, startX: ptr.x, startY: ptr.y, origX: img.x, origY: img.y };
+  e.preventDefault();
+}
+
+function onCartelPointerMove(e) {
+  if (!cartelDragState) return;
+  e.preventDefault();
+  const ptr = getPointerXY(e);
+  const scale = getCartelScale();
+  const img = cartelImagesList[cartelDragState.index];
+  if (!img) return;
+
+  if (cartelDragState.action === 'move') {
+    const dx = (ptr.x - cartelDragState.startX) / scale;
+    const dy = (ptr.y - cartelDragState.startY) / scale;
+    img.x = Math.round(cartelDragState.origX + dx);
+    img.y = Math.round(cartelDragState.origY + dy);
+    const el = document.querySelector(`.cartel-drag-img[data-img-index="${cartelDragState.index}"]`);
+    if (el) { el.style.left = img.x + 'px'; el.style.top = img.y + 'px'; }
+  }
+  else if (cartelDragState.action === 'resize') {
+    const dy = (ptr.y - cartelDragState.startY) / scale;
+    const dx = (ptr.x - cartelDragState.startX) / scale;
+    const delta = Math.max(dx, dy);
+    img.size = Math.max(30, Math.min(500, Math.round(cartelDragState.origSize + delta)));
+    const el = document.querySelector(`.cartel-drag-img[data-img-index="${cartelDragState.index}"]`);
+    if (el) el.style.width = img.size + 'px';
+  }
+  else if (cartelDragState.action === 'rotate') {
+    const angle = Math.atan2(ptr.y - cartelDragState.cy, ptr.x - cartelDragState.cx);
+    const delta = (angle - cartelDragState.startAngle) * (180 / Math.PI);
+    img.rot = Math.round(cartelDragState.origRot + delta);
+    // Clamp to -180..180
+    while (img.rot > 180) img.rot -= 360;
+    while (img.rot < -180) img.rot += 360;
+    const imgEl = document.querySelector(`.cartel-drag-img[data-img-index="${cartelDragState.index}"] img`);
+    if (imgEl) imgEl.style.transform = `${img.mirror ? 'scaleX(-1) ' : ''}rotate(${img.rot}deg)`;
+  }
+}
+
+function onCartelPointerUp() {
+  if (cartelDragState) {
+    cartelDragState = null;
+    saveCartelImages();
+    renderCartel(); // full re-render to update handles position
+    renderCartelImgList();
+  }
+}
 
 function copyCode(code) {
   navigator.clipboard.writeText(code);
@@ -1299,6 +2164,762 @@ function toast(msg, isError = false) {
   t.className = 'toast' + (isError ? ' error' : '');
   t.style.display = 'block';
   setTimeout(() => t.style.display = 'none', 3000);
+}
+
+// ─── CARTEL / FOLLETO ───
+
+function showCartelPreview() {
+  document.getElementById('cartel-modal').classList.add('active');
+  loadSavedCartelImages();
+  // Show/hide image panel based on template
+  const tpl = document.getElementById('cartel-template').value;
+  document.getElementById('cartel-images-panel').style.display = tpl === 'genesis' ? 'block' : 'none';
+  renderCartel();
+  initCartelDrag();
+}
+
+function renderCartel() {
+  const ev = editingEvent;
+  if (!ev) return;
+
+  const template = document.getElementById('cartel-template').value;
+
+  // Show/hide image upload panel
+  const imgPanel = document.getElementById('cartel-images-panel');
+  if (imgPanel) imgPanel.style.display = template === 'genesis' ? 'block' : 'none';
+
+  // Use new Genesis template
+  if (template === 'genesis') {
+    renderCartelGenesis(ev);
+    return;
+  }
+
+  const fecha = new Date(ev.fecha).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const programa = ev.tipo_derby || 'Evento';
+
+  const costoInsc = ev.costo_inscripcion ? `$${Number(ev.costo_inscripcion).toLocaleString()}` : null;
+  const costoPelea = ev.costo_por_pelea ? `$${Number(ev.costo_por_pelea).toLocaleString()}` : null;
+  const premio = ev.premio_campeon ? `$${Number(ev.premio_campeon).toLocaleString()}` : null;
+  const avesPart = ev.aves_por_partido || 3;
+
+  const templates = {
+    clasico: {
+      bg: 'linear-gradient(135deg, #7F1D1D 0%, #991B1B 30%, #B91C1C 60%, #7F1D1D 100%)',
+      accent: '#F59E0B', border: '#F59E0B', text: '#FEF3C7', textSec: '#FBBF24',
+      headerBg: 'rgba(0,0,0,0.3)', ornament: '&#x1F413;'
+    },
+    elegante: {
+      bg: 'linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%)',
+      accent: '#D4AF37', border: '#D4AF37', text: '#F8FAFC', textSec: '#94A3B8',
+      headerBg: 'rgba(212,175,55,0.1)', ornament: '&#x2694;&#xFE0F;'
+    },
+    fiesta: {
+      bg: 'linear-gradient(135deg, #7C2D12 0%, #C2410C 25%, #EA580C 50%, #C2410C 75%, #7C2D12 100%)',
+      accent: '#34D399', border: '#34D399', text: '#ECFDF5', textSec: '#6EE7B7',
+      headerBg: 'rgba(0,0,0,0.25)', ornament: '&#x1F389;'
+    }
+  };
+
+  const t = templates[template];
+
+  const cartelHTML = `
+    <div id="cartel-content" style="
+      width: 600px; min-height: 800px; background: ${t.bg};
+      border: 3px solid ${t.border}; border-radius: 0; padding: 0;
+      font-family: Georgia, 'Times New Roman', serif; color: ${t.text};
+      position: relative; overflow: hidden;
+    ">
+      <div style="position:absolute; top:8px; left:8px; right:8px; bottom:8px; border: 1px solid ${t.border}40; pointer-events:none;"></div>
+      <div style="position:absolute; top:16px; left:16px; right:16px; bottom:16px; border: 1px solid ${t.border}25; pointer-events:none;"></div>
+
+      <div style="text-align:center; padding: 30px 40px 0; position:relative;">
+        <img src="logo.png" style="width: 60px; height: 60px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.4);" alt="GenesisPro">
+        <div style="font-size: 14px; letter-spacing: 6px; text-transform: uppercase; color: ${t.textSec}; margin-bottom: 8px;">
+          ${t.ornament} ${programa.toUpperCase()} ${t.ornament}
+        </div>
+        <div style="font-size: 36px; font-weight: 700; line-height: 1.2; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); margin-bottom: 4px;">
+          ${ev.nombre}
+        </div>
+        <div style="width: 80px; height: 2px; background: ${t.accent}; margin: 16px auto;"></div>
+      </div>
+
+      <div style="text-align:center; padding: 10px 40px 20px; background: ${t.headerBg}; margin: 0 30px; border-radius: 8px;">
+        <div style="font-size: 20px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px;">
+          ${fecha}
+        </div>
+        ${ev.lugar ? `<div style="font-size: 16px; color: ${t.textSec}; margin-top: 6px;">&#x1F4CD; ${ev.lugar}</div>` : ''}
+      </div>
+
+      <div style="padding: 24px 50px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        ${ev.pesaje_abre ? `
+          <div style="text-align:center; padding:12px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid ${t.border}30;">
+            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: ${t.textSec};">Pesaje</div>
+            <div style="font-size: 18px; font-weight: 700; margin-top: 4px;">${ev.pesaje_abre.slice(0,5)} - ${(ev.pesaje_cierra || '').slice(0,5)}</div>
+          </div>` : ''}
+        ${ev.hora_peleas || ev.hora_inicio ? `
+          <div style="text-align:center; padding:12px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid ${t.border}30;">
+            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: ${t.textSec};">Inicio de Peleas</div>
+            <div style="font-size: 18px; font-weight: 700; margin-top: 4px;">${(ev.hora_peleas || ev.hora_inicio || '').slice(0,5)} hrs</div>
+          </div>` : ''}
+      </div>
+
+      ${costoInsc || costoPelea || premio ? `
+        <div style="padding: 24px 50px 0;">
+          <div style="text-align:center; font-size: 12px; text-transform: uppercase; letter-spacing: 3px; color: ${t.accent}; margin-bottom: 12px; font-weight: 700;">
+            &#x2500;&#x2500;&#x2500; Costos &#x2500;&#x2500;&#x2500;
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(${[costoInsc, costoPelea, premio].filter(Boolean).length}, 1fr); gap: 10px;">
+            ${costoInsc ? `
+              <div style="text-align:center; padding:14px 8px; background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid ${t.accent}40;">
+                <div style="font-size: 24px; font-weight: 700; color: ${t.accent};">${costoInsc}</div>
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: ${t.textSec}; margin-top: 2px;">Inscripcion</div>
+              </div>` : ''}
+            ${costoPelea ? `
+              <div style="text-align:center; padding:14px 8px; background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid ${t.accent}40;">
+                <div style="font-size: 24px; font-weight: 700; color: ${t.accent};">${costoPelea}</div>
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: ${t.textSec}; margin-top: 2px;">Por Pelea</div>
+              </div>` : ''}
+            ${premio ? `
+              <div style="text-align:center; padding:14px 8px; background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid ${t.accent}40;">
+                <div style="font-size: 24px; font-weight: 700; color: ${t.accent};">${premio}</div>
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: ${t.textSec}; margin-top: 2px;">Premio</div>
+              </div>` : ''}
+          </div>
+        </div>
+      ` : ''}
+
+      <div style="padding: 24px 50px 0;">
+        <div style="text-align:center; font-size: 12px; text-transform: uppercase; letter-spacing: 3px; color: ${t.accent}; margin-bottom: 12px; font-weight: 700;">
+          &#x2500;&#x2500;&#x2500; Detalles &#x2500;&#x2500;&#x2500;
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div style="text-align:center; padding:10px; background: rgba(0,0,0,0.15); border-radius: 6px;">
+            <div style="font-size: 20px; font-weight: 700;">${avesPart}</div>
+            <div style="font-size: 11px; color: ${t.textSec}; text-transform: uppercase;">Aves por Partido</div>
+          </div>
+          <div style="text-align:center; padding:10px; background: rgba(0,0,0,0.15); border-radius: 6px;">
+            <div style="font-size: 20px; font-weight: 700;">${ev.total_peleas || '&#x2014;'}</div>
+            <div style="font-size: 11px; color: ${t.textSec}; text-transform: uppercase;">Peleas</div>
+          </div>
+        </div>
+      </div>
+
+      ${ev.reglas_navaja || ev.reglas ? `
+        <div style="padding: 20px 50px 0;">
+          ${ev.reglas_navaja ? `<div style="text-align:center; font-size: 13px; padding: 10px; background: rgba(0,0,0,0.15); border-radius: 6px; border-left: 3px solid ${t.accent};">
+            &#x1F5E1;&#xFE0F; ${ev.reglas_navaja}
+          </div>` : ''}
+          ${ev.reglas ? `<div style="text-align:center; font-size: 13px; color: ${t.textSec}; margin-top: 8px; font-style: italic;">${ev.reglas}</div>` : ''}
+        </div>
+      ` : ''}
+
+      <div style="padding: 28px 50px 16px; text-align: center; margin-top: auto;">
+        <div style="width: 60px; height: 1px; background: ${t.accent}50; margin: 0 auto 16px;"></div>
+        ${ev.contacto_organizador ? `
+          <div style="font-size: 15px; margin-bottom: 12px;">
+            &#x1F4F1; <strong>${ev.contacto_organizador}</strong>
+          </div>` : ''}
+        <div style="display: flex; align-items: center; justify-content: center; gap: 16px;">
+          <div style="display: inline-block; padding: 8px 20px; background: rgba(0,0,0,0.3); border-radius: 6px; border: 1px solid ${t.accent}40;">
+            <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 2px; color: ${t.textSec};">Codigo de Acceso</div>
+            <div style="font-size: 22px; font-weight: 700; letter-spacing: 4px; color: ${t.accent};">${ev.codigo_acceso || '---'}</div>
+            <div style="font-size: 10px; color: ${t.textSec};">Unete en GenesisPro App</div>
+          </div>
+          <div id="cartel-qr" style="background: white; padding: 6px; border-radius: 6px;"></div>
+        </div>
+      </div>
+
+      <div style="padding: 12px 50px 20px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px; opacity: 0.8;">
+        <img src="logo.png" style="width: 24px; height: 24px; border-radius: 4px;" alt="">
+        <span style="font-size: 12px; letter-spacing: 1px; color: ${t.textSec};">Organizado con <strong style="color: ${t.accent};">GenesisPro</strong> &middot; genesispro.vip</span>
+      </div>
+    </div>`;
+
+  document.getElementById('cartel-preview').innerHTML = cartelHTML;
+
+  // Generate QR code linking to landing page
+  const qrContainer = document.getElementById('cartel-qr');
+  if (qrContainer) {
+    qrContainer.innerHTML = '';
+    new QRCode(qrContainer, {
+      text: 'https://genesispro.vip',
+      width: 70,
+      height: 70,
+      colorDark: '#0F172A',
+      colorLight: '#FFFFFF',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  }
+}
+
+function renderCartelGenesis(ev) {
+  const fecha = new Date(ev.fecha).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const programa = ev.tipo_derby || 'Evento';
+  const costoInsc = ev.costo_inscripcion ? `$${Number(ev.costo_inscripcion).toLocaleString()}` : null;
+  const costoPelea = ev.costo_por_pelea ? `$${Number(ev.costo_por_pelea).toLocaleString()}` : null;
+  const premio = ev.premio_campeon ? `$${Number(ev.premio_campeon).toLocaleString()}` : null;
+  const avesPart = ev.aves_por_partido || 3;
+
+  // Frame image: Low Poly frame with emerald/gold/rooster
+  const frameUrl = getActiveFrameUrl();
+  const textColorMode = document.getElementById('cartel-text-color')?.value || 'dark';
+  localStorage.setItem('cartel_text_color', textColorMode);
+  const isDark = textColorMode === 'dark';
+  const tc = { // text colors
+    title: isDark ? '#0F172A' : '#FFFFFF',
+    subtitle: isDark ? '#1E293B' : '#F1F5F9',
+    body: isDark ? '#334155' : '#E2E8F0',
+    muted: isDark ? '#64748B' : '#94A3B8',
+    accent: isDark ? '#92400E' : '#FCD34D',
+    accent2: isDark ? '#059669' : '#34D399',
+    cardBg: isDark ? 'rgba(15,23,42,0.06)' : 'rgba(255,255,255,0.12)',
+    cardBorder: isDark ? '#D4AF3740' : '#FFFFFF30',
+    costBg1: isDark ? '#F0FDF4' : 'rgba(16,185,129,0.15)',
+    costBg2: isDark ? '#FFFBEB' : 'rgba(245,158,11,0.15)',
+    costBg3: isDark ? '#FEF9C3' : 'rgba(212,175,55,0.15)',
+    costText1: isDark ? '#059669' : '#34D399',
+    costText2: isDark ? '#B45309' : '#FBBF24',
+    costText3: isDark ? '#92400E' : '#FDE68A',
+    codeBg: isDark ? 'linear-gradient(135deg, #0F172A, #1E293B)' : 'rgba(0,0,0,0.5)',
+    codeColor: '#10B981',
+    ruleBg: isDark ? '#FEF9C3' : 'rgba(212,175,55,0.15)',
+    ruleText: isDark ? '#78350F' : '#FDE68A',
+    ruleBorder: isDark ? '#D4AF37' : '#D4AF3780',
+  };
+
+  const cartelHTML = `
+    <div id="cartel-content" style="
+      width: 600px; height: 900px; position: relative; overflow: hidden;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    ">
+      <!-- Frame background image -->
+      <img src="${frameUrl}" style="position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0;">
+
+      <!-- Custom images (dynamic, draggable with handles) -->
+      ${cartelImagesList.map((img, i) => {
+        const sel = i === cartelSelectedImg;
+        return `<div class="cartel-drag-img" data-img-index="${i}" style="position:absolute; left:${img.x}px; top:${img.y}px; width:${img.size}px; z-index:${sel ? 10 : 5}; cursor:move; user-select:none;">
+          <img src="${img.data}" style="width:100%; height:auto; display:block; transform:${img.mirror ? 'scaleX(-1) ' : ''}rotate(${img.rot}deg); pointer-events:none;">
+          ${sel ? `<div style="position:absolute; inset:-2px; border:2px dashed #10B981; pointer-events:none;"></div>
+          <div class="cartel-handle cartel-handle-br" data-action="resize" style="position:absolute; bottom:-6px; right:-6px; width:14px; height:14px; background:#10B981; border:2px solid white; border-radius:2px; cursor:nwse-resize; z-index:20;"></div>
+          <div class="cartel-handle cartel-handle-bl" data-action="resize-bl" style="position:absolute; bottom:-6px; left:-6px; width:14px; height:14px; background:#10B981; border:2px solid white; border-radius:2px; cursor:nesw-resize; z-index:20;"></div>
+          <div class="cartel-handle cartel-handle-tr" data-action="resize-tr" style="position:absolute; top:-6px; right:-6px; width:14px; height:14px; background:#10B981; border:2px solid white; border-radius:2px; cursor:nesw-resize; z-index:20;"></div>
+          <div class="cartel-handle" data-action="rotate" style="position:absolute; top:-28px; left:50%; transform:translateX(-50%); width:18px; height:18px; background:#F59E0B; border:2px solid white; border-radius:50%; cursor:grab; z-index:20; display:flex; align-items:center; justify-content:center; font-size:10px; color:white; line-height:1;">&#x21BB;</div>
+          <div style="position:absolute; top:-28px; left:50%; width:1px; height:22px; background:#10B981; transform:translateX(-50%); pointer-events:none; z-index:19;"></div>
+          <div style="position:absolute; bottom:-30px; left:50%; transform:translateX(-50%); display:flex; gap:3px; z-index:20;">
+            <button class="cartel-handle" data-action="mirror" style="background:${img.mirror ? '#10B981' : 'rgba(0,0,0,0.7)'}; border:1px solid white; color:white; border-radius:4px; padding:1px 6px; font-size:10px; cursor:pointer; white-space:nowrap;">&#x21C4;</button>
+            <button class="cartel-handle" data-action="delete" style="background:#EF4444; border:1px solid white; color:white; border-radius:4px; padding:1px 6px; font-size:10px; cursor:pointer;">&#x2715;</button>
+          </div>` : ''}
+        </div>`;
+      }).join('\n      ')}
+
+      <!-- Content overlay (inside the white center of the frame) -->
+      <div style="position:absolute; top:13.5%; left:13.5%; right:13.5%; bottom:20%; z-index:1; display:flex; flex-direction:column; padding: 8px 12px; overflow:hidden;">
+
+        <!-- Event type -->
+        <div style="text-align:center; margin-bottom: 4px;">
+          <span style="font-size: 11px; letter-spacing: 5px; text-transform: uppercase; color: ${tc.accent}; font-weight: 700;">
+            &#x2726; ${programa.toUpperCase()} &#x2726;
+          </span>
+        </div>
+
+        <!-- Event name -->
+        <div style="text-align:center; margin-bottom: 6px;">
+          <div style="font-size: 24px; font-weight: 900; line-height: 1.15; color: ${tc.title}; letter-spacing: 0.5px;">
+            ${ev.nombre}
+          </div>
+          <div style="width: 80px; height: 2px; background: linear-gradient(90deg, transparent, #D4AF37, transparent); margin: 6px auto 0;"></div>
+        </div>
+
+        <!-- Date & Location -->
+        <div style="text-align:center; margin-bottom: 8px; padding: 7px; background: ${tc.cardBg}; border-radius: 6px; border: 1px solid ${tc.cardBorder};">
+          <div style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: ${tc.subtitle};">
+            ${fecha}
+          </div>
+          ${ev.lugar ? `<div style="font-size: 11px; color: ${tc.muted}; margin-top: 3px;">&#x1F4CD; ${ev.lugar}</div>` : ''}
+        </div>
+
+        <!-- Schedule -->
+        ${(ev.pesaje_abre || ev.hora_peleas || ev.hora_inicio) ? `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+          ${ev.pesaje_abre ? `
+            <div style="text-align:center; padding:7px; background: ${tc.costBg1}; border-radius: 6px; border: 1px solid ${tc.cardBorder};">
+              <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 2px; color: ${tc.costText1}; font-weight: 700;">Pesaje</div>
+              <div style="font-size: 14px; font-weight: 800; color: ${tc.subtitle}; margin-top: 2px;">${ev.pesaje_abre.slice(0,5)} - ${(ev.pesaje_cierra || '').slice(0,5)}</div>
+            </div>` : ''}
+          ${ev.hora_peleas || ev.hora_inicio ? `
+            <div style="text-align:center; padding:7px; background: ${tc.costBg2}; border-radius: 6px; border: 1px solid ${tc.cardBorder};">
+              <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 2px; color: ${tc.costText2}; font-weight: 700;">Inicio Peleas</div>
+              <div style="font-size: 14px; font-weight: 800; color: ${tc.subtitle}; margin-top: 2px;">${(ev.hora_peleas || ev.hora_inicio || '').slice(0,5)} hrs</div>
+            </div>` : ''}
+        </div>` : ''}
+
+        <!-- Costs -->
+        ${costoInsc || costoPelea || premio ? `
+          <div style="margin-bottom: 8px;">
+            <div style="text-align:center; font-size: 10px; text-transform: uppercase; letter-spacing: 4px; color: ${tc.accent}; margin-bottom: 6px; font-weight: 800;">
+              &#x25C6; Costos &#x25C6;
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(${[costoInsc, costoPelea, premio].filter(Boolean).length}, 1fr); gap: 8px;">
+              ${costoInsc ? `
+                <div style="text-align:center; padding:9px 6px; background: ${tc.costBg1}; border-radius: 6px; border: 1px solid ${tc.cardBorder};">
+                  <div style="font-size: 19px; font-weight: 900; color: ${tc.costText1};">${costoInsc}</div>
+                  <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: ${tc.muted}; margin-top: 2px;">Inscripcion</div>
+                </div>` : ''}
+              ${costoPelea ? `
+                <div style="text-align:center; padding:9px 6px; background: ${tc.costBg2}; border-radius: 6px; border: 1px solid ${tc.cardBorder};">
+                  <div style="font-size: 19px; font-weight: 900; color: ${tc.costText2};">${costoPelea}</div>
+                  <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: ${tc.muted}; margin-top: 2px;">Por Pelea</div>
+                </div>` : ''}
+              ${premio ? `
+                <div style="text-align:center; padding:9px 6px; background: ${tc.costBg3}; border-radius: 6px; border: 1px solid ${tc.cardBorder};">
+                  <div style="font-size: 19px; font-weight: 900; color: ${tc.costText3};">${premio}</div>
+                  <div style="font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: ${tc.muted}; margin-top: 2px;">Premio</div>
+                </div>` : ''}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- Details -->
+        <div style="margin-bottom: 8px;">
+          <div style="text-align:center; font-size: 10px; text-transform: uppercase; letter-spacing: 4px; color: ${tc.accent}; margin-bottom: 6px; font-weight: 800;">
+            &#x25C6; Detalles &#x25C6;
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div style="text-align:center; padding:7px; background: ${tc.cardBg}; border-radius: 6px; border: 1px solid ${tc.cardBorder};">
+              <div style="font-size: 17px; font-weight: 900; color: ${tc.subtitle};">${avesPart}</div>
+              <div style="font-size: 9px; color: ${tc.muted}; text-transform: uppercase; letter-spacing: 1px;">Aves/Partido</div>
+            </div>
+            <div style="text-align:center; padding:7px; background: ${tc.cardBg}; border-radius: 6px; border: 1px solid ${tc.cardBorder};">
+              <div style="font-size: 17px; font-weight: 900; color: ${tc.subtitle};">${ev.total_peleas || '&#x2014;'}</div>
+              <div style="font-size: 9px; color: ${tc.muted}; text-transform: uppercase; letter-spacing: 1px;">Peleas</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rules -->
+        ${ev.reglas_navaja || ev.reglas ? `
+          <div style="margin-bottom: 6px;">
+            ${ev.reglas_navaja ? `<div style="text-align:center; font-size: 11px; padding: 7px 12px; background: ${tc.ruleBg}; border-radius: 6px; border-left: 3px solid ${tc.ruleBorder}; color: ${tc.ruleText};">
+              &#x1F5E1;&#xFE0F; ${ev.reglas_navaja}
+            </div>` : ''}
+            ${ev.reglas ? `<div style="text-align:center; font-size: 10px; color: ${tc.muted}; margin-top: 4px; font-style: italic;">${ev.reglas}</div>` : ''}
+          </div>
+        ` : ''}
+
+        <!-- Spacer -->
+        <div style="flex:1;"></div>
+
+        <!-- Contact -->
+        ${ev.contacto_organizador ? `
+          <div style="text-align:center; font-size: 12px; margin-bottom: 6px; color: ${tc.body};">
+            &#x1F4F1; <strong>${ev.contacto_organizador}</strong>
+          </div>` : ''}
+
+        <!-- Code + QR -->
+        <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 4px;">
+          <div style="text-align:center; padding: 5px 12px; background: ${tc.codeBg}; border-radius: 6px;">
+            <div style="font-size: 7px; text-transform: uppercase; letter-spacing: 2px; color: #94A3B8; font-weight: 600;">Codigo de Acceso</div>
+            <div style="font-size: 18px; font-weight: 900; letter-spacing: 4px; color: ${tc.codeColor}; margin: 1px 0;">${ev.codigo_acceso || '---'}</div>
+            <div style="font-size: 7px; color: #64748B; letter-spacing: 1px;">GenesisPro App</div>
+          </div>
+          <div id="cartel-qr" style="background: white; padding: 3px; border-radius: 4px; border: 1px solid #E2E8F0;"></div>
+        </div>
+
+        <!-- Branding -->
+        <div style="text-align:center; display:flex; align-items:center; justify-content:center; gap:4px;">
+          <img src="logo.png" style="width:14px; height:14px; border-radius:2px;" alt="">
+          <span style="font-size:8px; color:${tc.muted}; letter-spacing:0.5px;">Organizado con <strong style="color:${tc.accent2};">GenesisPro</strong></span>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('cartel-preview').innerHTML = cartelHTML;
+
+  const qrContainer = document.getElementById('cartel-qr');
+  if (qrContainer) {
+    qrContainer.innerHTML = '';
+    new QRCode(qrContainer, {
+      text: 'https://genesispro.vip',
+      width: 50, height: 50,
+      colorDark: '#0F172A', colorLight: '#FFFFFF',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  }
+}
+
+function prepCartelForExport() {
+  // Hide all handles and selection UI for clean export
+  const savedSel = cartelSelectedImg;
+  cartelSelectedImg = -1;
+  renderCartel();
+  cartelSelectedImg = savedSel;
+}
+function restoreCartelAfterExport() {
+  renderCartel();
+}
+
+async function descargarCartelPDF() {
+  const element = document.getElementById('cartel-content');
+  if (!element) { toast('Error: no hay cartel para descargar', true); return; }
+  prepCartelForExport();
+
+  const ev = editingEvent;
+  const filename = `cartel_${(ev.nombre || 'evento').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+
+  toast('Generando PDF...');
+
+  try {
+    await html2pdf().set({
+      margin: 0,
+      filename: filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: null },
+      jsPDF: { unit: 'px', format: [600, element.scrollHeight], hotfixes: ['px_scaling'] }
+    }).from(element).save();
+    toast('PDF descargado: ' + filename);
+  } catch (e) {
+    toast('Error generando PDF: ' + e.message, true);
+  }
+  restoreCartelAfterExport();
+}
+
+async function compartirCartel() {
+  const element = document.getElementById('cartel-content');
+  if (!element) return;
+  prepCartelForExport();
+  try {
+    const canvas = await html2pdf().set({
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: null }
+    }).from(element).toCanvas();
+
+    canvas.toBlob(async (blob) => {
+      if (navigator.share && navigator.canShare) {
+        const file = new File([blob], 'cartel.jpg', { type: 'image/jpeg' });
+        try {
+          await navigator.share({
+            title: editingEvent.nombre,
+            text: `${editingEvent.nombre} - ${new Date(editingEvent.fecha).toLocaleDateString('es-MX')}`,
+            files: [file]
+          });
+        } catch (e) {
+          downloadImage(blob);
+        }
+      } else {
+        downloadImage(blob);
+      }
+    }, 'image/jpeg', 0.95);
+  } catch (e) {
+    toast('Error: ' + e.message, true);
+  }
+  restoreCartelAfterExport();
+}
+
+function downloadImage(blob) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `cartel_${(editingEvent.nombre || 'evento').replace(/[^a-zA-Z0-9]/g, '_')}.jpg`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Imagen descargada (puedes compartir por WhatsApp)');
+}
+
+// ─── APUESTAS ───
+let apuestasPeleas = []; // peleas available for betting
+
+function renderApuestasSection(ev, apuestas, balance, peleas) {
+  const el = document.getElementById('apuestas-section');
+  if (!el) return;
+  apuestasPeleas = peleas;
+
+  const resumen = balance.resumen || {};
+  const porApostador = balance.por_apostador || [];
+
+  el.innerHTML = `
+    <div class="cotejo-section" style="margin-top: 24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
+        <h3>Apuestas</h3>
+        ${ev.estado !== 'finalizado' ? `<button class="btn btn-secondary btn-sm" onclick="showApuestaModal()">+ Nueva Apuesta</button>` : ''}
+      </div>
+
+      ${resumen.total_apuestas > 0 ? `
+        <div class="stats-grid" style="margin-bottom:16px;">
+          <div class="stat-card">
+            <div class="stat-number">${resumen.total_apuestas || 0}</div>
+            <div class="stat-label">Total Apuestas</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" style="color:var(--secondary);">$${Number(resumen.monto_total || 0).toLocaleString()}</div>
+            <div class="stat-label">Monto Total</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" style="color:var(--primary);">${resumen.ganadas || 0}</div>
+            <div class="stat-label">Ganadas</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" style="color:var(--text-secondary);">${resumen.pendientes || 0}</div>
+            <div class="stat-label">Pendientes</div>
+          </div>
+        </div>
+      ` : ''}
+
+      ${porApostador.length > 0 ? `
+        <details style="margin-bottom:16px;">
+          <summary style="cursor:pointer; color: var(--text-secondary); font-size:14px; margin-bottom:8px; font-weight:600;">
+            Balance por Apostador (${porApostador.length})
+          </summary>
+          <table class="cotejo-table">
+            <thead>
+              <tr>
+                <th>Apostador</th>
+                <th>Apuestas</th>
+                <th>Apostado</th>
+                <th>Ganado</th>
+                <th>Perdido</th>
+                <th>Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${porApostador.map(a => `
+                <tr>
+                  <td><strong>${a.apostador_nombre}</strong></td>
+                  <td>${a.total_apuestas}</td>
+                  <td>$${Number(a.total_apostado || 0).toLocaleString()}</td>
+                  <td style="color:var(--primary);">$${Number(a.total_ganado || 0).toLocaleString()}</td>
+                  <td style="color:var(--rojo);">$${Number(a.total_perdido || 0).toLocaleString()}</td>
+                  <td style="font-weight:700; color:${Number(a.balance_neto) >= 0 ? 'var(--primary)' : 'var(--rojo)'};">
+                    ${Number(a.balance_neto) >= 0 ? '+' : ''}$${Number(a.balance_neto || 0).toLocaleString()}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </details>
+      ` : ''}
+
+      ${apuestas.length > 0 ? `
+        <table class="cotejo-table">
+          <thead>
+            <tr>
+              <th>Pelea</th>
+              <th>Apostador</th>
+              <th>A favor</th>
+              <th>Monto</th>
+              <th>Contraparte</th>
+              <th>Estado</th>
+              ${ev.estado !== 'finalizado' ? '<th>Acción</th>' : ''}
+            </tr>
+          </thead>
+          <tbody>
+            ${apuestas.map(a => `
+              <tr>
+                <td>#${a.numero_pelea || '?'}</td>
+                <td><strong>${a.apostador_nombre}</strong></td>
+                <td><span class="badge badge-${a.a_favor_de === 'rojo' ? 'en_curso' : 'programado'}" style="background:${a.a_favor_de === 'rojo' ? 'var(--rojo)' : 'var(--verde)'}; color:white;">${a.a_favor_de}</span></td>
+                <td style="font-weight:700;">$${Number(a.monto).toLocaleString()}</td>
+                <td>${a.contraparte_nombre || '—'}</td>
+                <td><span class="badge badge-${a.estado === 'ganada' || a.estado === 'cobrada' ? 'programado' : a.estado === 'perdida' ? 'finalizado' : 'pausado'}">${a.estado}</span></td>
+                ${ev.estado !== 'finalizado' ? `
+                  <td>
+                    ${a.estado === 'pendiente' ? `<button class="btn btn-danger btn-sm" onclick="cancelarApuesta('${a.id}')">✕</button>` : ''}
+                    ${a.estado === 'ganada' ? `<button class="btn btn-primary btn-sm" onclick="cobrarApuesta('${a.id}')">Cobrar</button>` : ''}
+                  </td>
+                ` : ''}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      ` : `
+        <div style="text-align:center; padding:24px; color:var(--text-secondary);">
+          <p>Sin apuestas registradas</p>
+          ${ev.estado !== 'finalizado' ? '<p style="font-size:13px;">Registra apuestas durante las peleas</p>' : ''}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+function showApuestaModal() {
+  const select = document.getElementById('ap-pelea');
+  select.innerHTML = apuestasPeleas
+    .filter(p => p.estado !== 'finalizada')
+    .map(p => `<option value="${p.id}">#${p.numero_pelea} - ${p.placa_rojo || p.anillo_rojo || '?'} vs ${p.placa_verde || p.anillo_verde || '?'}</option>`)
+    .join('');
+  document.getElementById('ap-apostador').value = '';
+  document.getElementById('ap-contraparte').value = '';
+  document.getElementById('ap-monto').value = '';
+  document.getElementById('ap-notas').value = '';
+  document.getElementById('apuesta-modal').classList.add('active');
+}
+
+async function registrarApuesta() {
+  const pelea_id = document.getElementById('ap-pelea').value;
+  const apostador_nombre = document.getElementById('ap-apostador').value.trim();
+  const monto = parseFloat(document.getElementById('ap-monto').value);
+  if (!apostador_nombre) { toast('Escribe el nombre del apostador', true); return; }
+  if (!monto || monto <= 0) { toast('Ingresa un monto válido', true); return; }
+  try {
+    await api('/apuestas', 'POST', {
+      pelea_id,
+      evento_id: currentEventId,
+      apostador_nombre,
+      contraparte_nombre: document.getElementById('ap-contraparte').value.trim() || null,
+      a_favor_de: document.getElementById('ap-favor').value,
+      monto,
+      notas: document.getElementById('ap-notas').value.trim() || null
+    });
+    closeModal('apuesta-modal');
+    toast('Apuesta registrada');
+    showEventDetail(currentEventId);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function cancelarApuesta(id) {
+  if (!confirm('¿Cancelar esta apuesta?')) return;
+  try {
+    await api(`/apuestas/${id}`, 'DELETE');
+    toast('Apuesta cancelada');
+    showEventDetail(currentEventId);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function cobrarApuesta(id) {
+  try {
+    await api(`/apuestas/${id}/cobrada`, 'POST');
+    toast('Apuesta cobrada');
+    showEventDetail(currentEventId);
+  } catch (e) { toast(e.message, true); }
+}
+
+// ─── RESULTADOS PDF ───
+async function exportarResultadosPDF() {
+  if (!editingEvent || !currentEventId) return;
+  const ev = editingEvent;
+
+  try {
+    const [peleasRes, tablaRes, rondasRes] = await Promise.all([
+      api(`/peleas/evento/${currentEventId}`),
+      api(`/derby/${currentEventId}/tabla`).catch(() => ({ data: [] })),
+      api(`/derby/${currentEventId}/rondas`).catch(() => ({ data: [] }))
+    ]);
+
+    const peleas = peleasRes.data;
+    const tabla = tablaRes.data;
+    const rondas = rondasRes.data;
+    const campeon = tabla.length > 0 ? tabla[0] : null;
+    const fecha = new Date(ev.fecha).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const finalizadas = peleas.filter(p => p.estado === 'finalizada');
+    const duraciones = peleas.filter(p => p.duracion_minutos).map(p => parseFloat(p.duracion_minutos));
+    const avgDur = duraciones.length > 0 ? (duraciones.reduce((a, b) => a + b, 0) / duraciones.length).toFixed(1) : '—';
+
+    const container = document.createElement('div');
+    container.style.cssText = 'width:700px; font-family:system-ui,-apple-system,sans-serif; color:#1E293B; background:#fff; padding:40px;';
+    container.innerHTML = `
+      <div style="text-align:center; margin-bottom:30px;">
+        <div style="font-size:32px; font-weight:800; color:#0F172A;">${ev.nombre}</div>
+        <div style="color:#64748B; font-size:14px; margin-top:4px;">${fecha} · ${ev.lugar || ''}</div>
+        <div style="color:#64748B; font-size:13px;">${ev.tipo_derby || 'Derby'} · ${finalizadas.length} peleas · ${rondas.length} rondas</div>
+      </div>
+
+      ${campeon ? `
+        <div style="text-align:center; background:linear-gradient(135deg,#FEF3C7,#FDE68A); padding:24px; border-radius:12px; margin-bottom:24px; border:2px solid #F59E0B;">
+          <div style="font-size:36px;">🏆</div>
+          <div style="font-size:11px; text-transform:uppercase; letter-spacing:2px; color:#92400E; font-weight:700;">Campeón</div>
+          <div style="font-size:24px; font-weight:800; color:#92400E; margin:4px 0;">${campeon.nombre}</div>
+          <div style="color:#92400E; font-size:14px;">${campeon.puntos} puntos · ${campeon.victorias || 0} victorias · ${campeon.tablas || 0} tablas · ${campeon.derrotas || 0} derrotas</div>
+          ${ev.premio_campeon ? `<div style="font-weight:700; color:#92400E; margin-top:6px; font-size:16px;">Premio: $${Number(ev.premio_campeon).toLocaleString()}</div>` : ''}
+        </div>
+      ` : ''}
+
+      <div style="font-size:16px; font-weight:700; color:#0F172A; margin-bottom:8px; border-bottom:2px solid #E2E8F0; padding-bottom:6px;">Tabla de Posiciones</div>
+      <table style="width:100%; border-collapse:collapse; margin-bottom:24px; font-size:13px;">
+        <thead>
+          <tr style="background:#F1F5F9;">
+            <th style="padding:8px; text-align:left; border-bottom:2px solid #CBD5E1;">#</th>
+            <th style="padding:8px; text-align:left; border-bottom:2px solid #CBD5E1;">Partido</th>
+            <th style="padding:8px; text-align:center; border-bottom:2px solid #CBD5E1;">Pts</th>
+            <th style="padding:8px; text-align:center; border-bottom:2px solid #CBD5E1;">V</th>
+            <th style="padding:8px; text-align:center; border-bottom:2px solid #CBD5E1;">D</th>
+            <th style="padding:8px; text-align:center; border-bottom:2px solid #CBD5E1;">T</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tabla.map((p, i) => `
+            <tr style="background:${i === 0 ? '#FEF9C3' : i % 2 === 0 ? '#fff' : '#F8FAFC'}; ${p.es_comodin ? 'opacity:0.5;' : ''}">
+              <td style="padding:8px; border-bottom:1px solid #E2E8F0; font-weight:700;">${i === 0 ? '🏆' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</td>
+              <td style="padding:8px; border-bottom:1px solid #E2E8F0; font-weight:${i < 3 ? '700' : '400'};">${p.nombre}${p.es_comodin ? ' (Comodín)' : ''}</td>
+              <td style="padding:8px; border-bottom:1px solid #E2E8F0; text-align:center; font-weight:700;">${p.puntos}</td>
+              <td style="padding:8px; border-bottom:1px solid #E2E8F0; text-align:center; color:#10B981;">${p.victorias || 0}</td>
+              <td style="padding:8px; border-bottom:1px solid #E2E8F0; text-align:center; color:#EF4444;">${p.derrotas || 0}</td>
+              <td style="padding:8px; border-bottom:1px solid #E2E8F0; text-align:center;">${p.tablas || 0}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+
+      <div style="font-size:16px; font-weight:700; color:#0F172A; margin-bottom:8px; border-bottom:2px solid #E2E8F0; padding-bottom:6px;">Detalle de Peleas</div>
+      <table style="width:100%; border-collapse:collapse; margin-bottom:24px; font-size:12px;">
+        <thead>
+          <tr style="background:#F1F5F9;">
+            <th style="padding:6px; text-align:left; border-bottom:2px solid #CBD5E1;">#</th>
+            <th style="padding:6px; text-align:left; border-bottom:2px solid #CBD5E1;">Rda</th>
+            <th style="padding:6px; text-align:left; border-bottom:2px solid #CBD5E1;">Rojo</th>
+            <th style="padding:6px; text-align:center; border-bottom:2px solid #CBD5E1;">Peso</th>
+            <th style="padding:6px; text-align:left; border-bottom:2px solid #CBD5E1;">Verde</th>
+            <th style="padding:6px; text-align:center; border-bottom:2px solid #CBD5E1;">Peso</th>
+            <th style="padding:6px; text-align:center; border-bottom:2px solid #CBD5E1;">Resultado</th>
+            <th style="padding:6px; text-align:center; border-bottom:2px solid #CBD5E1;">Duración</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${peleas.map(p => {
+            const ronda = rondas.find(r => r.id === p.ronda_id);
+            const resColor = p.resultado === 'rojo' ? '#EF4444' : p.resultado === 'verde' ? '#10B981' : '#64748B';
+            return `
+            <tr style="background:${p.resultado === 'rojo' ? '#FEF2F2' : p.resultado === 'verde' ? '#F0FDF4' : '#fff'};">
+              <td style="padding:6px; border-bottom:1px solid #E2E8F0; font-weight:700;">${p.numero_pelea}</td>
+              <td style="padding:6px; border-bottom:1px solid #E2E8F0;">${ronda ? ronda.numero_ronda : '-'}</td>
+              <td style="padding:6px; border-bottom:1px solid #E2E8F0;">${p.placa_rojo || p.anillo_rojo || '---'}</td>
+              <td style="padding:6px; border-bottom:1px solid #E2E8F0; text-align:center;">${p.peso_rojo || '-'}</td>
+              <td style="padding:6px; border-bottom:1px solid #E2E8F0;">${p.placa_verde || p.anillo_verde || '---'}</td>
+              <td style="padding:6px; border-bottom:1px solid #E2E8F0; text-align:center;">${p.peso_verde || '-'}</td>
+              <td style="padding:6px; border-bottom:1px solid #E2E8F0; text-align:center; font-weight:700; color:${resColor};">${resultLabel(p.resultado || '-')}${p.tipo_victoria ? ' (' + motivoLabel(p.tipo_victoria) + ')' : ''}</td>
+              <td style="padding:6px; border-bottom:1px solid #E2E8F0; text-align:center;">${p.duracion_minutos ? p.duracion_minutos + ' min' : '-'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+
+      <div style="display:flex; justify-content:space-between; padding:16px; background:#F1F5F9; border-radius:8px; font-size:13px; color:#64748B;">
+        <span>Total peleas: ${finalizadas.length}</span>
+        <span>Duración promedio: ${avgDur} min</span>
+        <span>Partidos: ${tabla.filter(t => !t.es_comodin).length}</span>
+      </div>
+
+      <div style="text-align:center; margin-top:24px; padding-top:16px; border-top:1px solid #E2E8F0; color:#94A3B8; font-size:11px;">
+        GenesisPro Palenque · genesispro.vip · Resultados generados el ${new Date().toLocaleDateString('es-MX')}
+      </div>
+    `;
+
+    document.body.appendChild(container);
+    const filename = `resultados_${(ev.nombre || 'evento').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+    toast('Generando PDF de resultados...');
+
+    await html2pdf().set({
+      margin: 10,
+      filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+      jsPDF: { unit: 'px', format: [720, container.scrollHeight + 40], hotfixes: ['px_scaling'] }
+    }).from(container).save();
+
+    document.body.removeChild(container);
+    toast('PDF de resultados descargado');
+  } catch (e) {
+    toast('Error: ' + e.message, true);
+  }
 }
 
 // ─── INIT ───
