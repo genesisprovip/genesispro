@@ -27,14 +27,14 @@ router.post('/register-token', authenticateJWT, asyncHandler(async (req, res) =>
   res.json({ success: true, message: 'Token registrado' });
 }));
 
-// Unregister token
-router.post('/unregister-token', asyncHandler(async (req, res) => {
+// Unregister token (requires auth to prevent disabling others' tokens)
+router.post('/unregister-token', authenticateJWT, asyncHandler(async (req, res) => {
   const { token } = req.body;
   if (!token) {
     return res.status(400).json({ success: false, error: { message: 'Token requerido' } });
   }
 
-  await db.query('UPDATE push_tokens SET activo = false, updated_at = NOW() WHERE token = $1', [token]);
+  await db.query('UPDATE push_tokens SET activo = false, updated_at = NOW() WHERE token = $1 AND usuario_id = $2', [token, req.userId]);
   res.json({ success: true, message: 'Token desactivado' });
 }));
 

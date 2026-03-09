@@ -6,9 +6,20 @@ const express = require('express');
 const { body } = require('express-validator');
 const router = express.Router();
 
+const rateLimit = require('express-rate-limit');
 const authController = require('../controllers/authController');
 const { authenticateJWT } = require('../middleware/auth');
 const { validateRequest } = require('../middleware/validator');
+
+// Strict rate limiter for auth endpoints (5 attempts per 15 min)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: { message: 'Demasiados intentos. Intenta de nuevo en 15 minutos.' } },
+});
 
 // Validation rules
 const registerValidation = [
@@ -71,12 +82,12 @@ const refreshTokenValidation = [
     .withMessage('Refresh token es requerido')
 ];
 
-// Public routes
-router.post('/register', registerValidation, validateRequest, authController.register);
-router.post('/login', loginValidation, validateRequest, authController.login);
+// Public routes (with rate limiting on sensitive endpoints)
+router.post('/register', authLimiter, registerValidation, validateRequest, authController.register);
+router.post('/login', authLimiter, loginValidation, validateRequest, authController.login);
 router.post('/refresh-token', refreshTokenValidation, validateRequest, authController.refreshToken);
-router.post('/forgot-password', forgotPasswordValidation, validateRequest, authController.forgotPassword);
-router.post('/reset-password/:token', resetPasswordValidation, validateRequest, authController.resetPassword);
+router.post('/forgot-password', authLimiter, forgotPasswordValidation, validateRequest, authController.forgotPassword);
+router.post('/reset-password/:token', authLimiter, resetPasswordValidation, validateRequest, authController.resetPassword);
 router.get('/verify-email/:token', authController.verifyEmail);
 
 // Protected routes
