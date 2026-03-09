@@ -8,10 +8,11 @@ import {
   Animated,
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { Eye, Radio, Volume2, VolumeX, Lock, Maximize2 } from 'lucide-react-native';
+import { Eye, Radio, Volume2, VolumeX, Lock, Maximize2, Zap } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS } from '@/constants/theme';
+import WebRTCPlayer from './WebRTCPlayer';
 
 const DEFAULT_PREVIEW_MINUTES = 5;
 
@@ -21,6 +22,8 @@ interface LiveStreamViewerProps {
   viewersCount: number;
   calidad: string;
   previewMinutos?: number | null;
+  webrtcSignaling?: string | null;
+  streamName?: string | null;
   onFullscreen?: () => void;
   userPlan?: 'free' | 'basico' | 'pro' | 'premium';
 }
@@ -31,6 +34,8 @@ export default function LiveStreamViewer({
   viewersCount,
   calidad,
   previewMinutos,
+  webrtcSignaling,
+  streamName,
   onFullscreen,
   userPlan = 'free',
 }: LiveStreamViewerProps) {
@@ -43,6 +48,22 @@ export default function LiveStreamViewer({
   const [previewExpired, setPreviewExpired] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const isFreeUser = previewMinutos !== null && previewMinutos !== undefined ? true : userPlan === 'free';
+
+  // Dual-path: WebRTC primary, HLS fallback
+  const canWebRTC = !!(webrtcSignaling && streamName);
+  const [useWebRTC, setUseWebRTC] = useState(canWebRTC);
+  const [webrtcReady, setWebrtcReady] = useState(false);
+
+  const handleWebRTCReady = useCallback(() => {
+    setWebrtcReady(true);
+    setPlayerStatus('playing');
+  }, []);
+
+  const handleWebRTCError = useCallback(() => {
+    console.log('[Stream] WebRTC failed, falling back to HLS');
+    setUseWebRTC(false);
+    setWebrtcReady(false);
+  }, []);
 
   // Native video player via expo-video (ExoPlayer on Android, AVPlayer on iOS)
   // Use source object with buffering hints for low latency
@@ -184,14 +205,24 @@ export default function LiveStreamViewer({
 
   return (
     <View style={styles.container}>
-      <VideoView
-        ref={videoViewRef}
-        player={player}
-        style={styles.video}
-        nativeControls={false}
-        contentFit="contain"
-        allowsFullscreen
-      />
+      {useWebRTC && canWebRTC ? (
+        <WebRTCPlayer
+          signalingUrl={webrtcSignaling!}
+          streamName={streamName!}
+          onReady={handleWebRTCReady}
+          onError={handleWebRTCError}
+          style={styles.video}
+        />
+      ) : (
+        <VideoView
+          ref={videoViewRef}
+          player={player}
+          style={styles.video}
+          nativeControls={false}
+          contentFit="contain"
+          allowsFullscreen
+        />
+      )}
 
       {playerStatus === 'buffering' && (
         <View style={styles.bufferingOverlay} pointerEvents="none">
@@ -212,6 +243,12 @@ export default function LiveStreamViewer({
           <View style={styles.qualityBadge}>
             <Text style={styles.qualityText}>{calidad}</Text>
           </View>
+          {useWebRTC && webrtcReady && (
+            <View style={[styles.qualityBadge, { backgroundColor: 'rgba(16, 185, 129, 0.8)' }]}>
+              <Zap size={10} color="#fff" />
+              <Text style={[styles.qualityText, { marginLeft: 3 }]}>WebRTC</Text>
+            </View>
+          )}
         </View>
         <View style={styles.viewersContainer}>
           <Eye size={14} color={COLORS.textLight} />

@@ -628,6 +628,8 @@ export default function LiveEventScreen() {
             viewersCount={streamInfo.viewersCount}
             calidad={streamInfo.calidad}
             previewMinutos={streamInfo.previewMinutos}
+            webrtcSignaling={streamInfo.webrtcSignaling}
+            streamName={streamInfo.streamName}
             userPlan={isPublic ? 'free' : 'premium'}
           />
         </View>

@@ -14,6 +14,7 @@ const logger = require('../config/logger');
 
 const RTMP_URL = process.env.RTMP_URL || 'rtmp://live.genesispro.vip/live';
 const HLS_BASE_URL = process.env.HLS_BASE_URL || 'https://live.genesispro.vip/live';
+const WEBRTC_SIGNALING_URL = process.env.WEBRTC_SIGNALING_URL || 'wss://live.genesispro.vip:3334';
 
 // Quality tiers based on app subscription plan
 const QUALITY_TIERS = {
@@ -170,9 +171,13 @@ router.get('/evento/:eventoId', asyncHandler(async (req, res) => {
 
   const qualityTier = QUALITY_TIERS[userPlan] || QUALITY_TIERS.free;
 
+  const isLive = stream.estado === 'activo';
   const data = {
-    isLive: stream.estado === 'activo',
-    hlsUrl: stream.estado === 'activo' ? `${HLS_BASE_URL}/${stream.stream_key}/llhls.m3u8` : null,
+    isLive,
+    hlsUrl: isLive ? `${HLS_BASE_URL}/${stream.stream_key}/llhls.m3u8` : null,
+    webrtcUrl: isLive ? `${WEBRTC_SIGNALING_URL}/live/${stream.stream_key}` : null,
+    webrtcSignaling: isLive ? WEBRTC_SIGNALING_URL : null,
+    streamName: isLive ? stream.stream_key : null,
     calidad: qualityTier.calidad,
     previewMinutos: qualityTier.previewMinutos,
     viewersCount: stream.viewers_count,
