@@ -87,8 +87,18 @@ router.post('/register', authLimiter, registerValidation, validateRequest, authC
 router.post('/login', authLimiter, loginValidation, validateRequest, authController.login);
 router.post('/refresh-token', refreshTokenValidation, validateRequest, authController.refreshToken);
 router.post('/forgot-password', authLimiter, forgotPasswordValidation, validateRequest, authController.forgotPassword);
+router.post('/verify-reset-code', authLimiter, [
+  body('email').isEmail().withMessage('Email inválido').normalizeEmail(),
+  body('code').notEmpty().isLength({ min: 6, max: 6 }).withMessage('Código de 6 dígitos requerido'),
+], validateRequest, authController.verifyResetCode);
 router.post('/reset-password/:token', authLimiter, resetPasswordValidation, validateRequest, authController.resetPassword);
-router.get('/verify-email/:token', authController.verifyEmail);
+router.post('/verify-email', authLimiter, [
+  body('email').isEmail().withMessage('Email inválido').normalizeEmail(),
+  body('code').notEmpty().isLength({ min: 6, max: 6 }).withMessage('Código de 6 dígitos requerido'),
+], validateRequest, authController.verifyEmail);
+router.post('/resend-verification', authLimiter, [
+  body('email').isEmail().withMessage('Email inválido').normalizeEmail(),
+], validateRequest, authController.resendVerification);
 
 // Protected routes
 router.use(authenticateJWT);

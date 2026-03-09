@@ -75,6 +75,44 @@ const register = asyncHandler(async (req, res) => {
     [user.id, refreshTokenHash]
   );
 
+  // Send verification email (fire-and-forget)
+  try {
+    const resendKey = process.env.RESEND_API_KEY;
+    if (resendKey) {
+      const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const tokenHash = crypto.createHash('sha256').update(verificationToken).digest('hex');
+      await db.query(
+        `UPDATE usuarios SET email_verification_token = $1, email_verification_expires = NOW() + INTERVAL '24 hours' WHERE id = $2`,
+        [tokenHash + ':' + verifyCode, user.id]
+      );
+
+      const fromEmail = process.env.RESEND_FROM || 'GenesisPro <noreply@genesispro.vip>';
+      fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: fromEmail,
+          to: [user.email],
+          subject: 'Bienvenido a GenesisPro - Verifica tu email',
+          html: `
+            <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:30px;background:#0F172A;color:#fff;border-radius:16px;">
+              <h2 style="color:#F59E0B;margin-bottom:8px;">GenesisPro</h2>
+              <p>Hola ${nombre || ''},</p>
+              <p>Bienvenido a GenesisPro. Tu cuenta ha sido creada con un trial Premium de 15 dias.</p>
+              <div style="background:#1E293B;border-radius:12px;padding:24px;text-align:center;margin:24px 0;">
+                <p style="color:rgba(255,255,255,0.6);font-size:14px;margin-bottom:8px;">Tu codigo de verificacion:</p>
+                <h1 style="color:#10B981;font-size:36px;letter-spacing:8px;margin:0;">${verifyCode}</h1>
+              </div>
+              <p style="color:rgba(255,255,255,0.6);font-size:13px;">Este codigo expira en 24 horas.</p>
+            </div>
+          `,
+        }),
+      }).catch(e => logger.error('Welcome email failed:', e.message));
+    }
+  } catch (emailErr) {
+    logger.error('Email verification setup failed:', emailErr.message);
+  }
+
   logger.info(`New user registered: ${user.email}`);
 
   res.status(201).json({
@@ -104,8 +142,40 @@ const register = asyncHandler(async (req, res) => {
  * Login user
  * POST /api/v1/auth/login
  */
+// In-memory login attempt tracker (resets on restart, per-IP)
+const loginAttempts = new Map();
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
+
+function checkLoginAttempts(ip) {
+  const record = loginAttempts.get(ip);
+  if (!record) return;
+  if (record.count >= MAX_LOGIN_ATTEMPTS && Date.now() - record.lastAttempt < LOCKOUT_DURATION) {
+    const minutesLeft = Math.ceil((LOCKOUT_DURATION - (Date.now() - record.lastAttempt)) / 60000);
+    throw Errors.rateLimitExceeded();
+  }
+  if (Date.now() - record.lastAttempt >= LOCKOUT_DURATION) {
+    loginAttempts.delete(ip);
+  }
+}
+
+function recordFailedLogin(ip) {
+  const record = loginAttempts.get(ip) || { count: 0, lastAttempt: 0 };
+  record.count++;
+  record.lastAttempt = Date.now();
+  loginAttempts.set(ip, record);
+}
+
+function clearLoginAttempts(ip) {
+  loginAttempts.delete(ip);
+}
+
 const login = asyncHandler(async (req, res) => {
   const { email, password, device_info } = req.body;
+  const clientIp = req.ip || req.connection.remoteAddress;
+
+  // Check if IP is locked out
+  checkLoginAttempts(clientIp);
 
   // Find user
   const { rows } = await db.query(
@@ -117,6 +187,7 @@ const login = asyncHandler(async (req, res) => {
   );
 
   if (rows.length === 0) {
+    recordFailedLogin(clientIp);
     throw Errors.unauthorized('Credenciales inválidas');
   }
 
@@ -131,8 +202,12 @@ const login = asyncHandler(async (req, res) => {
   const isValidPassword = await bcrypt.compare(password, user.password_hash);
 
   if (!isValidPassword) {
+    recordFailedLogin(clientIp);
     throw Errors.unauthorized('Credenciales inválidas');
   }
+
+  // Successful login - clear attempts
+  clearLoginAttempts(clientIp);
 
   // Generate tokens
   const tokens = generateTokens(user.id);
@@ -269,7 +344,7 @@ const getProfile = asyncHandler(async (req, res) => {
     `SELECT
       u.id, u.email, u.nombre, u.telefono, u.ubicacion,
       u.foto_perfil, u.email_verificado, u.plan_actual, u.plan_elegido,
-      u.plan_empresario, u.estado_cuenta, u.trial_inicio, u.trial_fin,
+      u.plan_empresario, u.rol, u.estado_cuenta, u.trial_inicio, u.trial_fin,
       u.created_at, u.ultimo_acceso,
       l.max_aves, l.aves_actuales, l.max_fotos_por_ave,
       l.profundidad_genealogia, l.analytics_avanzado,
@@ -323,6 +398,7 @@ const getProfile = asyncHandler(async (req, res) => {
         trial_fin: user.trial_fin,
         trial_dias_restantes: trialDiasRestantes,
         plan_empresario: user.plan_empresario || null,
+        rol: user.rol || 'usuario',
         created_at: user.created_at,
         ultimo_acceso: user.ultimo_acceso
       },
@@ -422,11 +498,11 @@ const forgotPassword = asyncHandler(async (req, res) => {
   // Always return success to prevent email enumeration
   const successResponse = {
     success: true,
-    message: 'Si el email existe, recibirás instrucciones para restablecer tu contraseña'
+    message: 'Si el email existe, recibirás un código para restablecer tu contraseña'
   };
 
   const { rows } = await db.query(
-    'SELECT id, email FROM usuarios WHERE email = $1 AND deleted_at IS NULL',
+    'SELECT id, email, nombre FROM usuarios WHERE email = $1 AND activo = true AND deleted_at IS NULL',
     [email.toLowerCase()]
   );
 
@@ -434,13 +510,120 @@ const forgotPassword = asyncHandler(async (req, res) => {
     return res.json(successResponse);
   }
 
-  // Generate reset token (in production, send via email)
+  // Generate 6-digit reset code (easier for mobile users)
+  const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
   const resetToken = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
 
-  // TODO: Store token and send email
-  logger.info(`Password reset requested for: ${email}, token: ${resetToken}`);
+  // Store hashed token + code in DB
+  const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+  await db.query(
+    `UPDATE usuarios SET password_reset_token = $1, password_reset_expires = $2, updated_at = NOW()
+     WHERE id = $3`,
+    [tokenHash + ':' + resetCode, expiresAt, rows[0].id]
+  );
+
+  // Send email with reset code via Resend
+  try {
+    const resendKey = process.env.RESEND_API_KEY;
+    if (!resendKey) throw new Error('RESEND_API_KEY not configured');
+
+    const fromEmail = process.env.RESEND_FROM || 'GenesisPro <noreply@genesispro.vip>';
+
+    const resendRes = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: fromEmail,
+        to: [rows[0].email],
+        subject: 'Recuperar contraseña - GenesisPro',
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:30px;background:#0F172A;color:#fff;border-radius:16px;">
+            <h2 style="color:#F59E0B;margin-bottom:8px;">GenesisPro</h2>
+            <p>Hola ${rows[0].nombre || ''},</p>
+            <p>Recibimos una solicitud para restablecer tu contraseña.</p>
+            <div style="background:#1E293B;border-radius:12px;padding:24px;text-align:center;margin:24px 0;">
+              <p style="color:rgba(255,255,255,0.6);font-size:14px;margin-bottom:8px;">Tu codigo de recuperacion:</p>
+              <h1 style="color:#F59E0B;font-size:36px;letter-spacing:8px;margin:0;">${resetCode}</h1>
+            </div>
+            <p style="color:rgba(255,255,255,0.6);font-size:13px;">Este codigo expira en 30 minutos. Si no solicitaste este cambio, ignora este correo.</p>
+          </div>
+        `,
+      }),
+    });
+
+    const resendData = await resendRes.json();
+    if (!resendRes.ok) {
+      throw new Error(resendData.message || 'Resend API error');
+    }
+
+    logger.info(`Password reset email sent via Resend to: ${email}, id: ${resendData.id}`);
+  } catch (emailError) {
+    logger.error('Failed to send reset email:', emailError);
+    if (process.env.NODE_ENV !== 'production') {
+      return res.json({
+        ...successResponse,
+        _dev: { resetCode, resetToken, message: 'Email fallo - codigo incluido para desarrollo' }
+      });
+    }
+  }
 
   res.json(successResponse);
+});
+
+/**
+ * Verify reset code
+ * POST /api/v1/auth/verify-reset-code
+ */
+const verifyResetCode = asyncHandler(async (req, res) => {
+  const { email, code } = req.body;
+
+  if (!email || !code) {
+    throw Errors.badRequest('Email y código requeridos');
+  }
+
+  const { rows } = await db.query(
+    `SELECT id, password_reset_token, password_reset_expires FROM usuarios
+     WHERE email = $1 AND activo = true AND deleted_at IS NULL`,
+    [email.toLowerCase()]
+  );
+
+  if (rows.length === 0 || !rows[0].password_reset_token) {
+    throw Errors.badRequest('Código inválido o expirado');
+  }
+
+  const user = rows[0];
+
+  // Check expiration
+  if (new Date() > new Date(user.password_reset_expires)) {
+    await db.query('UPDATE usuarios SET password_reset_token = NULL, password_reset_expires = NULL WHERE id = $1', [user.id]);
+    throw Errors.badRequest('El código ha expirado. Solicita uno nuevo.');
+  }
+
+  // Verify code (stored as "tokenHash:code")
+  const storedCode = user.password_reset_token.split(':')[1];
+  if (storedCode !== code.trim()) {
+    throw Errors.badRequest('Código incorrecto');
+  }
+
+  // Generate a one-time reset token for the actual password change
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+  // Update token to the verified reset token (valid for 10 minutes)
+  await db.query(
+    `UPDATE usuarios SET password_reset_token = $1, password_reset_expires = $2 WHERE id = $3`,
+    [tokenHash, new Date(Date.now() + 10 * 60 * 1000), user.id]
+  );
+
+  res.json({
+    success: true,
+    data: { reset_token: resetToken },
+    message: 'Código verificado. Ahora puedes establecer tu nueva contraseña.'
+  });
 });
 
 /**
@@ -448,22 +631,180 @@ const forgotPassword = asyncHandler(async (req, res) => {
  * POST /api/v1/auth/reset-password/:token
  */
 const resetPassword = asyncHandler(async (req, res) => {
-  // TODO: Implement token verification
+  const { token } = req.params;
+  const { password } = req.body;
+
+  if (!password || password.length < 6) {
+    throw Errors.badRequest('La contraseña debe tener al menos 6 caracteres');
+  }
+
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+  const { rows } = await db.query(
+    `SELECT id FROM usuarios
+     WHERE password_reset_token = $1
+       AND password_reset_expires > NOW()
+       AND activo = true AND deleted_at IS NULL`,
+    [tokenHash]
+  );
+
+  if (rows.length === 0) {
+    throw Errors.badRequest('Token inválido o expirado');
+  }
+
+  const userId = rows[0].id;
+
+  // Hash new password
+  const salt = await bcrypt.genSalt(12);
+  const passwordHash = await bcrypt.hash(password, salt);
+
+  // Update password and clear reset token
+  await db.query(
+    `UPDATE usuarios SET password_hash = $1, password_reset_token = NULL,
+     password_reset_expires = NULL, updated_at = NOW() WHERE id = $2`,
+    [passwordHash, userId]
+  );
+
+  // Revoke all refresh tokens
+  await db.query(
+    `UPDATE refresh_tokens SET revoked = true, revoked_at = NOW(), revoked_reason = 'password_reset'
+     WHERE usuario_id = $1 AND revoked = false`,
+    [userId]
+  );
+
+  logger.info(`Password reset completed for user: ${userId}`);
+
   res.json({
     success: true,
-    message: 'Funcionalidad en desarrollo'
+    message: 'Contraseña restablecida exitosamente. Inicia sesión con tu nueva contraseña.'
   });
 });
 
 /**
- * Verify email
- * GET /api/v1/auth/verify-email/:token
+ * Verify email with 6-digit code
+ * POST /api/v1/auth/verify-email
  */
 const verifyEmail = asyncHandler(async (req, res) => {
-  // TODO: Implement email verification
+  const { email, code } = req.body;
+
+  if (!email || !code) {
+    throw Errors.badRequest('Email y código requeridos');
+  }
+
+  if (code.length !== 6) {
+    throw Errors.badRequest('Código de 6 dígitos requerido');
+  }
+
+  const { rows } = await db.query(
+    `SELECT id, email_verification_token, email_verification_expires, email_verificado
+     FROM usuarios WHERE email = $1 AND activo = true AND deleted_at IS NULL`,
+    [email.toLowerCase()]
+  );
+
+  if (rows.length === 0) {
+    throw Errors.badRequest('Código inválido o expirado');
+  }
+
+  const user = rows[0];
+
+  if (user.email_verificado) {
+    return res.json({ success: true, message: 'Email ya verificado' });
+  }
+
+  if (!user.email_verification_token || !user.email_verification_expires) {
+    throw Errors.badRequest('No hay código de verificación pendiente. Solicita uno nuevo.');
+  }
+
+  if (new Date(user.email_verification_expires) < new Date()) {
+    throw Errors.badRequest('Código expirado. Solicita uno nuevo.');
+  }
+
+  // Token stored as "hash:plainCode"
+  const storedCode = user.email_verification_token.split(':')[1];
+  if (!storedCode || storedCode !== code) {
+    throw Errors.badRequest('Código incorrecto');
+  }
+
+  await db.query(
+    `UPDATE usuarios SET email_verificado = true, email_verification_token = NULL,
+     email_verification_expires = NULL, updated_at = NOW() WHERE id = $1`,
+    [user.id]
+  );
+
+  logger.info(`Email verified for user: ${user.id}`);
+
   res.json({
     success: true,
-    message: 'Funcionalidad en desarrollo'
+    message: 'Email verificado exitosamente'
+  });
+});
+
+/**
+ * Resend verification code
+ * POST /api/v1/auth/resend-verification
+ */
+const resendVerification = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    throw Errors.badRequest('Email requerido');
+  }
+
+  const { rows } = await db.query(
+    `SELECT id, nombre, email_verificado FROM usuarios
+     WHERE email = $1 AND activo = true AND deleted_at IS NULL`,
+    [email.toLowerCase()]
+  );
+
+  if (rows.length === 0) {
+    // Don't reveal if email exists
+    return res.json({ success: true, message: 'Si el email existe, se envió un nuevo código' });
+  }
+
+  const user = rows[0];
+
+  if (user.email_verificado) {
+    return res.json({ success: true, message: 'Email ya verificado' });
+  }
+
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) {
+    throw Errors.internal('Servicio de email no configurado');
+  }
+
+  const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const tokenHash = crypto.createHash('sha256').update(crypto.randomBytes(32).toString('hex')).digest('hex');
+
+  await db.query(
+    `UPDATE usuarios SET email_verification_token = $1, email_verification_expires = NOW() + INTERVAL '24 hours' WHERE id = $2`,
+    [tokenHash + ':' + verifyCode, user.id]
+  );
+
+  const fromEmail = process.env.RESEND_FROM || 'GenesisPro <noreply@genesispro.vip>';
+  fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: fromEmail,
+      to: [email.toLowerCase()],
+      subject: 'GenesisPro - Nuevo código de verificación',
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;padding:30px;background:#0F172A;color:#fff;border-radius:16px;">
+          <h2 style="color:#F59E0B;margin-bottom:8px;">GenesisPro</h2>
+          <p>Hola ${user.nombre || ''},</p>
+          <p>Aquí tienes tu nuevo código de verificación:</p>
+          <div style="background:#1E293B;border-radius:12px;padding:24px;text-align:center;margin:24px 0;">
+            <p style="color:rgba(255,255,255,0.6);font-size:14px;margin-bottom:8px;">Tu código de verificación:</p>
+            <h1 style="color:#10B981;font-size:36px;letter-spacing:8px;margin:0;">${verifyCode}</h1>
+          </div>
+          <p style="color:rgba(255,255,255,0.5);font-size:12px;">Este código expira en 24 horas.</p>
+        </div>`
+    })
+  }).catch(err => logger.error('Error sending verification email:', err));
+
+  res.json({
+    success: true,
+    message: 'Si el email existe, se envió un nuevo código'
   });
 });
 
@@ -505,7 +846,9 @@ module.exports = {
   updateProfile,
   changePassword,
   forgotPassword,
+  verifyResetCode,
   resetPassword,
   verifyEmail,
+  resendVerification,
   deleteAccount
 };

@@ -9,10 +9,19 @@ const saludController = require('../controllers/saludController');
 const { authenticateJWT } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { validateRequest: validate } = require('../middleware/validator');
+const { checkPlanLimits } = require('../middleware/planLimits');
 const { body, param, query } = require('express-validator');
 
 // All routes require authentication
 router.use(authenticateJWT);
+
+// Write operations require at least Pro plan
+router.use((req, res, next) => {
+  if (['POST', 'PUT', 'DELETE'].includes(req.method)) {
+    return checkPlanLimits('salud')(req, res, next);
+  }
+  next();
+});
 
 // ============================================
 // Validation Schemas

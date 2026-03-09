@@ -180,6 +180,43 @@ class ApiService {
     return this.request<{ success: boolean; data: { user: any; limites: any } }>('/auth/me');
   }
 
+  // Password Recovery
+  async forgotPassword(email: string) {
+    return this.request<{ success: boolean; message: string }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async verifyResetCode(email: string, code: string) {
+    return this.request<{ success: boolean; data: { reset_token: string }; message: string }>('/auth/verify-reset-code', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    });
+  }
+
+  async resetPassword(token: string, password: string) {
+    return this.request<{ success: boolean; message: string }>(`/auth/reset-password/${token}`, {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    });
+  }
+
+  // Email Verification
+  async verifyEmail(email: string, code: string) {
+    return this.request<{ success: boolean; message: string }>('/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    });
+  }
+
+  async resendVerification(email: string) {
+    return this.request<{ success: boolean; message: string }>('/auth/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
   // Aves
   async getAves(params?: { page?: number; limit?: number; sexo?: string; estado?: string }) {
     const searchParams = new URLSearchParams();
@@ -424,6 +461,57 @@ class ApiService {
     if (params?.estado) searchParams.append('estado', params.estado);
     const query = searchParams.toString();
     return this.request<{ success: boolean; data: any[] }>(`/eventos${query ? `?${query}` : ''}`);
+  }
+
+  async crearEvento(data: {
+    nombre: string;
+    fecha: string;
+    hora_inicio?: string;
+    lugar: string;
+    tipo_derby: string;
+    reglas?: string;
+    es_publico?: boolean;
+    total_peleas?: number;
+  }) {
+    return this.request<{ success: boolean; data: any }>('/eventos', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateEvento(id: string, data: any) {
+    return this.request<{ success: boolean; data: any }>(`/eventos/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async iniciarEvento(id: string) {
+    return this.request<{ success: boolean; data: any }>(`/eventos/${id}/iniciar`, {
+      method: 'POST',
+    });
+  }
+
+  async siguientePelea(id: string) {
+    return this.request<{ success: boolean; data: any }>(`/eventos/${id}/siguiente-pelea`, {
+      method: 'POST',
+    });
+  }
+
+  async pausarEvento(id: string) {
+    return this.request<{ success: boolean; data: any }>(`/eventos/${id}/pausar`, {
+      method: 'POST',
+    });
+  }
+
+  async finalizarEvento(id: string) {
+    return this.request<{ success: boolean; data: any }>(`/eventos/${id}/finalizar`, {
+      method: 'POST',
+    });
+  }
+
+  async getParticipantesEvento(id: string) {
+    return this.request<{ success: boolean; data: any[] }>(`/eventos/${id}/participantes`);
   }
 
   async getEventosPublicos() {

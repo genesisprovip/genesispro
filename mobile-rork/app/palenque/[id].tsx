@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,10 +6,13 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
 import {
   ChevronLeft,
   Play,
@@ -29,17 +32,21 @@ import {
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
+import { api } from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
 
 type EstadoEvento = 'programado' | 'en_curso' | 'pausado' | 'finalizado';
 
 interface Pelea {
-  numero: number;
-  ave_local?: string;
-  ave_visitante?: string;
-  resultado?: 'victoria' | 'derrota' | 'empate' | null;
+  id: string;
+  numero_pelea: number;
+  partido_rojo_nombre?: string;
+  partido_verde_nombre?: string;
+  anillo_rojo?: string;
+  anillo_verde?: string;
+  resultado?: string | null;
   duracion_minutos?: number;
-  estado: 'pendiente' | 'en_curso' | 'finalizada';
-  partido_propio?: boolean;
+  estado: string;
 }
 
 interface Participante {
@@ -50,60 +57,12 @@ interface Participante {
   derrotas: number;
 }
 
-// TODO: Replace with API call to GET /api/v1/palenque/eventos/:id
-const MOCK_EVENTO = {
-  id: '1',
-  nombre: 'Derby Regional Jalisco',
-  fecha: '2026-03-15',
-  hora_inicio: '10:00',
-  lugar: 'Palenque El Dorado, Guadalajara',
-  estado: 'en_curso' as EstadoEvento,
-  tipo_derby: '3 cocks',
-  reglas: 'Navaja larga, peso libre. Tolerancia 50g.',
-  total_peleas: 20,
-  pelea_actual: 8,
-  es_publico: true,
-  codigo_acceso: 'DRJ2026',
-  es_organizador: true, // TODO: Determine from auth user
-};
-
-// TODO: Replace with API call to GET /api/v1/palenque/eventos/:id/peleas
-const MOCK_PELEAS: Pelea[] = [
-  { numero: 1, ave_local: 'GP-001', ave_visitante: 'OPP-A1', resultado: 'victoria', duracion_minutos: 12, estado: 'finalizada' },
-  { numero: 2, ave_local: 'GP-003', ave_visitante: 'OPP-B2', resultado: 'derrota', duracion_minutos: 8, estado: 'finalizada' },
-  { numero: 3, ave_local: 'EXT-05', ave_visitante: 'OPP-C1', resultado: 'victoria', duracion_minutos: 15, estado: 'finalizada' },
-  { numero: 4, ave_local: 'GP-007', ave_visitante: 'OPP-D3', resultado: 'empate', duracion_minutos: 20, estado: 'finalizada' },
-  { numero: 5, ave_local: 'EXT-02', ave_visitante: 'OPP-E1', resultado: 'victoria', duracion_minutos: 6, estado: 'finalizada' },
-  { numero: 6, ave_local: 'GP-012', ave_visitante: 'OPP-F2', resultado: 'victoria', duracion_minutos: 11, estado: 'finalizada' },
-  { numero: 7, ave_local: 'EXT-08', ave_visitante: 'OPP-G1', resultado: 'derrota', duracion_minutos: 18, estado: 'finalizada' },
-  { numero: 8, ave_local: 'GP-005', ave_visitante: 'OPP-H2', resultado: null, duracion_minutos: undefined, estado: 'en_curso' },
-  { numero: 9, ave_local: 'EXT-11', ave_visitante: 'OPP-I3', resultado: null, estado: 'pendiente' },
-  { numero: 10, ave_local: 'GP-009', ave_visitante: 'OPP-J1', resultado: null, estado: 'pendiente' },
-  { numero: 11, ave_local: 'EXT-03', ave_visitante: 'OPP-K2', resultado: null, estado: 'pendiente' },
-  { numero: 12, ave_local: 'GP-015', ave_visitante: 'OPP-L1', resultado: null, estado: 'pendiente', partido_propio: true },
-  { numero: 13, ave_local: 'EXT-06', ave_visitante: 'OPP-M3', resultado: null, estado: 'pendiente' },
-  { numero: 14, ave_local: 'GP-002', ave_visitante: 'OPP-N1', resultado: null, estado: 'pendiente' },
-  { numero: 15, ave_local: 'EXT-09', ave_visitante: 'OPP-O2', resultado: null, estado: 'pendiente' },
-  { numero: 16, ave_local: 'GP-011', ave_visitante: 'OPP-P1', resultado: null, estado: 'pendiente' },
-  { numero: 17, ave_local: 'EXT-04', ave_visitante: 'OPP-Q3', resultado: null, estado: 'pendiente' },
-  { numero: 18, ave_local: 'GP-008', ave_visitante: 'OPP-R2', resultado: null, estado: 'pendiente' },
-  { numero: 19, ave_local: 'EXT-07', ave_visitante: 'OPP-S1', resultado: null, estado: 'pendiente' },
-  { numero: 20, ave_local: 'GP-014', ave_visitante: 'OPP-T2', resultado: null, estado: 'pendiente' },
-];
-
-// TODO: Replace with API call to GET /api/v1/palenque/eventos/:id/participantes
-const MOCK_PARTICIPANTES: Participante[] = [
-  { id: '1', nombre: 'Rancho Los Gallos', gallos_inscritos: 5, victorias: 3, derrotas: 1 },
-  { id: '2', nombre: 'Criadero El Dorado', gallos_inscritos: 4, victorias: 2, derrotas: 2 },
-  { id: '3', nombre: 'Hacienda San Pedro', gallos_inscritos: 3, victorias: 1, derrotas: 1 },
-  { id: '4', nombre: 'La Herradura GF', gallos_inscritos: 4, victorias: 1, derrotas: 2 },
-  { id: '5', nombre: 'Mi Gallera', gallos_inscritos: 4, victorias: 3, derrotas: 1 },
-];
-
-const RESULTADO_CONFIG = {
-  victoria: { color: COLORS.success, label: 'V', bg: COLORS.success + '20' },
-  derrota: { color: COLORS.error, label: 'D', bg: COLORS.error + '20' },
+const RESULTADO_CONFIG: Record<string, { color: string; label: string; bg: string }> = {
+  rojo: { color: '#EF4444', label: 'R', bg: '#EF444420' },
+  verde: { color: '#10B981', label: 'V', bg: '#10B98120' },
   empate: { color: COLORS.warning, label: 'E', bg: COLORS.warning + '20' },
+  tabla: { color: COLORS.warning, label: 'T', bg: COLORS.warning + '20' },
+  cancelada: { color: COLORS.textSecondary, label: 'X', bg: COLORS.textSecondary + '20' },
 };
 
 const ESTADO_COLOR: Record<EstadoEvento, string> = {
@@ -124,39 +83,86 @@ export default function PalenqueDetalleScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuth();
 
-  // TODO: Fetch event data from API using id
-  const [evento, setEvento] = useState(MOCK_EVENTO);
-  const [peleas] = useState(MOCK_PELEAS);
-  const [participantes] = useState(MOCK_PARTICIPANTES);
+  const [evento, setEvento] = useState<any>(null);
+  const [peleas, setPeleas] = useState<Pelea[]>([]);
+  const [participantes, setParticipantes] = useState<Participante[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
+  const loadData = useCallback(async () => {
+    if (!id) return;
+    try {
+      const [eventoRes, peleasRes, participantesRes] = await Promise.all([
+        api.getEvento(id),
+        api.getPeleasEvento(id, false).catch(() => ({ success: false, data: [] })),
+        api.getParticipantesEvento(id).catch(() => ({ success: false, data: [] })),
+      ]);
+      if (eventoRes.success) setEvento(eventoRes.data);
+      if (peleasRes.success) setPeleas(peleasRes.data || []);
+      if (participantesRes.success) setParticipantes(participantesRes.data || []);
+    } catch (err) {
+      console.log('Error loading evento:', err);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    setLoading(true);
+    loadData().finally(() => setLoading(false));
+  }, [loadData]);
+
+  // Auto-refresh when en_curso
+  useEffect(() => {
+    if (evento?.estado !== 'en_curso') return;
+    const interval = setInterval(loadData, 10000);
+    return () => clearInterval(interval);
+  }, [evento?.estado, loadData]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  if (loading || !evento) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={COLORS.secondary} />
+      </View>
+    );
+  }
+
+  const isOrganizer = evento.organizador_id === user?.id;
   const completedPeleas = peleas.filter(p => p.estado === 'finalizada').length;
-  const victorias = peleas.filter(p => p.resultado === 'victoria').length;
-  const derrotas = peleas.filter(p => p.resultado === 'derrota').length;
+  const rojoWins = peleas.filter(p => p.resultado === 'rojo').length;
+  const verdeWins = peleas.filter(p => p.resultado === 'verde').length;
 
-  // Find user's next fight (partido propio)
-  const miPelea = peleas.find(p => p.partido_propio && p.estado === 'pendiente');
-  const peleasFaltantes = miPelea
-    ? miPelea.numero - (evento.pelea_actual || 0)
-    : null;
+  const estadoColor = ESTADO_COLOR[evento.estado as EstadoEvento] || COLORS.textSecondary;
 
-  const estadoColor = ESTADO_COLOR[evento.estado];
-
-  // TODO: Replace with API calls
   const handleIniciarEvento = () => {
     Alert.alert('Iniciar Evento', 'Se iniciará el evento y se activará la primera pelea.', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Iniciar',
-        onPress: () => {
-          setEvento(prev => ({ ...prev, estado: 'en_curso', pelea_actual: 1 }));
+        onPress: async () => {
+          setActionLoading(true);
+          try {
+            const res = await api.iniciarEvento(id!);
+            if (res.success) await loadData();
+            else Alert.alert('Error', 'No se pudo iniciar el evento');
+          } catch (err: any) {
+            Alert.alert('Error', err.message || 'Error al iniciar');
+          } finally {
+            setActionLoading(false);
+          }
         },
       },
     ]);
   };
 
   const handleSiguientePelea = () => {
-    // TODO: API call to POST /api/v1/palenque/eventos/:id/siguiente-pelea
     Alert.alert(
       'Siguiente Pelea',
       `Avanzar a la pelea ${(evento.pelea_actual || 0) + 1}?`,
@@ -164,42 +170,65 @@ export default function PalenqueDetalleScreen() {
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Avanzar',
-          onPress: () => {
-            setEvento(prev => ({
-              ...prev,
-              pelea_actual: (prev.pelea_actual || 0) + 1,
-            }));
+          onPress: async () => {
+            setActionLoading(true);
+            try {
+              const res = await api.siguientePelea(id!);
+              if (res.success) await loadData();
+              else Alert.alert('Error', 'No se pudo avanzar');
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Error al avanzar');
+            } finally {
+              setActionLoading(false);
+            }
           },
         },
       ]
     );
   };
 
-  const handlePausar = () => {
-    // TODO: API call to POST /api/v1/palenque/eventos/:id/pausar
-    setEvento(prev => ({
-      ...prev,
-      estado: prev.estado === 'pausado' ? 'en_curso' : 'pausado',
-    }));
+  const handlePausar = async () => {
+    setActionLoading(true);
+    try {
+      const res = await api.pausarEvento(id!);
+      if (res.success) await loadData();
+      else Alert.alert('Error', 'No se pudo pausar/reanudar');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Error');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleFinalizar = () => {
-    // TODO: API call to POST /api/v1/palenque/eventos/:id/finalizar
     Alert.alert('Finalizar Evento', 'Esta acción no se puede deshacer.', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Finalizar',
         style: 'destructive',
-        onPress: () => {
-          setEvento(prev => ({ ...prev, estado: 'finalizado', pelea_actual: null }));
+        onPress: async () => {
+          setActionLoading(true);
+          try {
+            const res = await api.finalizarEvento(id!);
+            if (res.success) await loadData();
+            else Alert.alert('Error', 'No se pudo finalizar');
+          } catch (err: any) {
+            Alert.alert('Error', err.message || 'Error al finalizar');
+          } finally {
+            setActionLoading(false);
+          }
         },
       },
     ]);
   };
 
-  const handleCopyCodigo = () => {
-    // TODO: Use Clipboard API
-    Alert.alert('Copiado', `Código: ${evento.codigo_acceso}`);
+  const handleCopyCodigo = async () => {
+    try {
+      await Clipboard.setStringAsync(evento.codigo_acceso || '');
+      Alert.alert('Copiado', `Código: ${evento.codigo_acceso}`);
+    } catch {
+      Alert.alert('Código', evento.codigo_acceso);
+    }
   };
 
   return (
@@ -223,7 +252,7 @@ export default function PalenqueDetalleScreen() {
           <View style={[styles.statusBadgeHeader, { backgroundColor: estadoColor + '30' }]}>
             <View style={[styles.statusDot, { backgroundColor: estadoColor }]} />
             <Text style={[styles.statusBadgeText, { color: estadoColor }]}>
-              {ESTADO_LABEL[evento.estado]}
+              {ESTADO_LABEL[evento.estado as EstadoEvento] || evento.estado}
             </Text>
           </View>
         </View>
@@ -254,6 +283,9 @@ export default function PalenqueDetalleScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.secondary} />
+        }
       >
         {/* Live Counter */}
         {(evento.estado === 'en_curso' || evento.estado === 'pausado') && evento.pelea_actual && (
@@ -269,58 +301,38 @@ export default function PalenqueDetalleScreen() {
               <View
                 style={[
                   styles.liveProgressBar,
-                  { width: `${(completedPeleas / evento.total_peleas) * 100}%` },
+                  { width: `${(completedPeleas / (evento.total_peleas || 1)) * 100}%` },
                 ]}
               />
             </View>
             <View style={styles.liveStatsRow}>
               <View style={styles.liveStat}>
-                <Text style={[styles.liveStatValue, { color: COLORS.success }]}>{victorias}</Text>
-                <Text style={styles.liveStatLabel}>V</Text>
+                <Text style={[styles.liveStatValue, { color: '#EF4444' }]}>{rojoWins}</Text>
+                <Text style={styles.liveStatLabel}>Rojo</Text>
               </View>
               <View style={styles.liveStat}>
-                <Text style={[styles.liveStatValue, { color: COLORS.error }]}>{derrotas}</Text>
-                <Text style={styles.liveStatLabel}>D</Text>
+                <Text style={[styles.liveStatValue, { color: COLORS.success }]}>{verdeWins}</Text>
+                <Text style={styles.liveStatLabel}>Verde</Text>
               </View>
               <View style={styles.liveStat}>
                 <Text style={styles.liveStatValue}>{completedPeleas}</Text>
                 <Text style={styles.liveStatLabel}>Jugadas</Text>
               </View>
               <View style={styles.liveStat}>
-                <Text style={styles.liveStatValue}>{evento.total_peleas - completedPeleas}</Text>
+                <Text style={styles.liveStatValue}>{(evento.total_peleas || 0) - completedPeleas}</Text>
                 <Text style={styles.liveStatLabel}>Restantes</Text>
               </View>
             </View>
           </View>
         )}
 
-        {/* Partido View - User's next fight */}
-        {miPelea && evento.estado !== 'finalizado' && (
-          <View style={[styles.partidoCard, SHADOWS.md]}>
-            <View style={styles.partidoHeader}>
-              <Eye size={18} color={COLORS.accent} />
-              <Text style={styles.partidoTitle}>Tu Pelea</Text>
-            </View>
-            <View style={styles.partidoContent}>
-              <Text style={styles.partidoNumber}>#{miPelea.numero}</Text>
-              <Text style={styles.partidoVs}>
-                {miPelea.ave_local} vs {miPelea.ave_visitante}
-              </Text>
-              {peleasFaltantes !== null && peleasFaltantes > 0 && (
-                <View style={styles.partidoCountdown}>
-                  <Text style={styles.partidoCountdownText}>
-                    Faltan <Text style={styles.partidoCountdownBold}>{peleasFaltantes}</Text> peleas
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
-
         {/* Organizer Control Panel */}
-        {evento.es_organizador && evento.estado !== 'finalizado' && (
+        {isOrganizer && evento.estado !== 'finalizado' && (
           <View style={[styles.controlPanel, SHADOWS.sm]}>
-            <Text style={styles.controlTitle}>Panel de Control</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.sm }}>
+              <Text style={styles.controlTitle}>Panel de Control</Text>
+              {actionLoading && <ActivityIndicator size="small" color={COLORS.secondary} />}
+            </View>
 
             {evento.estado === 'programado' && (
               <TouchableOpacity
@@ -400,21 +412,22 @@ export default function PalenqueDetalleScreen() {
           <View style={styles.sectionHeader}>
             <Swords size={18} color={COLORS.accent} />
             <Text style={styles.sectionTitle}>Cotejo</Text>
-            <Text style={styles.sectionCount}>{completedPeleas}/{evento.total_peleas}</Text>
+            <Text style={styles.sectionCount}>{completedPeleas}/{evento.total_peleas || peleas.length}</Text>
           </View>
 
           {peleas.map((pelea) => {
             const isCurrent = pelea.estado === 'en_curso';
             const isCompleted = pelea.estado === 'finalizada';
             const resultConfig = pelea.resultado ? RESULTADO_CONFIG[pelea.resultado] : null;
+            const rojoLabel = pelea.partido_rojo_nombre || pelea.anillo_rojo || 'Rojo';
+            const verdeLabel = pelea.partido_verde_nombre || pelea.anillo_verde || 'Verde';
 
             return (
               <View
-                key={pelea.numero}
+                key={pelea.id || pelea.numero_pelea}
                 style={[
                   styles.peleaRow,
                   isCurrent && styles.peleaRowCurrent,
-                  pelea.partido_propio && styles.peleaRowPropio,
                 ]}
               >
                 <View style={[
@@ -429,7 +442,7 @@ export default function PalenqueDetalleScreen() {
                   ) : isCurrent ? (
                     <View style={styles.peleaCurrentDot} />
                   ) : (
-                    <Text style={styles.peleaNumeroText}>{pelea.numero}</Text>
+                    <Text style={styles.peleaNumeroText}>{pelea.numero_pelea}</Text>
                   )}
                 </View>
 
@@ -439,14 +452,11 @@ export default function PalenqueDetalleScreen() {
                     isCurrent && styles.peleaVsCurrent,
                     !isCompleted && !isCurrent && styles.peleaVsPending,
                   ]}>
-                    {pelea.ave_local} vs {pelea.ave_visitante}
+                    {rojoLabel} vs {verdeLabel}
                   </Text>
-                  {pelea.duracion_minutos && (
+                  {pelea.duracion_minutos ? (
                     <Text style={styles.peleaDuration}>{pelea.duracion_minutos} min</Text>
-                  )}
-                  {pelea.partido_propio && (
-                    <Text style={styles.peleaPropioBadge}>TU PELEA</Text>
-                  )}
+                  ) : null}
                 </View>
 
                 {isCurrent && (
@@ -455,7 +465,7 @@ export default function PalenqueDetalleScreen() {
                   </View>
                 )}
 
-                <Text style={styles.peleaIndex}>#{pelea.numero}</Text>
+                <Text style={styles.peleaIndex}>#{pelea.numero_pelea}</Text>
               </View>
             );
           })}

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
+import { api } from '@/services/api';
 
 const TIPOS_DERBY = [
   { key: '3_cocks', label: '3 Cocks' },
@@ -88,15 +89,14 @@ export default function NuevoPalenqueScreen() {
         total_peleas: totalPeleas ? parseInt(totalPeleas) : undefined,
       };
 
-      // TODO: API call
-      console.log('Crear evento:', eventoData);
-
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      Alert.alert('Evento Creado', 'El evento se ha creado correctamente', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      const res = await api.crearEvento(eventoData);
+      if (res.success) {
+        Alert.alert('Evento Creado', 'El evento se ha creado correctamente', [
+          { text: 'Ver Evento', onPress: () => router.replace(`/palenque/${res.data.id}`) },
+        ]);
+      } else {
+        Alert.alert('Error', 'No se pudo crear el evento');
+      }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'No se pudo crear el evento');
     } finally {

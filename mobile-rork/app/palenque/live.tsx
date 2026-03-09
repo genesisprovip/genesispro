@@ -120,9 +120,9 @@ export default function LiveEventScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ code?: string; eventoId?: string }>();
 
-  // If not authenticated, skip role selection and go straight to spectator view
+  // Always show role selection so users can identify as partido (even guests)
   const isGuest = !api.isAuthenticated();
-  const [rol, setRol] = useState<RolType>(isGuest ? 'visitante' : null);
+  const [rol, setRol] = useState<RolType>(null);
   const [partidoId, setPartidoId] = useState('');
   const [partidoIdInput, setPartidoIdInput] = useState('');
   const [isLoading, setIsLoading] = useState(true);

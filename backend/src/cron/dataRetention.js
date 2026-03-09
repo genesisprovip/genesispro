@@ -108,6 +108,36 @@ async function hardDeleteOldRecords() {
   }
 }
 
+async function cleanupPushTokens() {
+  try {
+    // Remove inactive tokens older than 30 days
+    const { rowCount: inactiveCount } = await db.query(
+      `DELETE FROM push_tokens WHERE activo = false AND updated_at < NOW() - INTERVAL '30 days'`
+    );
+
+    // Remove duplicate tokens (keep most recent per token)
+    const { rowCount: dupeCount } = await db.query(
+      `DELETE FROM push_tokens WHERE id NOT IN (
+        SELECT DISTINCT ON (token) id FROM push_tokens ORDER BY token, updated_at DESC
+      )`
+    );
+
+    // Remove tokens from deleted/inactive users
+    const { rowCount: orphanCount } = await db.query(
+      `DELETE FROM push_tokens WHERE usuario_id NOT IN (
+        SELECT id FROM usuarios WHERE activo = true AND deleted_at IS NULL
+      )`
+    );
+
+    const total = inactiveCount + dupeCount + orphanCount;
+    if (total > 0) {
+      logger.info(`[DataRetention] Push tokens cleanup: ${inactiveCount} inactive, ${dupeCount} duplicates, ${orphanCount} orphaned removed`);
+    }
+  } catch (err) {
+    logger.error('[DataRetention] Error cleaning push tokens:', err.message);
+  }
+}
+
 function startDataRetentionCron() {
   // Run daily at 4:00 AM
   cron.schedule('0 4 * * *', async () => {
@@ -115,6 +145,7 @@ function startDataRetentionCron() {
     try {
       await softDeleteExpiredTrialData();
       await hardDeleteOldRecords();
+      await cleanupPushTokens();
       logger.info('[DataRetention] Daily cleanup finished');
     } catch (err) {
       logger.error('[DataRetention] Daily cleanup failed:', err.message);

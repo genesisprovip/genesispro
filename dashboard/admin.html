@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GenesisPro Admin</title>
+  <style>
+    :root {
+      --bg: #0F172A; --bg-alt: #1E293B; --card: #1E293B; --card-hover: #263548;
+      --primary: #10B981; --primary-dim: #10B98133; --secondary: #F59E0B; --secondary-dim: #F59E0B33;
+      --accent: #6366F1; --accent-dim: #6366F133;
+      --danger: #EF4444; --danger-dim: #EF444433; --info: #3B82F6; --info-dim: #3B82F633;
+      --text: #F1F5F9; --text-secondary: #94A3B8; --border: #334155;
+      --radius: 12px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* Sidebar */
+    .sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0; width: 220px;
+      background: var(--bg-alt); border-right: 1px solid var(--border);
+      padding: 20px 12px; display: flex; flex-direction: column; z-index: 100;
+    }
+    .sidebar-logo { font-size: 20px; font-weight: 800; color: var(--secondary); margin-bottom: 2px; padding-left: 8px; }
+    .sidebar-badge { font-size: 10px; color: var(--danger); font-weight: 700; letter-spacing: 1px; margin-bottom: 28px; padding-left: 8px; }
+    .sidebar-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+    .nav-item {
+      padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;
+      color: var(--text-secondary); transition: all 0.15s; display: flex; align-items: center; gap: 10px;
+    }
+    .nav-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+    .nav-item.active { background: var(--primary); color: #fff; font-weight: 600; }
+    .nav-icon { font-size: 16px; width: 22px; text-align: center; }
+    .nav-divider { height: 1px; background: var(--border); margin: 8px 0; }
+    .sidebar-footer { font-size: 11px; color: var(--text-secondary); border-top: 1px solid var(--border); padding-top: 12px; }
+
+    /* Main */
+    .main { margin-left: 220px; padding: 24px 28px; }
+    .page-title { font-size: 22px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+    .page-subtitle { font-size: 13px; color: var(--text-secondary); margin-left: auto; font-weight: 400; }
+
+    /* Stats grid */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .stat-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; position: relative; overflow: hidden;
+    }
+    .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+    .stat-card.c-primary::before { background: var(--primary); }
+    .stat-card.c-secondary::before { background: var(--secondary); }
+    .stat-card.c-accent::before { background: var(--accent); }
+    .stat-card.c-danger::before { background: var(--danger); }
+    .stat-card.c-info::before { background: var(--info); }
+    .stat-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-value { font-size: 28px; font-weight: 800; margin-top: 4px; }
+    .stat-sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+    .c-primary .stat-value { color: var(--primary); }
+    .c-secondary .stat-value { color: var(--secondary); }
+    .c-accent .stat-value { color: var(--accent); }
+    .c-danger .stat-value { color: var(--danger); }
+    .c-info .stat-value { color: var(--info); }
+
+    /* Table */
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 20px; }
+    .card-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .card-title { font-size: 15px; font-weight: 700; }
+    .card-body { padding: 16px 18px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 10px 14px; font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+    td { padding: 10px 14px; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* Badges */
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-admin { background: var(--danger-dim); color: var(--danger); }
+    .badge-empresario { background: var(--secondary-dim); color: var(--secondary); }
+    .badge-usuario { background: var(--info-dim); color: var(--info); }
+    .badge-active, .badge-activa { background: var(--primary-dim); color: var(--primary); }
+    .badge-inactive, .badge-cancelada, .badge-vencida { background: #6B728022; color: #6B7280; }
+    .badge-plan { background: var(--accent-dim); color: var(--accent); }
+    .badge-pendiente { background: var(--secondary-dim); color: var(--secondary); }
+    .badge-en_curso { background: var(--primary-dim); color: var(--primary); }
+    .badge-programado { background: var(--info-dim); color: var(--info); }
+    .badge-finalizado { background: #6B728022; color: #6B7280; }
+    .badge-cancelado { background: var(--danger-dim); color: var(--danger); }
+
+    /* Buttons */
+    .btn {
+      padding: 7px 14px; border-radius: 8px; border: none; cursor: pointer; font-size: 12px;
+      font-weight: 600; transition: all 0.15s; display: inline-flex; align-items: center; gap: 5px;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-secondary { background: var(--secondary); color: #fff; }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-accent { background: var(--accent); color: #fff; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-sm { padding: 4px 8px; font-size: 11px; }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Search */
+    .toolbar { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+    .search-input {
+      flex: 1; min-width: 200px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-size: 13px; outline: none;
+    }
+    .search-input:focus { border-color: var(--primary); }
+    select {
+      padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-size: 12px; outline: none;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000;
+      justify-content: center; align-items: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+      padding: 24px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto;
+    }
+    .modal h3 { font-size: 17px; margin-bottom: 16px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 5px; }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-size: 13px; outline: none;
+    }
+    .form-group textarea { min-height: 100px; resize: vertical; font-family: inherit; }
+    .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; padding: 10px 20px; border-radius: 10px;
+      background: var(--primary); color: #fff; font-size: 13px; font-weight: 600;
+      z-index: 2000; opacity: 0; transform: translateY(20px);
+      transition: all 0.3s; pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.error { background: var(--danger); }
+
+    /* Pages */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* Grid layouts */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+    /* Activity */
+    .activity-item { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; align-items: center; gap: 10px; font-size: 13px; }
+    .activity-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .activity-time { font-size: 11px; color: var(--text-secondary); margin-left: auto; white-space: nowrap; }
+
+    /* Progress bar */
+    .progress-bar { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; margin-top: 6px; }
+    .progress-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+
+    /* DB table row counts */
+    .db-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; }
+    .db-row:last-child { border-bottom: none; }
+    .db-count { font-weight: 700; color: var(--primary); }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 2px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+    .tab { padding: 8px 16px; font-size: 13px; color: var(--text-secondary); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .sidebar { width: 56px; padding: 12px 6px; }
+      .sidebar .nav-text, .sidebar-badge, .sidebar-footer { display: none; }
+      .sidebar-logo { font-size: 14px; text-align: center; margin-bottom: 16px; }
+      .main { margin-left: 56px; padding: 14px; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+
+    .loading { text-align: center; padding: 40px; color: var(--text-secondary); }
+    code { background: var(--bg); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <div class="sidebar-logo">GenesisPro</div>
+    <div class="sidebar-badge">ADMIN PANEL</div>
+    <nav class="sidebar-nav" id="sidebar-nav">
+      <div class="nav-item active" data-page="dashboard">
+        <span class="nav-icon">&#x1F4CA;</span><span class="nav-text">Dashboard</span>
+      </div>
+      <div class="nav-item" data-page="usuarios">
+        <span class="nav-icon">&#x1F465;</span><span class="nav-text">Usuarios</span>
+      </div>
+      <div class="nav-item" data-page="empresarios">
+        <span class="nav-icon">&#x1F3E2;</span><span class="nav-text">Empresarios</span>
+      </div>
+      <div class="nav-item" data-page="suscripciones">
+        <span class="nav-icon">&#x1F4B3;</span><span class="nav-text">Suscripciones</span>
+      </div>
+      <div class="nav-divider"></div>
+      <div class="nav-item" data-page="eventos">
+        <span class="nav-icon">&#x1F3C6;</span><span class="nav-text">Eventos</span>
+      </div>
+      <div class="nav-item" data-page="actividad">
+        <span class="nav-icon">&#x1F4DD;</span><span class="nav-text">Actividad</span>
+      </div>
+      <div class="nav-divider"></div>
+      <div class="nav-item" data-page="database">
+        <span class="nav-icon">&#x1F5C4;</span><span class="nav-text">Base de Datos</span>
+      </div>
+      <div class="nav-item" data-page="email">
+        <span class="nav-icon">&#x2709;</span><span class="nav-text">Email</span>
+      </div>
+      <div class="nav-item" data-page="sistema">
+        <span class="nav-icon">&#x2699;</span><span class="nav-text">Sistema</span>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div id="admin-name" style="font-weight:600;color:var(--text);">Admin</div>
+      <div style="margin-top:6px;"><a href="#" onclick="logout();return false;" style="color:var(--danger);text-decoration:none;font-size:11px;">Cerrar Sesion</a></div>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- LOGIN -->
+    <div id="login-screen" style="display:none; max-width:380px; margin:100px auto;">
+      <div style="text-align:center;margin-bottom:28px;">
+        <div style="font-size:26px;font-weight:800;color:var(--secondary);">GenesisPro</div>
+        <div style="color:var(--danger);font-size:11px;font-weight:700;letter-spacing:1.5px;">ADMIN PANEL</div>
+      </div>
+      <div class="card" style="padding:24px;">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="login-email" placeholder="admin@genesispro.vip">
+        </div>
+        <div class="form-group">
+          <label>Contrase&ntilde;a</label>
+          <input type="password" id="login-password" placeholder="&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;" onkeyup="if(event.key==='Enter')doLogin()">
+        </div>
+        <button class="btn btn-primary" style="width:100%;justify-content:center;padding:10px;" onclick="doLogin()">Iniciar Sesion</button>
+        <p id="login-error" style="color:var(--danger);font-size:12px;margin-top:10px;display:none;"></p>
+      </div>
+    </div>
+
+    <!-- ===== DASHBOARD ===== -->
+    <div id="page-dashboard" class="page">
+      <div class="page-title">Dashboard <span class="page-subtitle" id="dash-updated"></span></div>
+      <div class="stats-grid" id="stats-grid"></div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Usuarios Recientes</div></div>
+          <table>
+            <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Plan</th><th>Registro</th></tr></thead>
+            <tbody id="recent-users"></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Actividad Reciente</div></div>
+          <div class="card-body" id="dash-activity" style="max-height:340px;overflow-y:auto;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== USUARIOS ===== -->
+    <div id="page-usuarios" class="page">
+      <div class="page-title">Usuarios</div>
+      <div class="toolbar">
+        <input class="search-input" id="user-search" placeholder="Buscar por nombre o email..." onkeyup="if(event.key==='Enter')loadUsuarios()">
+        <select id="user-rol-filter" onchange="loadUsuarios()">
+          <option value="">Todos los roles</option>
+          <option value="usuario">Usuario</option>
+          <option value="empresario">Empresario</option>
+          <option value="admin">Admin</option>
+        </select>
+        <select id="user-plan-filter" onchange="loadUsuarios()">
+          <option value="">Todos los planes</option>
+          <option value="trial">Trial</option>
+          <option value="basico">Basico</option>
+          <option value="pro">Pro</option>
+          <option value="premium">Premium</option>
+        </select>
+        <select id="user-activo-filter" onchange="loadUsuarios()">
+          <option value="">Todos</option>
+          <option value="true">Activos</option>
+          <option value="false">Inactivos</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="loadUsuarios()">Buscar</button>
+      </div>
+      <div id="users-count" style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;"></div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Plan</th><th>Empresario</th><th>Estado</th><th>Ultimo Acceso</th><th>Acciones</th></tr>
+          </thead>
+          <tbody id="users-table"></tbody>
+        </table>
+      </div>
+      <div id="users-pagination" style="display:flex;gap:6px;justify-content:center;"></div>
+    </div>
+
+    <!-- ===== EMPRESARIOS ===== -->
+    <div id="page-empresarios" class="page">
+      <div class="page-title">Empresarios <button class="btn btn-secondary btn-sm" onclick="showGrantEmpresario()" style="margin-left:auto;">+ Asignar Empresario</button></div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>Nombre</th><th>Email</th><th>Plan</th><th>Eventos</th><th>Streams</th><th>Ultimo Acceso</th><th>Acciones</th></tr>
+          </thead>
+          <tbody id="empresarios-table"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== SUSCRIPCIONES ===== -->
+    <div id="page-suscripciones" class="page">
+      <div class="page-title">Suscripciones</div>
+      <div id="subs-loading" class="loading">Cargando datos...</div>
+      <div id="subs-content" style="display:none;">
+        <!-- Plan distribution -->
+        <div class="stats-grid" id="subs-stats"></div>
+
+        <div class="tabs" id="subs-tabs">
+          <div class="tab active" data-tab="subs-usuarios">Planes Usuario</div>
+          <div class="tab" data-tab="subs-empresarios">Planes Empresario</div>
+          <div class="tab" data-tab="subs-detalle-usuario">Detalle Suscripciones</div>
+          <div class="tab" data-tab="subs-detalle-empresario">Detalle Empresario</div>
+        </div>
+
+        <!-- Tab: Planes Usuario distribution -->
+        <div class="tab-content active" id="subs-usuarios">
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header"><div class="card-title">Distribucion de Planes (Usuarios)</div></div>
+              <div class="card-body" id="plan-dist-chart"></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">Estado de Suscripciones</div></div>
+              <div class="card-body" id="subs-estado-chart"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Planes Empresario -->
+        <div class="tab-content" id="subs-empresarios">
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header"><div class="card-title">Suscripciones Empresario</div></div>
+              <div class="card-body" id="emp-subs-chart"></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><div class="card-title">Ingresos Estimados (MXN/mes)</div></div>
+              <div class="card-body" id="revenue-estimate"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Detalle suscripciones usuario -->
+        <div class="tab-content" id="subs-detalle-usuario">
+          <div class="card">
+            <table>
+              <thead><tr><th>Usuario</th><th>Email</th><th>Plan</th><th>Estado</th><th>Inicio</th><th>Fin</th></tr></thead>
+              <tbody id="subs-user-table"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab: Detalle suscripciones empresario -->
+        <div class="tab-content" id="subs-detalle-empresario">
+          <div class="card">
+            <table>
+              <thead><tr><th>Usuario</th><th>Email</th><th>Plan</th><th>Estado</th><th>Inicio</th></tr></thead>
+              <tbody id="subs-emp-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== EVENTOS ===== -->
+    <div id="page-eventos" class="page">
+      <div class="page-title">Eventos</div>
+      <div class="toolbar">
+        <select id="evento-estado-filter" onchange="loadEventos()">
+          <option value="">Todos los estados</option>
+          <option value="programado">Programado</option>
+          <option value="en_curso">En Curso</option>
+          <option value="finalizado">Finalizado</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+      </div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>Nombre</th><th>Organizador</th><th>Fecha</th><th>Estado</th><th>Modo</th><th>Peleas</th><th>Participantes</th><th>Codigo</th></tr>
+          </thead>
+          <tbody id="eventos-table"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===== ACTIVIDAD ===== -->
+    <div id="page-actividad" class="page">
+      <div class="page-title">Actividad Reciente <button class="btn btn-outline btn-sm" onclick="loadActivity()" style="margin-left:auto;">Recargar</button></div>
+      <div class="card">
+        <div class="card-body" id="activity-list" style="max-height:600px;overflow-y:auto;"></div>
+      </div>
+    </div>
+
+    <!-- ===== DATABASE ===== -->
+    <div id="page-database" class="page">
+      <div class="page-title">Base de Datos <button class="btn btn-outline btn-sm" onclick="loadDatabase()" style="margin-left:auto;">Recargar</button></div>
+      <div id="db-loading" class="loading">Cargando...</div>
+      <div id="db-content" style="display:none;">
+        <div class="stats-grid" id="db-counts-grid"></div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Tablas PostgreSQL</div></div>
+          <table>
+            <thead><tr><th>Tabla</th><th>Tama&ntilde;o</th><th>Columnas</th></tr></thead>
+            <tbody id="db-tables"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== EMAIL ===== -->
+    <div id="page-email" class="page">
+      <div class="page-title">Enviar Email</div>
+      <div class="card" style="max-width:600px;">
+        <div class="card-body">
+          <div class="form-group">
+            <label>Destinatario (email)</label>
+            <input id="email-to" placeholder="usuario@ejemplo.com">
+          </div>
+          <div class="form-group">
+            <label>Asunto</label>
+            <input id="email-subject" placeholder="Asunto del correo">
+          </div>
+          <div class="form-group">
+            <label>Contenido (HTML)</label>
+            <textarea id="email-html" placeholder="<h1>Hola</h1><p>Tu mensaje aqui...</p>"></textarea>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <button class="btn btn-primary" onclick="sendEmail()" id="send-email-btn">Enviar</button>
+            <span id="email-status" style="font-size:12px;color:var(--text-secondary);"></span>
+          </div>
+          <div style="margin-top:16px;padding:12px;background:var(--bg);border-radius:8px;">
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">Correos configurados:</div>
+            <div style="font-size:12px;"><code>noreply@genesispro.vip</code> - Remitente (Resend)</div>
+            <div style="font-size:12px;margin-top:4px;"><code>admin@genesispro.vip</code> - Recibe en Gmail</div>
+            <div style="font-size:12px;margin-top:4px;"><code>soporte@genesispro.vip</code> - Recibe en Gmail</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== SISTEMA ===== -->
+    <div id="page-sistema" class="page">
+      <div class="page-title">Sistema</div>
+      <div class="stats-grid">
+        <div class="stat-card c-secondary">
+          <div class="stat-label">Version App</div>
+          <div class="stat-value" style="font-size:18px;">v1.7.0</div>
+        </div>
+        <div class="stat-card c-primary">
+          <div class="stat-label">Base de datos</div>
+          <div class="stat-value" style="font-size:16px;">PostgreSQL 15</div>
+        </div>
+        <div class="stat-card c-info">
+          <div class="stat-label">Servidor</div>
+          <div class="stat-value" style="font-size:14px;">Contabo VPS</div>
+          <div class="stat-sub">147.93.181.75</div>
+        </div>
+        <div class="stat-card c-accent">
+          <div class="stat-label">Streaming</div>
+          <div class="stat-value" style="font-size:14px;">OvenMediaEngine</div>
+          <div class="stat-sub">live.genesispro.vip</div>
+        </div>
+        <div class="stat-card c-secondary">
+          <div class="stat-label">API</div>
+          <div class="stat-value" style="font-size:12px;">api.genesispro.vip</div>
+        </div>
+        <div class="stat-card c-danger">
+          <div class="stat-label">SSL</div>
+          <div class="stat-value" style="font-size:16px;">Let's Encrypt</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Backend (API Routes)</div></div>
+          <div class="card-body" style="font-size:13px;color:var(--text-secondary);line-height:1.8;">
+            <div>&#x1F510; Auth (registro, login, JWT, recovery)</div>
+            <div>&#x1F413; Aves (CRUD, genealogia)</div>
+            <div>&#x2694; Combates (registro, historial)</div>
+            <div>&#x1F48A; Salud (vacunas, desparasitacion, consultas)</div>
+            <div>&#x1F4B0; Finanzas (transacciones, reportes)</div>
+            <div>&#x1F4C5; Calendario (eventos multi-fuente)</div>
+            <div>&#x1F4CA; Analytics (dashboard, tendencias)</div>
+            <div>&#x1F4B3; Suscripciones (Stripe, webhooks)</div>
+            <div>&#x1F3C6; Eventos Palenque (CRUD, participantes)</div>
+            <div>&#x1F94A; Peleas (cotejo, resultados)</div>
+            <div>&#x1F3B2; Apuestas (registro, balance)</div>
+            <div>&#x1F3C5; Derby (partidos, aves, sorteo, rondas)</div>
+            <div>&#x1F514; Notificaciones (push, preferencias)</div>
+            <div>&#x1F3E2; Empresario (planes, checkout)</div>
+            <div>&#x1F4FA; Streaming (WebRTC + HLS dual)</div>
+            <div>&#x1F4AC; Chat en vivo (mensajes por evento)</div>
+            <div>&#x1F37D; Alimentacion (dietas, inventario)</div>
+            <div>&#x1F451; Admin (usuarios, empresarios, stats)</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Planes y Precios</div></div>
+          <table>
+            <thead><tr><th>Tipo</th><th>Plan</th><th>$/mes</th></tr></thead>
+            <tbody>
+              <tr><td><span class="badge badge-usuario">Usuario</span></td><td>Basico</td><td>$299</td></tr>
+              <tr><td><span class="badge badge-usuario">Usuario</span></td><td>Pro</td><td>$599</td></tr>
+              <tr><td><span class="badge badge-usuario">Usuario</span></td><td>Premium</td><td>$999</td></tr>
+              <tr style="border-top:2px solid var(--border);"><td><span class="badge badge-empresario">Empresario</span></td><td>Basico</td><td>$799</td></tr>
+              <tr><td><span class="badge badge-empresario">Empresario</span></td><td>Pro</td><td>$1,999</td></tr>
+              <tr><td><span class="badge badge-empresario">Empresario</span></td><td>Premium</td><td>$2,999</td></tr>
+            </tbody>
+          </table>
+          <div class="card-body" style="border-top:1px solid var(--border);font-size:12px;color:var(--text-secondary);">
+            <div><strong style="color:var(--text);">Mobile:</strong> Expo SDK 54 + Router + React Native</div>
+            <div><strong style="color:var(--text);">Dashboard:</strong> HTML/CSS/JS PWA</div>
+            <div><strong style="color:var(--text);">Backups:</strong> Diarios 3AM, 7 dias retencion</div>
+            <div><strong style="color:var(--text);">Email:</strong> Resend (noreply@genesispro.vip)</div>
+            <div><strong style="color:var(--text);">CDN/DNS:</strong> Cloudflare</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODALS -->
+  <div class="modal-overlay" id="modal-edit-user">
+    <div class="modal">
+      <h3>Editar Usuario</h3>
+      <input type="hidden" id="edit-user-id">
+      <div class="form-group">
+        <label>Nombre</label>
+        <input id="edit-user-nombre">
+      </div>
+      <div class="form-group">
+        <label>Telefono</label>
+        <input id="edit-user-telefono">
+      </div>
+      <div class="form-group">
+        <label>Ubicacion</label>
+        <input id="edit-user-ubicacion">
+      </div>
+      <div class="form-group">
+        <label>Rol</label>
+        <select id="edit-user-rol">
+          <option value="usuario">Usuario</option>
+          <option value="empresario">Empresario</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Plan Usuario</label>
+        <select id="edit-user-plan">
+          <option value="">Sin plan</option>
+          <option value="trial">Trial</option>
+          <option value="basico">Basico</option>
+          <option value="pro">Pro</option>
+          <option value="premium">Premium</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Plan Empresario</label>
+        <select id="edit-user-plan-empresario">
+          <option value="">Sin plan empresario</option>
+          <option value="empresario_basico">Empresario Basico</option>
+          <option value="empresario_pro">Empresario Pro</option>
+          <option value="empresario_premium">Empresario Premium</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Estado</label>
+        <select id="edit-user-activo">
+          <option value="true">Activo</option>
+          <option value="false">Inactivo</option>
+        </select>
+      </div>
+      <div id="edit-user-extra" style="background:var(--bg);border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:var(--text-secondary);"></div>
+      <div class="form-actions">
+        <button class="btn btn-outline" onclick="closeModal('modal-edit-user')">Cancelar</button>
+        <button class="btn btn-danger btn-sm" onclick="resetUserPassword()">Reset Password</button>
+        <button class="btn btn-primary" onclick="saveUser()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-grant-empresario">
+    <div class="modal">
+      <h3>Asignar Plan Empresario</h3>
+      <div class="form-group">
+        <label>Buscar usuario por email</label>
+        <input id="grant-email-search" placeholder="email@ejemplo.com" onkeyup="if(event.key==='Enter')searchUserForGrant()">
+        <button class="btn btn-outline btn-sm" style="margin-top:6px;" onclick="searchUserForGrant()">Buscar</button>
+      </div>
+      <div id="grant-user-info" style="display:none;background:var(--bg);padding:10px;border-radius:8px;margin-bottom:14px;">
+        <input type="hidden" id="grant-user-id">
+        <div id="grant-user-name" style="font-weight:700;font-size:14px;"></div>
+        <div id="grant-user-email" style="font-size:12px;color:var(--text-secondary);"></div>
+      </div>
+      <div class="form-group">
+        <label>Plan Empresario</label>
+        <select id="grant-plan">
+          <option value="empresario_basico">Basico - $799/mes</option>
+          <option value="empresario_pro">Pro - $1,999/mes</option>
+          <option value="empresario_premium">Premium - $2,999/mes (streaming)</option>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-outline" onclick="closeModal('modal-grant-empresario')">Cancelar</button>
+        <button class="btn btn-secondary" onclick="grantEmpresario()">Asignar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-reset-password">
+    <div class="modal">
+      <h3>Reset de Contrase&ntilde;a</h3>
+      <p style="color:var(--text-secondary);font-size:12px;margin-bottom:14px;">Nueva contrase&ntilde;a para el usuario seleccionado.</p>
+      <div class="form-group">
+        <label>Nueva contrase&ntilde;a</label>
+        <input type="text" id="reset-new-password" placeholder="Minimo 6 caracteres">
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-outline" onclick="closeModal('modal-reset-password')">Cancelar</button>
+        <button class="btn btn-danger" onclick="confirmResetPassword()">Resetear</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const API_BASE = '/api/v1';
+    let token = localStorage.getItem('admin_token');
+    let currentPage = 'dashboard';
+    let usersPage = 1;
+    const pages = ['dashboard','usuarios','empresarios','suscripciones','eventos','actividad','database','email','sistema'];
+
+    // ==================== API / UTIL ====================
+    async function apiCall(endpoint, method = 'GET', body = null) {
+      const opts = { method, headers: { 'Content-Type': 'application/json' } };
+      if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+      if (body) opts.body = JSON.stringify(body);
+      const res = await fetch(API_BASE + endpoint, opts);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || 'Error del servidor');
+      return data;
+    }
+
+    function toast(msg, isError = false) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = 'toast show' + (isError ? ' error' : '');
+      setTimeout(() => t.className = 'toast', 3000);
+    }
+
+    function fmtDate(d) { return d ? new Date(d).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' }) : '-'; }
+    function fmtDateTime(d) { return d ? new Date(d).toLocaleString('es-MX', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '-'; }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    function n(v) { return parseInt(v) || 0; }
+
+    // ==================== NAV ====================
+    document.getElementById('sidebar-nav').addEventListener('click', function(e) {
+      const item = e.target.closest('.nav-item');
+      if (!item || !item.dataset.page) return;
+      showPage(item.dataset.page);
+    });
+
+    function showPage(page) {
+      currentPage = page;
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      const el = document.getElementById('page-' + page);
+      if (el) el.classList.add('active');
+      const nav = document.querySelector(`.nav-item[data-page="${page}"]`);
+      if (nav) nav.classList.add('active');
+
+      const loaders = {
+        dashboard: loadDashboard,
+        usuarios: loadUsuarios,
+        empresarios: loadEmpresarios,
+        suscripciones: loadSuscripciones,
+        eventos: loadEventos,
+        actividad: loadActivity,
+        database: loadDatabase,
+      };
+      if (loaders[page]) loaders[page]();
+    }
+
+    // ==================== TABS ====================
+    document.addEventListener('click', function(e) {
+      if (!e.target.classList.contains('tab')) return;
+      const tabGroup = e.target.closest('.tabs') || e.target.parentElement;
+      tabGroup.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      e.target.classList.add('active');
+      const tabId = e.target.dataset.tab;
+      const container = tabGroup.parentElement;
+      container.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
+      const target = document.getElementById(tabId);
+      if (target) target.classList.add('active');
+    });
+
+    // ==================== AUTH ====================
+    async function doLogin() {
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+      const errEl = document.getElementById('login-error');
+      errEl.style.display = 'none';
+      try {
+        const res = await fetch(API_BASE + '/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error?.message || 'Login fallido');
+        token = data.data.tokens.access_token;
+
+        const meRes = await fetch(API_BASE + '/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
+        const meData = await meRes.json();
+        const usr = meData.data?.user || meData.data;
+        if (usr?.rol !== 'admin') {
+          token = null;
+          throw new Error('Esta cuenta no tiene permisos de administrador');
+        }
+
+        localStorage.setItem('admin_token', token);
+        document.getElementById('admin-name').textContent = usr.nombre || usr.email;
+        showApp();
+      } catch (e) {
+        errEl.textContent = e.message;
+        errEl.style.display = 'block';
+      }
+    }
+
+    function logout() {
+      token = null;
+      localStorage.removeItem('admin_token');
+      showLogin();
+    }
+
+    async function checkAuth() {
+      if (!token) return showLogin();
+      try {
+        const res = await apiCall('/auth/me');
+        const usr = res.data?.user || res.data;
+        if (usr?.rol !== 'admin') throw new Error('Not admin');
+        document.getElementById('admin-name').textContent = usr.nombre || usr.email;
+        showApp();
+      } catch {
+        token = null;
+        localStorage.removeItem('admin_token');
+        showLogin();
+      }
+    }
+
+    function showLogin() {
+      document.getElementById('login-screen').style.display = 'block';
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelector('.sidebar').style.display = 'none';
+    }
+
+    function showApp() {
+      document.getElementById('login-screen').style.display = 'none';
+      document.querySelector('.sidebar').style.display = 'flex';
+      showPage('dashboard');
+    }
+
+    // ==================== DASHBOARD ====================
+    async function loadDashboard() {
+      try {
+        const [dashRes, actRes] = await Promise.all([
+          apiCall('/admin/dashboard'),
+          apiCall('/admin/activity').catch(() => ({ data: [] })),
+        ]);
+        const d = dashRes.data;
+
+        document.getElementById('dash-updated').textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-MX');
+
+        document.getElementById('stats-grid').innerHTML = `
+          <div class="stat-card c-primary">
+            <div class="stat-label">Usuarios Activos</div>
+            <div class="stat-value">${n(d.usuarios.activos)}</div>
+            <div class="stat-sub">+${n(d.usuarios.nuevos_7d)} semana / +${n(d.usuarios.nuevos_30d)} mes</div>
+          </div>
+          <div class="stat-card c-secondary">
+            <div class="stat-label">Empresarios</div>
+            <div class="stat-value">${n(d.empresarios.total)}</div>
+            <div class="stat-sub">B:${n(d.empresarios.basico)} P:${n(d.empresarios.pro)} Pr:${n(d.empresarios.premium)}</div>
+          </div>
+          <div class="stat-card c-accent">
+            <div class="stat-label">Aves</div>
+            <div class="stat-value">${n(d.aves.total)}</div>
+          </div>
+          <div class="stat-card c-info">
+            <div class="stat-label">Eventos</div>
+            <div class="stat-value">${n(d.eventos.total)}</div>
+            <div class="stat-sub">${n(d.eventos.en_curso)} en curso / ${n(d.eventos.programados)} prox</div>
+          </div>
+          <div class="stat-card c-primary">
+            <div class="stat-label">Suscripciones</div>
+            <div class="stat-value">${n(d.suscripciones.activas)}</div>
+            <div class="stat-sub">de ${n(d.suscripciones.total)} totales</div>
+          </div>
+          <div class="stat-card c-secondary">
+            <div class="stat-label">Ingresos 30d</div>
+            <div class="stat-value" style="font-size:22px;">$${parseFloat(d.ingresos_30d.ingresos || 0).toLocaleString()}</div>
+            <div class="stat-sub">Egresos: $${parseFloat(d.ingresos_30d.egresos || 0).toLocaleString()}</div>
+          </div>
+          <div class="stat-card c-danger">
+            <div class="stat-label">Streams Activos</div>
+            <div class="stat-value">${n(d.streams_activos)}</div>
+          </div>
+        `;
+
+        document.getElementById('recent-users').innerHTML = (d.usuarios_recientes || []).map(u => `
+          <tr>
+            <td><strong>${u.nombre || '-'}</strong></td>
+            <td style="font-size:12px;">${u.email}</td>
+            <td><span class="badge badge-${u.rol || 'usuario'}">${u.rol || 'usuario'}</span></td>
+            <td>${u.plan_actual || '-'}</td>
+            <td style="font-size:12px;">${fmtDate(u.created_at)}</td>
+          </tr>
+        `).join('');
+
+        // Activity feed
+        const actColors = { registro: 'var(--primary)', evento: 'var(--secondary)', combate: 'var(--danger)', stream: 'var(--accent)' };
+        document.getElementById('dash-activity').innerHTML = (actRes.data || []).slice(0, 15).map(a => `
+          <div class="activity-item">
+            <div class="activity-dot" style="background:${actColors[a.tipo] || 'var(--info)'}"></div>
+            <div>
+              <span style="font-weight:600;">${a.tipo}</span>
+              <span style="color:var(--text-secondary);"> ${a.detalle || ''}</span>
+            </div>
+            <div class="activity-time">${fmtDateTime(a.fecha)}</div>
+          </div>
+        `).join('') || '<div class="loading">Sin actividad reciente</div>';
+      } catch (e) {
+        toast('Error: ' + e.message, true);
+      }
+    }
+
+    // ==================== USUARIOS ====================
+    async function loadUsuarios() {
+      try {
+        const search = document.getElementById('user-search').value;
+        const rol = document.getElementById('user-rol-filter').value;
+        const plan = document.getElementById('user-plan-filter').value;
+        const activo = document.getElementById('user-activo-filter').value;
+        const params = new URLSearchParams({ page: usersPage, limit: 50 });
+        if (search) params.set('search', search);
+        if (rol) params.set('rol', rol);
+        if (plan) params.set('plan', plan);
+        if (activo) params.set('activo', activo);
+
+        const res = await apiCall('/admin/usuarios?' + params);
+        document.getElementById('users-count').textContent = `${res.pagination.total} usuario(s) encontrado(s)`;
+
+        document.getElementById('users-table').innerHTML = res.data.map(u => `
+          <tr>
+            <td><strong>${u.nombre || '-'}</strong></td>
+            <td style="font-size:12px;">${u.email}</td>
+            <td><span class="badge badge-${u.rol || 'usuario'}">${u.rol || 'usuario'}</span></td>
+            <td>${u.plan_actual ? '<span class="badge badge-plan">' + u.plan_actual + '</span>' : '-'}</td>
+            <td>${u.plan_empresario ? '<span class="badge badge-empresario">' + u.plan_empresario.replace('empresario_','') + '</span>' : '-'}</td>
+            <td><span class="badge badge-${u.activo ? 'active' : 'inactive'}">${u.activo ? 'Activo' : 'Inactivo'}</span></td>
+            <td style="font-size:12px;">${u.ultimo_acceso ? fmtDate(u.ultimo_acceso) : 'Nunca'}</td>
+            <td><button class="btn btn-outline btn-sm" onclick="editUser('${u.id}')">Editar</button></td>
+          </tr>
+        `).join('') || '<tr><td colspan="8" class="loading">No hay usuarios</td></tr>';
+
+        const pg = res.pagination;
+        let html = '';
+        for (let i = 1; i <= Math.min(pg.pages, 10); i++) {
+          html += `<button class="btn ${i === pg.page ? 'btn-primary' : 'btn-outline'} btn-sm" onclick="usersPage=${i};loadUsuarios()">${i}</button>`;
+        }
+        if (pg.pages > 10) html += `<span style="color:var(--text-secondary);font-size:12px;">...${pg.pages} pags</span>`;
+        document.getElementById('users-pagination').innerHTML = html;
+      } catch (e) {
+        toast('Error: ' + e.message, true);
+      }
+    }
+
+    async function editUser(id) {
+      try {
+        const res = await apiCall('/admin/usuarios/' + id);
+        const u = res.data;
+        document.getElementById('edit-user-id').value = u.id;
+        document.getElementById('edit-user-nombre').value = u.nombre || '';
+        document.getElementById('edit-user-telefono').value = u.telefono || '';
+        document.getElementById('edit-user-ubicacion').value = u.ubicacion || '';
+        document.getElementById('edit-user-rol').value = u.rol || 'usuario';
+        document.getElementById('edit-user-plan').value = u.plan_actual || '';
+        document.getElementById('edit-user-plan-empresario').value = u.plan_empresario || '';
+        document.getElementById('edit-user-activo').value = u.activo ? 'true' : 'false';
+        document.getElementById('edit-user-extra').innerHTML = `
+          <div><strong>ID:</strong> <code>${u.id}</code></div>
+          <div><strong>Email:</strong> ${u.email}</div>
+          <div><strong>Registro:</strong> ${fmtDateTime(u.created_at)}</div>
+          <div><strong>Aves:</strong> ${n(u.total_aves)} | <strong>Combates:</strong> ${n(u.total_combates)} | <strong>Eventos:</strong> ${n(u.total_eventos)}</div>
+        `;
+        document.getElementById('modal-edit-user').classList.add('active');
+      } catch (e) {
+        toast('Error: ' + e.message, true);
+      }
+    }
+
+    async function saveUser() {
+      const id = document.getElementById('edit-user-id').value;
+      try {
+        await apiCall('/admin/usuarios/' + id, 'PUT', {
+          nombre: document.getElementById('edit-user-nombre').value,
+          telefono: document.getElementById('edit-user-telefono').value,
+          ubicacion: document.getElementById('edit-user-ubicacion').value,
+          rol: document.getElementById('edit-user-rol').value,
+          plan_actual: document.getElementById('edit-user-plan').value || null,
+          plan_empresario: document.getElementById('edit-user-plan-empresario').value || null,
+          activo: document.getElementById('edit-user-activo').value === 'true',
+        });
+        closeModal('modal-edit-user');
+        toast('Usuario actualizado');
+        if (currentPage === 'usuarios') loadUsuarios();
+        else if (currentPage === 'empresarios') loadEmpresarios();
+      } catch (e) {
+        toast('Error: ' + e.message, true);
+      }
+    }
+
+    function resetUserPassword() {
+      document.getElementById('reset-new-password').value = '';
+      document.getElementById('modal-reset-password').classList.add('active');
+    }
+
+    async function confirmResetPassword() {
+      const id = document.getElementById('edit-user-id').value;
+      const pw = document.getElementById('reset-new-password').value;
+      if (!pw || pw.length < 6) { toast('Minimo 6 caracteres', true); return; }
+      try {
+        await apiCall('/admin/usuarios/' + id + '/reset-password', 'POST', { password: pw });
+        closeModal('modal-reset-password');
+        toast('Password reseteado');
+      } catch (e) {
+        toast('Error: ' + e.message, true);
+      }
+    }
+
+    // ==================== EMPRESARIOS ====================
+    async function loadEmpresarios() {
+      try {
+        const res = await apiCall('/admin/empresarios');
+        document.getElementById('empresarios-table').innerHTML = res.data.map(e => `
+          <tr>
+            <td><strong>${e.nombre || '-'}</strong></td>
+            <td style="font-size:12px;">${e.email}</td>
+            <td><span class="badge badge-empresario">${(e.plan_empresario || '').replace('empresario_','')}</span></td>
+            <td>${n(e.total_eventos)}</td>
+            <td>${n(e.streams_activos) > 0 ? '<span class="badge badge-active">' + e.streams_activos + ' EN VIVO</span>' : '0'}</td>
+            <td style="font-size:12px;">${e.ultimo_acceso ? fmtDate(e.ultimo_acceso) : 'Nunca'}</td>
+            <td>
+              <button class="btn btn-outline btn-sm" onclick="editUser('${e.id}')">Editar</button>
+              <button class="btn btn-danger btn-sm" onclick="revokeEmpresario('${e.id}')">Revocar</button>
+            </td>
+          </tr>
+        `).join('') || '<tr><td colspan="7" class="loading">No hay empresarios</td></tr>';
+      } catch (e) {
+        toast('Error: ' + e.message, true);
+      }
+    }
+
+    function showGrantEmpresario() {
+      document.getElementById('grant-user-info').style.display = 'none';
+      document.getElementById('grant-email-search').value = '';
+      document.getElementById('modal-grant-empresario').classList.add('active');
+    }
+
+    async function searchUserForGrant() {
+      const email = document.getElementById('grant-email-search').value.trim();
+      if (!email) return;
+      try {
+        const res = await apiCall('/admin/usuarios?search=' + encodeURIComponent(email) + '&limit=1');
+        if (res.data.length === 0) { toast('Usuario no encontrado', true); return; }
+        const u = res.data[0];
+        document.getElementById('grant-user-id').value = u.id;
+        document.getElementById('grant-user-name').textContent = u.nombre || 'Sin nombre';
+        document.getElementById('grant-user-email').textContent = u.email + (u.plan_empresario ? ' (ya tiene: ' + u.plan_empresario + ')' : '');
+        document.getElementById('grant-user-info').style.display = 'block';
+      } catch (e) {
+        toast('Error: ' + e.message, true);
+      }
+    }
+
+    async function grantEmpresario() {
+      const userId = document.getElementById('grant-user-id').value;
+      const plan = document.getElementById('grant-plan').value;
+      if (!userId) { toast('Busca un usuario primero', true); return; }
+      try {
+        await apiCall('/admin/empresarios/grant', 'POST', { usuario_id: userId, plan });
+        closeModal('modal-grant-empresario');
+        toast('Plan empresario asignado');
+        loadEmpresarios();
+      } catch (e) {
+        toast('Error: ' + e.message, true);
+      }
+    }
+
+    async function revokeEmpresario(id) {
+      if (!confirm('Revocar acceso empresario?')) return;
+      try {
+        await apiCall('/admin/empresarios/revoke', 'POST', { usuario_id: id });
+        toast('Acceso revocado');
+        loadEmpresarios();
+      } catch (e) {
+        toast('Error: ' + e.message, true);
+      }
+    }
+
+    // ==================== SUSCRIPCIONES ====================
+    async function loadSuscripciones() {
+      const loading = document.getElementById('subs-loading');
+      const content = document.getElementById('subs-content');
+      loading.style.display = 'block';
+      content.style.display = 'none';
+      try {
+        const res = await apiCall('/admin/suscripciones');
+        const d = res.data;
+        const us = d.usuario_subs;
+        const es = d.empresario_subs;
+        const pd = d.planes_distribucion;
+
+        // Stats cards
+        document.getElementById('subs-stats').innerHTML = `
+          <div class="stat-card c-primary">
+            <div class="stat-label">Suscripciones Activas</div>
+            <div class="stat-value">${n(us.activas)}</div>
+            <div class="stat-sub">de ${n(us.total)} totales</div>
+          </div>
+          <div class="stat-card c-secondary">
+            <div class="stat-label">Empresario Activas</div>
+            <div class="stat-value">${n(es.activas)}</div>
+            <div class="stat-sub">de ${n(es.total)} totales</div>
+          </div>
+          <div class="stat-card c-danger">
+            <div class="stat-label">Canceladas</div>
+            <div class="stat-value">${n(us.canceladas) + n(es.canceladas)}</div>
+          </div>
+          <div class="stat-card c-info">
+            <div class="stat-label">Nuevas (30d)</div>
+            <div class="stat-value">${n(us.nuevas_30d)}</div>
+          </div>
+          <div class="stat-card c-accent">
+            <div class="stat-label">Pendientes</div>
+            <div class="stat-value">${n(us.pendientes)}</div>
+          </div>
+          <div class="stat-card c-secondary">
+            <div class="stat-label">Vencidas</div>
+            <div class="stat-value">${n(us.vencidas)}</div>
+          </div>
+        `;
+
+        // Plan distribution bars
+        const totalUsers = n(pd.usuarios_basico) + n(pd.usuarios_pro) + n(pd.usuarios_premium) + n(pd.usuarios_trial) + n(pd.usuarios_sin_plan);
+        const mkBar = (label, count, color, total) => {
+          const pct = total > 0 ? (count / total * 100) : 0;
+          return `<div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;font-size:13px;"><span>${label}</span><strong>${count}</strong></div>
+            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${color};"></div></div>
+          </div>`;
+        };
+        document.getElementById('plan-dist-chart').innerHTML =
+          mkBar('Trial', n(pd.usuarios_trial), 'var(--text-secondary)', totalUsers) +
+          mkBar('Basico ($299)', n(pd.usuarios_basico), 'var(--info)', totalUsers) +
+          mkBar('Pro ($599)', n(pd.usuarios_pro), 'var(--accent)', totalUsers) +
+          mkBar('Premium ($999)', n(pd.usuarios_premium), 'var(--secondary)', totalUsers) +
+          mkBar('Sin plan', n(pd.usuarios_sin_plan), '#6B7280', totalUsers);
+
+        // Sub status bars
+        const totalSubs = n(us.total) || 1;
+        document.getElementById('subs-estado-chart').innerHTML =
+          mkBar('Activas', n(us.activas), 'var(--primary)', totalSubs) +
+          mkBar('Canceladas', n(us.canceladas), 'var(--danger)', totalSubs) +
+          mkBar('Vencidas', n(us.vencidas), '#6B7280', totalSubs) +
+          mkBar('Pendientes', n(us.pendientes), 'var(--secondary)', totalSubs);
+
+        // Empresario subs
+        const totalEmpSubs = n(es.total) || 1;
+        document.getElementById('emp-subs-chart').innerHTML =
+          mkBar('Activas', n(es.activas), 'var(--primary)', totalEmpSubs) +
+          mkBar('Canceladas', n(es.canceladas), 'var(--danger)', totalEmpSubs);
+
+        // Revenue estimate
+        const estRev = n(pd.usuarios_basico) * 299 + n(pd.usuarios_pro) * 599 + n(pd.usuarios_premium) * 999;
+        document.getElementById('revenue-estimate').innerHTML = `
+          <div style="font-size:28px;font-weight:800;color:var(--primary);margin-bottom:12px;">$${estRev.toLocaleString()} MXN</div>
+          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">Estimado mensual de planes usuario</div>
+          <div style="font-size:13px;">
+            <div>${n(pd.usuarios_basico)} x $299 = $${(n(pd.usuarios_basico)*299).toLocaleString()}</div>
+            <div>${n(pd.usuarios_pro)} x $599 = $${(n(pd.usuarios_pro)*599).toLocaleString()}</div>
+            <div>${n(pd.usuarios_premium)} x $999 = $${(n(pd.usuarios_premium)*999).toLocaleString()}</div>
+          </div>
+          <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px;font-size:12px;color:var(--text-secondary);">
+            * Planes empresario se asignan manualmente
+          </div>
+        `;
+
+        // Detail tables
+        document.getElementById('subs-user-table').innerHTML = (d.usuario_subs_detalle || []).map(s => `
+          <tr>
+            <td>${s.nombre || '-'}</td>
+            <td style="font-size:12px;">${s.email}</td>
+            <td><span class="badge badge-plan">${s.plan_nombre || '-'}</span></td>
+            <td><span class="badge badge-${s.estado}">${s.estado}</span></td>
+            <td style="font-size:12px;">${fmtDate(s.created_at)}</td>
+            <td style="font-size:12px;">${fmtDate(s.fecha_fin)}</td>
+          </tr>
+        `).join('') || '<tr><td colspan="6" class="loading">Sin suscripciones</td></tr>';
+
+        document.getElementById('subs-emp-table').innerHTML = (d.empresario_subs_detalle || []).map(s => `
+          <tr>
+            <td>${s.nombre || '-'}</td>
+            <td style="font-size:12px;">${s.email}</td>
+            <td><span class="badge badge-empresario">${(s.plan || '').replace('empresario_','')}</span></td>
+            <td><span class="badge badge-${s.estado}">${s.estado}</span></td>
+            <td style="font-size:12px;">${fmtDate(s.created_at)}</td>
+          </tr>
+        `).join('') || '<tr><td colspan="5" class="loading">Sin suscripciones empresario</td></tr>';
+
+        loading.style.display = 'none';
+        content.style.display = 'block';
+      } catch (e) {
+        loading.innerHTML = '<span style="color:var(--danger);">Error: ' + e.message + '</span>';
+      }
+    }
+
+    // ==================== EVENTOS ====================
+    async function loadEventos() {
+      try {
+        const estado = document.getElementById('evento-estado-filter').value;
+        const params = new URLSearchParams({ limit: 50 });
+        if (estado) params.set('estado', estado);
+
+        const res = await apiCall('/admin/eventos?' + params);
+        document.getElementById('eventos-table').innerHTML = res.data.map(e => `
+          <tr>
+            <td><strong>${e.nombre}</strong></td>
+            <td style="font-size:12px;">${e.organizador_nombre || '-'}<br><span style="color:var(--text-secondary);">${e.organizador_email}</span></td>
+            <td style="font-size:12px;">${fmtDate(e.fecha)}</td>
+            <td><span class="badge badge-${e.estado}">${e.estado}</span></td>
+            <td style="font-size:12px;">${e.modo || '-'}</td>
+            <td>${n(e.total_peleas_registradas)}</td>
+            <td>${n(e.total_participantes)}</td>
+            <td>
+              <code style="color:var(--secondary);cursor:pointer;letter-spacing:1px;" onclick="navigator.clipboard.writeText('${e.codigo_acceso || ''}');toast('Copiado')">${e.codigo_acceso || '-'}</code>
+            </td>
+          </tr>
+        `).join('') || '<tr><td colspan="8" class="loading">No hay eventos</td></tr>';
+      } catch (e) {
+        toast('Error: ' + e.message, true);
+      }
+    }
+
+    // ==================== ACTIVIDAD ====================
+    async function loadActivity() {
+      const el = document.getElementById('activity-list');
+      el.innerHTML = '<div class="loading">Cargando...</div>';
+      try {
+        const res = await apiCall('/admin/activity');
+        const colors = { registro: 'var(--primary)', evento: 'var(--secondary)', combate: 'var(--danger)', stream: 'var(--accent)' };
+        const icons = { registro: '&#x1F464;', evento: '&#x1F3C6;', combate: '&#x2694;', stream: '&#x1F4FA;' };
+        el.innerHTML = (res.data || []).map(a => `
+          <div class="activity-item">
+            <div class="activity-dot" style="background:${colors[a.tipo] || 'var(--info)'}"></div>
+            <span>${icons[a.tipo] || ''}</span>
+            <div style="flex:1;">
+              <span class="badge badge-${a.tipo === 'registro' ? 'active' : a.tipo === 'evento' ? 'empresario' : a.tipo === 'combate' ? 'admin' : 'plan'}" style="font-size:10px;">${a.tipo}</span>
+              <span style="margin-left:6px;">${a.detalle || ''}</span>
+              <span style="color:var(--text-secondary);font-size:12px;margin-left:6px;">${a.email || ''}</span>
+            </div>
+            <div class="activity-time">${fmtDateTime(a.fecha)}</div>
+          </div>
+        `).join('') || '<div class="loading">Sin actividad</div>';
+      } catch (e) {
+        el.innerHTML = '<div style="color:var(--danger);">Error: ' + e.message + '</div>';
+      }
+    }
+
+    // ==================== DATABASE ====================
+    async function loadDatabase() {
+      const loading = document.getElementById('db-loading');
+      const content = document.getElementById('db-content');
+      loading.style.display = 'block';
+      content.style.display = 'none';
+      try {
+        const res = await apiCall('/admin/database');
+        const d = res.data;
+
+        // Row counts grid
+        const rc = d.row_counts || {};
+        const keys = Object.keys(rc).filter(k => k !== '?');
+        document.getElementById('db-counts-grid').innerHTML = keys.map(k => `
+          <div class="stat-card c-primary">
+            <div class="stat-label">${k}</div>
+            <div class="stat-value" style="font-size:24px;">${n(rc[k]).toLocaleString()}</div>
+          </div>
+        `).join('');
+
+        // Tables list
+        document.getElementById('db-tables').innerHTML = (d.tables || []).map(t => `
+          <tr>
+            <td><code>${t.tablename}</code></td>
+            <td>${t.size}</td>
+            <td>${t.columns}</td>
+          </tr>
+        `).join('');
+
+        loading.style.display = 'none';
+        content.style.display = 'block';
+      } catch (e) {
+        loading.innerHTML = '<span style="color:var(--danger);">Error: ' + e.message + '</span>';
+      }
+    }
+
+    // ==================== EMAIL ====================
+    async function sendEmail() {
+      const to = document.getElementById('email-to').value.trim();
+      const subject = document.getElementById('email-subject').value.trim();
+      const html = document.getElementById('email-html').value.trim();
+      const statusEl = document.getElementById('email-status');
+      const btn = document.getElementById('send-email-btn');
+
+      if (!to || !subject || !html) { toast('Completa todos los campos', true); return; }
+
+      btn.disabled = true;
+      statusEl.textContent = 'Enviando...';
+      try {
+        await apiCall('/admin/send-email', 'POST', { to, subject, html });
+        toast('Email enviado');
+        statusEl.textContent = 'Enviado a ' + to;
+        statusEl.style.color = 'var(--primary)';
+      } catch (e) {
+        toast('Error: ' + e.message, true);
+        statusEl.textContent = 'Error: ' + e.message;
+        statusEl.style.color = 'var(--danger)';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // Init
+    checkAuth();
+  </script>
+</body>
+</html>

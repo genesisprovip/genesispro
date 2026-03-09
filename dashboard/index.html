@@ -578,30 +578,67 @@
       <label>Número de Pelea</label>
       <input type="number" id="fight-numero" min="1">
     </div>
-    <h3 style="color: var(--rojo); margin: 16px 0 8px;">🔴 Esquina Roja</h3>
-    <div class="form-row">
+
+    <!-- Manual mode: partido/ave selectors -->
+    <div id="fight-manual-selectors" style="display:none;">
+      <h3 style="color: var(--rojo); margin: 16px 0 8px;">🔴 Esquina Roja</h3>
       <div class="form-group">
-        <label>Anillo</label>
-        <input type="text" id="fight-anillo-rojo" placeholder="R-001">
+        <label>Partido</label>
+        <select id="fight-partido-rojo" onchange="loadAvesForCorner('rojo')">
+          <option value="">-- Seleccionar Partido --</option>
+        </select>
       </div>
       <div class="form-group">
-        <label>Peso (kg)</label>
-        <input type="number" id="fight-peso-rojo" step="0.01" placeholder="2.15">
+        <label>Ave</label>
+        <select id="fight-ave-rojo">
+          <option value="">-- Primero selecciona partido --</option>
+        </select>
+      </div>
+
+      <h3 style="color: var(--verde); margin: 16px 0 8px;">🟢 Esquina Verde</h3>
+      <div class="form-group">
+        <label>Partido</label>
+        <select id="fight-partido-verde" onchange="loadAvesForCorner('verde')">
+          <option value="">-- Seleccionar Partido --</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Ave</label>
+        <select id="fight-ave-verde">
+          <option value="">-- Primero selecciona partido --</option>
+        </select>
       </div>
     </div>
-    <h3 style="color: var(--verde); margin: 16px 0 8px;">🟢 Esquina Verde</h3>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Anillo</label>
-        <input type="text" id="fight-anillo-verde" placeholder="V-001">
+
+    <!-- Simple mode: free text inputs -->
+    <div id="fight-simple-inputs">
+      <h3 style="color: var(--rojo); margin: 16px 0 8px;">🔴 Esquina Roja</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Anillo</label>
+          <input type="text" id="fight-anillo-rojo" placeholder="R-001">
+        </div>
+        <div class="form-group">
+          <label>Peso (kg)</label>
+          <input type="number" id="fight-peso-rojo" step="0.01" placeholder="2.15">
+        </div>
       </div>
-      <div class="form-group">
-        <label>Peso (kg)</label>
-        <input type="number" id="fight-peso-verde" step="0.01" placeholder="2.18">
+      <h3 style="color: var(--verde); margin: 16px 0 8px;">🟢 Esquina Verde</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Anillo</label>
+          <input type="text" id="fight-anillo-verde" placeholder="V-001">
+        </div>
+        <div class="form-group">
+          <label>Peso (kg)</label>
+          <input type="number" id="fight-peso-verde" step="0.01" placeholder="2.18">
+        </div>
       </div>
     </div>
+
     <div style="display: flex; gap: 12px; margin-top: 24px;">
       <button class="btn btn-outline" onclick="closeModal('add-fight-modal')" style="flex:1;">Cancelar</button>
+      <button class="btn btn-secondary" onclick="addFight(); showAddFight();" id="fight-add-next-btn" style="flex:1; display:none;">Guardar y Siguiente</button>
       <button class="btn btn-primary" onclick="addFight()" style="flex:1;">Agregar</button>
     </div>
   </div>
@@ -857,6 +894,7 @@ const API = 'https://api.genesispro.vip/api/v1';
 let token = localStorage.getItem('gp_token');
 let currentUser = null;
 let currentEventId = null;
+let currentEvent = null;
 let currentPeleaId = null;
 let selectedResult = null;
 let autoRefreshInterval = null;
@@ -1035,6 +1073,7 @@ async function showEventDetail(id) {
     ]);
 
     const ev = evRes.data;
+    currentEvent = ev;
     editingEvent = ev;
     const peleas = peleasRes.data;
     const participantes = partRes.data || [];
@@ -1288,9 +1327,9 @@ async function showEventDetail(id) {
                         </td>
                         ${ev.estado !== 'finalizado' ? `
                           <td style="white-space:nowrap;">
-                            ${p.estado === 'programada' && isCurrent ? `<button class="btn btn-primary btn-sm" onclick="startFight('${p.id}')" style="padding:4px 10px; font-size:11px;">Iniciar</button>` : ''}
+                            ${p.estado === 'programada' && (isCurrent || ev.modo === 'manual') ? `<button class="btn btn-primary btn-sm" onclick="startFight('${p.id}')" style="padding:4px 10px; font-size:11px;">Iniciar</button>` : ''}
                             ${p.estado === 'en_curso' ? `<button class="btn btn-secondary btn-sm" onclick="showResultModal('${p.id}', ${p.numero_pelea})" style="padding:4px 10px; font-size:11px;">Result</button>` : ''}
-                            ${p.estado === 'programada' && ev.estado === 'programado' ? `<button class="btn btn-danger btn-sm" onclick="deleteFight('${p.id}')" style="padding:4px 8px; font-size:11px;">✕</button>` : ''}
+                            ${p.estado === 'programada' && (ev.estado === 'programado' || ev.modo === 'manual') ? `<button class="btn btn-danger btn-sm" onclick="deleteFight('${p.id}')" style="padding:4px 8px; font-size:11px;">✕</button>` : ''}
                             ${ev.modo === 'manual' ? `<button class="btn btn-outline btn-sm" onclick="showEditPelea('${p.id}', ${p.numero_pelea}, '${(p.anillo_rojo||'').replace(/'/g,"\\'")}', ${p.peso_rojo||'null'}, '${(p.anillo_verde||'').replace(/'/g,"\\'")}', ${p.peso_verde||'null'}, '${(p.placa_rojo||'').replace(/'/g,"\\'")}', '${(p.placa_verde||'').replace(/'/g,"\\'")}')}" style="padding:4px 8px; font-size:11px;">✏️</button>` : ''}
                           </td>
                         ` : ''}
@@ -1319,22 +1358,28 @@ async function showEventDetail(id) {
                 Participantes (${participantes.length})
               </summary>
               <div style="max-height:250px; overflow-y:auto;">
-                ${participantes.length > 0 ? participantes.map(p => `
+                ${participantes.length > 0 ? participantes.map(p => {
+                  // Try to find matching derby partido for this participant
+                  const matchedPartido = derbyPartidos.find(dp => dp.usuario_id === p.usuario_id);
+                  return `
                   <div class="participant-row">
                     <div>
                       <div class="participant-name">${p.nombre || p.email || 'Sin nombre'}</div>
-                      <div class="participant-role">${p.rol} · ${p.estado}</div>
+                      <div class="participant-role">${p.rol} · ${p.estado}${matchedPartido ? ` · Partido #${matchedPartido.numero_partido}` : ''}</div>
                     </div>
-                    ${p.numero_partido ? `<span class="badge badge-programado">#${p.numero_partido}</span>` : ''}
-                  </div>
-                `).join('') : '<p style="color: var(--text-secondary);">Comparte el código de acceso para que los partidos se unan</p>'}
+                    <div style="display:flex;align-items:center;gap:6px;">
+                      ${p.numero_partido ? `<span class="badge badge-programado">#${p.numero_partido}</span>` : ''}
+                      ${matchedPartido && matchedPartido.codigo_acceso ? `<code style="background:var(--bg);padding:2px 8px;border-radius:4px;font-weight:700;color:var(--secondary);letter-spacing:1px;cursor:pointer;font-size:11px;" onclick="navigator.clipboard.writeText('${matchedPartido.codigo_acceso}');toast('Código copiado: ${matchedPartido.codigo_acceso}')" title="Click para copiar">${matchedPartido.codigo_acceso}</code>` : ''}
+                    </div>
+                  </div>`;
+                }).join('') : '<p style="color: var(--text-secondary);">Comparte el código de acceso para que los partidos se unan</p>'}
               </div>
             </details>
           </div>
         </div>
       </div>
 
-      <div id="derby-section" style="${ev.modo === 'manual' ? 'display:none;' : ''}"></div>
+      <div id="derby-section"></div>
       <div id="apuestas-section"></div>
     `;
     renderAvisosSection(ev);
@@ -1429,13 +1474,14 @@ function renderDerbySection(ev, partidos, aves, rondas, tabla) {
   const el = document.getElementById('derby-section');
   if (!el) return;
 
+  const isManual = ev.modo === 'manual';
   const avesDisponibles = aves.filter(a => a.estado === 'disponible' && !a.ronda_asignada).length;
-  const registroCerrado = rondas.length > 0;
+  const registroCerrado = !isManual && rondas.length > 0;
 
   el.innerHTML = `
     <div class="cotejo-section" style="margin-top: 24px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
-        <h3>Derby · Registro y Sorteo</h3>
+        <h3>${isManual ? 'Partidos y Aves · Modo Manual' : 'Derby · Registro y Sorteo'}</h3>
         ${registroCerrado ? `<span style="font-size:11px; background:#FEF3C7; color:#92400E; padding:3px 10px; border-radius:12px; font-weight:600;">Registro cerrado (sorteo realizado)</span>` : ''}
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           ${ev.estado !== 'finalizado' ? `
@@ -1443,7 +1489,7 @@ function renderDerbySection(ev, partidos, aves, rondas, tabla) {
               <button class="btn btn-secondary btn-sm" onclick="showAddPartido()">+ Partido</button>
               ${partidos.length > 0 ? `<button class="btn btn-outline btn-sm" onclick="showAddAve()">+ Registrar Ave</button>` : ''}
             ` : ''}
-            ${avesDisponibles >= 2 ? `<button class="btn btn-primary btn-sm" onclick="showSorteoModal()">&#x1F3B2; Sorteo Ronda ${rondas.length + 1}</button>` : ''}
+            ${!isManual && avesDisponibles >= 2 ? `<button class="btn btn-primary btn-sm" onclick="showSorteoModal()">&#x1F3B2; Sorteo Ronda ${rondas.length + 1}</button>` : ''}
           ` : ''}
         </div>
       </div>
@@ -1482,12 +1528,13 @@ function renderDerbySection(ev, partidos, aves, rondas, tabla) {
 
       ${partidos.length > 0 ? `
         <h4 style="margin-bottom:8px;">Partidos Registrados (${partidos.length})</h4>
+        <p style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Comparte el código de cada partido con su dueño para que se una al evento en vivo.</p>
         <table class="cotejo-table" style="margin-bottom:16px;">
           <thead>
             <tr>
-              <th>#</th>
+              <th>ID</th>
               <th>Partido</th>
-              <th>Código</th>
+              <th>Código de Acceso</th>
               <th>Aves</th>
               <th>Estado</th>
               ${ev.estado !== 'finalizado' ? '<th>Acción</th>' : ''}
@@ -1496,9 +1543,12 @@ function renderDerbySection(ev, partidos, aves, rondas, tabla) {
           <tbody>
             ${partidos.map(p => `
               <tr>
-                <td>${p.numero_partido}</td>
+                <td style="font-weight:800;font-size:16px;color:var(--primary);">#${p.numero_partido}</td>
                 <td>${p.nombre}${p.es_comodin ? ' <small style="color:var(--secondary);">(Comodín)</small>' : ''}</td>
-                <td><code style="background:var(--bg);padding:2px 8px;border-radius:4px;font-weight:700;color:var(--secondary);letter-spacing:1px;cursor:pointer;" onclick="navigator.clipboard.writeText('${p.codigo_acceso || ''}');toast('Código copiado')">${p.codigo_acceso || '-'}</code></td>
+                <td>
+                  <code style="background:var(--bg);padding:4px 12px;border-radius:6px;font-weight:800;color:var(--secondary);letter-spacing:2px;cursor:pointer;font-size:14px;display:inline-block;" onclick="navigator.clipboard.writeText('${p.codigo_acceso || ''}');toast('Código copiado: ${p.codigo_acceso || ''}')" title="Click para copiar">${p.codigo_acceso || '-'}</code>
+                  <button class="btn btn-outline btn-sm" style="margin-left:6px;font-size:10px;padding:2px 8px;" onclick="navigator.clipboard.writeText('${p.codigo_acceso || ''}');toast('Código copiado')">Copiar</button>
+                </td>
                 <td>${p.total_aves} (${p.aves_disponibles} disp.)</td>
                 <td><span class="badge badge-${p.estado === 'activo' ? 'programado' : 'finalizado'}">${p.estado}</span></td>
                 ${ev.estado !== 'finalizado' ? `
@@ -1552,7 +1602,7 @@ function renderDerbySection(ev, partidos, aves, rondas, tabla) {
         </div>
       `}
 
-      ${rondas.length > 0 ? `
+      ${!isManual && rondas.length > 0 ? `
         <h4 style="margin-bottom:8px;">Rondas</h4>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
           ${rondas.map(r => `
@@ -1894,25 +1944,93 @@ async function endEvent(id) {
 }
 
 // ─── FIGHT ACTIONS ───
-function showAddFight() {
-  document.getElementById('fight-numero').value = '';
-  document.getElementById('fight-anillo-rojo').value = '';
-  document.getElementById('fight-peso-rojo').value = '';
-  document.getElementById('fight-anillo-verde').value = '';
-  document.getElementById('fight-peso-verde').value = '';
+let _fightAvesCache = []; // cached aves for manual mode dropdowns
+
+async function showAddFight() {
+  // Auto-calculate next fight number
+  const peleas = document.querySelectorAll('.cotejo-table tbody tr');
+  const nextNum = peleas.length + 1;
+  document.getElementById('fight-numero').value = nextNum;
+
+  // Check if manual mode
+  const ev = currentEvent;
+  const isManual = ev && ev.modo === 'manual';
+
+  document.getElementById('fight-manual-selectors').style.display = isManual ? 'block' : 'none';
+  document.getElementById('fight-simple-inputs').style.display = isManual ? 'none' : 'block';
+  document.getElementById('fight-add-next-btn').style.display = isManual ? 'inline-flex' : 'none';
+
+  if (isManual) {
+    // Load partidos into dropdowns
+    try {
+      const res = await api(`/derby/${currentEventId}/partidos`);
+      const partidos = res.data.filter(p => p.estado === 'activo');
+      const optionsHTML = '<option value="">-- Seleccionar Partido --</option>' +
+        partidos.map(p => `<option value="${p.id}">#${p.numero_partido} - ${p.nombre} (${p.total_aves} aves)</option>`).join('');
+      document.getElementById('fight-partido-rojo').innerHTML = optionsHTML;
+      document.getElementById('fight-partido-verde').innerHTML = optionsHTML;
+
+      // Load all aves for this event
+      const avesRes = await api(`/derby/${currentEventId}/aves`);
+      _fightAvesCache = avesRes.data;
+    } catch (e) { toast('Error cargando partidos: ' + e.message, true); }
+
+    document.getElementById('fight-ave-rojo').innerHTML = '<option value="">-- Primero selecciona partido --</option>';
+    document.getElementById('fight-ave-verde').innerHTML = '<option value="">-- Primero selecciona partido --</option>';
+  } else {
+    document.getElementById('fight-anillo-rojo').value = '';
+    document.getElementById('fight-peso-rojo').value = '';
+    document.getElementById('fight-anillo-verde').value = '';
+    document.getElementById('fight-peso-verde').value = '';
+  }
+
   document.getElementById('add-fight-modal').classList.add('active');
 }
 
+function loadAvesForCorner(corner) {
+  const partidoId = document.getElementById(`fight-partido-${corner}`).value;
+  const sel = document.getElementById(`fight-ave-${corner}`);
+
+  if (!partidoId) {
+    sel.innerHTML = '<option value="">-- Primero selecciona partido --</option>';
+    return;
+  }
+
+  const avesPartido = _fightAvesCache.filter(a => a.partido_id === partidoId && a.estado === 'disponible');
+  sel.innerHTML = '<option value="">-- Seleccionar Ave --</option>' +
+    avesPartido.map(a => `<option value="${a.id}">Ave #${a.numero_ave} · ${a.peso}g · Anillo: ${a.anillo || '-'}</option>`).join('');
+}
+
 async function addFight() {
+  const ev = currentEvent;
+  const isManual = ev && ev.modo === 'manual';
+  const numero = parseInt(document.getElementById('fight-numero').value);
+  if (!numero) { toast('Número de pelea requerido', true); return; }
+
   try {
-    await api('/peleas', 'POST', {
+    const body = {
       evento_id: currentEventId,
-      numero_pelea: parseInt(document.getElementById('fight-numero').value),
-      anillo_rojo: document.getElementById('fight-anillo-rojo').value,
-      peso_rojo: parseFloat(document.getElementById('fight-peso-rojo').value) || null,
-      anillo_verde: document.getElementById('fight-anillo-verde').value,
-      peso_verde: parseFloat(document.getElementById('fight-peso-verde').value) || null
-    });
+      numero_pelea: numero
+    };
+
+    if (isManual) {
+      const partidoRojoId = document.getElementById('fight-partido-rojo').value;
+      const aveRojoId = document.getElementById('fight-ave-rojo').value;
+      const partidoVerdeId = document.getElementById('fight-partido-verde').value;
+      const aveVerdeId = document.getElementById('fight-ave-verde').value;
+
+      if (partidoRojoId) body.partido_derby_rojo_id = partidoRojoId;
+      if (aveRojoId) body.ave_derby_rojo_id = aveRojoId;
+      if (partidoVerdeId) body.partido_derby_verde_id = partidoVerdeId;
+      if (aveVerdeId) body.ave_derby_verde_id = aveVerdeId;
+    } else {
+      body.anillo_rojo = document.getElementById('fight-anillo-rojo').value;
+      body.peso_rojo = parseFloat(document.getElementById('fight-peso-rojo').value) || null;
+      body.anillo_verde = document.getElementById('fight-anillo-verde').value;
+      body.peso_verde = parseFloat(document.getElementById('fight-peso-verde').value) || null;
+    }
+
+    await api('/peleas', 'POST', body);
     closeModal('add-fight-modal');
     toast('Pelea agregada');
     showEventDetail(currentEventId);

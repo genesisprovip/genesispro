@@ -6,6 +6,10 @@ package-lock.json
 .env
 .env.local
 .env.*.local
+.env.production
+
+# Credentials
+credentials.md
 
 # Logs
 logs/

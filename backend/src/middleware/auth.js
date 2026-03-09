@@ -26,7 +26,7 @@ const authenticateJWT = asyncHandler(async (req, res, next) => {
     const { rows } = await db.query(
       `SELECT
         u.id, u.email, u.nombre, u.plan_actual, u.email_verificado,
-        u.foto_perfil, u.created_at
+        u.foto_perfil, u.created_at, u.rol, u.plan_empresario
       FROM usuarios u
       WHERE u.id = $1 AND u.activo = true AND u.deleted_at IS NULL`,
       [decoded.userId]
@@ -97,6 +97,26 @@ const requireEmailVerified = asyncHandler(async (req, res, next) => {
 });
 
 /**
+ * Require admin role
+ */
+const requireAdmin = asyncHandler(async (req, res, next) => {
+  if (!req.user || req.user.rol !== 'admin') {
+    throw Errors.forbidden('Acceso restringido a administradores');
+  }
+  next();
+});
+
+/**
+ * Require empresario role (or admin)
+ */
+const requireEmpresario = asyncHandler(async (req, res, next) => {
+  if (!req.user || (req.user.rol !== 'empresario' && req.user.rol !== 'admin')) {
+    throw Errors.forbidden('Acceso restringido a empresarios');
+  }
+  next();
+});
+
+/**
  * Generate JWT tokens
  */
 const generateTokens = (userId) => {
@@ -141,6 +161,8 @@ module.exports = {
   authenticateJWT,
   optionalAuth,
   requireEmailVerified,
+  requireAdmin,
+  requireEmpresario,
   generateTokens,
   verifyRefreshToken
 };

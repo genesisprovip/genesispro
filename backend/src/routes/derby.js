@@ -118,25 +118,25 @@ router.get('/:eventoId/tabla-publica',
         (SELECT COUNT(*) FROM aves_derby a WHERE a.partido_id = p.id) AS total_aves,
         (SELECT COUNT(*) FROM aves_derby a WHERE a.partido_id = p.id AND a.estado = 'disponible') AS aves_disponibles,
         (SELECT COUNT(*) FROM peleas pl
-          JOIN aves_derby ar ON ar.id = pl.ave_roja_derby_id
-          WHERE ar.partido_id = p.id AND pl.resultado = 'rojo' AND pl.estado = 'finalizada') +
+          LEFT JOIN aves_derby ar ON ar.id = pl.ave_roja_derby_id
+          WHERE (ar.partido_id = p.id OR pl.partido_derby_rojo_id = p.id) AND pl.resultado = 'rojo' AND pl.estado = 'finalizada') +
         (SELECT COUNT(*) FROM peleas pl
-          JOIN aves_derby av ON av.id = pl.ave_verde_derby_id
-          WHERE av.partido_id = p.id AND pl.resultado = 'verde' AND pl.estado = 'finalizada')
+          LEFT JOIN aves_derby av ON av.id = pl.ave_verde_derby_id
+          WHERE (av.partido_id = p.id OR pl.partido_derby_verde_id = p.id) AND pl.resultado = 'verde' AND pl.estado = 'finalizada')
         AS victorias,
         (SELECT COUNT(*) FROM peleas pl
-          JOIN aves_derby ar ON ar.id = pl.ave_roja_derby_id
-          WHERE ar.partido_id = p.id AND pl.resultado = 'verde' AND pl.estado = 'finalizada') +
+          LEFT JOIN aves_derby ar ON ar.id = pl.ave_roja_derby_id
+          WHERE (ar.partido_id = p.id OR pl.partido_derby_rojo_id = p.id) AND pl.resultado = 'verde' AND pl.estado = 'finalizada') +
         (SELECT COUNT(*) FROM peleas pl
-          JOIN aves_derby av ON av.id = pl.ave_verde_derby_id
-          WHERE av.partido_id = p.id AND pl.resultado = 'rojo' AND pl.estado = 'finalizada')
+          LEFT JOIN aves_derby av ON av.id = pl.ave_verde_derby_id
+          WHERE (av.partido_id = p.id OR pl.partido_derby_verde_id = p.id) AND pl.resultado = 'rojo' AND pl.estado = 'finalizada')
         AS derrotas,
         (SELECT COUNT(*) FROM peleas pl
-          JOIN aves_derby ar ON ar.id = pl.ave_roja_derby_id
-          WHERE ar.partido_id = p.id AND (pl.resultado = 'tabla' OR pl.resultado = 'empate') AND pl.estado = 'finalizada') +
+          LEFT JOIN aves_derby ar ON ar.id = pl.ave_roja_derby_id
+          WHERE (ar.partido_id = p.id OR pl.partido_derby_rojo_id = p.id) AND (pl.resultado = 'tabla' OR pl.resultado = 'empate') AND pl.estado = 'finalizada') +
         (SELECT COUNT(*) FROM peleas pl
-          JOIN aves_derby av ON av.id = pl.ave_verde_derby_id
-          WHERE av.partido_id = p.id AND (pl.resultado = 'tabla' OR pl.resultado = 'empate') AND pl.estado = 'finalizada')
+          LEFT JOIN aves_derby av ON av.id = pl.ave_verde_derby_id
+          WHERE (av.partido_id = p.id OR pl.partido_derby_verde_id = p.id) AND (pl.resultado = 'tabla' OR pl.resultado = 'empate') AND pl.estado = 'finalizada')
         AS tablas
       FROM partidos_derby p
       WHERE p.evento_id = $1 AND p.estado = 'activo'
@@ -163,7 +163,14 @@ async function verifyOrganizador(eventoId, userId) {
 }
 
 // Helper: verify registration is still open (no sorteo done yet)
+// In manual mode, registration is always open (no sorteo)
 async function verificarRegistroAbierto(eventoId) {
+  // Check if event is in manual mode - always allow registration
+  const { rows: evRows } = await db.query(
+    `SELECT modo FROM eventos_palenque WHERE id = $1`, [eventoId]
+  );
+  if (evRows.length > 0 && evRows[0].modo === 'manual') return;
+
   const { rows } = await db.query(
     `SELECT id FROM rondas_derby WHERE evento_id = $1 LIMIT 1`,
     [eventoId]
@@ -568,25 +575,25 @@ router.get('/:eventoId/tabla',
         (SELECT COUNT(*) FROM aves_derby a WHERE a.partido_id = p.id) AS total_aves,
         (SELECT COUNT(*) FROM aves_derby a WHERE a.partido_id = p.id AND a.estado = 'disponible') AS aves_disponibles,
         (SELECT COUNT(*) FROM peleas pl
-          JOIN aves_derby ar ON ar.id = pl.ave_roja_derby_id
-          WHERE ar.partido_id = p.id AND pl.resultado = 'rojo' AND pl.estado = 'finalizada') +
+          LEFT JOIN aves_derby ar ON ar.id = pl.ave_roja_derby_id
+          WHERE (ar.partido_id = p.id OR pl.partido_derby_rojo_id = p.id) AND pl.resultado = 'rojo' AND pl.estado = 'finalizada') +
         (SELECT COUNT(*) FROM peleas pl
-          JOIN aves_derby av ON av.id = pl.ave_verde_derby_id
-          WHERE av.partido_id = p.id AND pl.resultado = 'verde' AND pl.estado = 'finalizada')
+          LEFT JOIN aves_derby av ON av.id = pl.ave_verde_derby_id
+          WHERE (av.partido_id = p.id OR pl.partido_derby_verde_id = p.id) AND pl.resultado = 'verde' AND pl.estado = 'finalizada')
         AS victorias,
         (SELECT COUNT(*) FROM peleas pl
-          JOIN aves_derby ar ON ar.id = pl.ave_roja_derby_id
-          WHERE ar.partido_id = p.id AND pl.resultado = 'verde' AND pl.estado = 'finalizada') +
+          LEFT JOIN aves_derby ar ON ar.id = pl.ave_roja_derby_id
+          WHERE (ar.partido_id = p.id OR pl.partido_derby_rojo_id = p.id) AND pl.resultado = 'verde' AND pl.estado = 'finalizada') +
         (SELECT COUNT(*) FROM peleas pl
-          JOIN aves_derby av ON av.id = pl.ave_verde_derby_id
-          WHERE av.partido_id = p.id AND pl.resultado = 'rojo' AND pl.estado = 'finalizada')
+          LEFT JOIN aves_derby av ON av.id = pl.ave_verde_derby_id
+          WHERE (av.partido_id = p.id OR pl.partido_derby_verde_id = p.id) AND pl.resultado = 'rojo' AND pl.estado = 'finalizada')
         AS derrotas,
         (SELECT COUNT(*) FROM peleas pl
-          JOIN aves_derby ar ON ar.id = pl.ave_roja_derby_id
-          WHERE ar.partido_id = p.id AND (pl.resultado = 'tabla' OR pl.resultado = 'empate') AND pl.estado = 'finalizada') +
+          LEFT JOIN aves_derby ar ON ar.id = pl.ave_roja_derby_id
+          WHERE (ar.partido_id = p.id OR pl.partido_derby_rojo_id = p.id) AND (pl.resultado = 'tabla' OR pl.resultado = 'empate') AND pl.estado = 'finalizada') +
         (SELECT COUNT(*) FROM peleas pl
-          JOIN aves_derby av ON av.id = pl.ave_verde_derby_id
-          WHERE av.partido_id = p.id AND (pl.resultado = 'tabla' OR pl.resultado = 'empate') AND pl.estado = 'finalizada')
+          LEFT JOIN aves_derby av ON av.id = pl.ave_verde_derby_id
+          WHERE (av.partido_id = p.id OR pl.partido_derby_verde_id = p.id) AND (pl.resultado = 'tabla' OR pl.resultado = 'empate') AND pl.estado = 'finalizada')
         AS tablas
       FROM partidos_derby p
       WHERE p.evento_id = $1 AND p.estado = 'activo'

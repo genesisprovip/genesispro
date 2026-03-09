@@ -33,6 +33,10 @@ const peleaValidation = [
   body('anillo_verde').optional({ nullable: true }).isLength({ max: 50 }),
   body('peso_verde').optional({ nullable: true }).isFloat({ min: 0 }).withMessage('Peso verde debe ser positivo'),
   body('placa_verde').optional({ nullable: true }).isLength({ max: 50 }),
+  body('partido_derby_rojo_id').optional({ nullable: true }).isUUID().withMessage('ID de partido derby rojo invalido'),
+  body('partido_derby_verde_id').optional({ nullable: true }).isUUID().withMessage('ID de partido derby verde invalido'),
+  body('ave_derby_rojo_id').optional({ nullable: true }).isUUID().withMessage('ID de ave derby roja invalido'),
+  body('ave_derby_verde_id').optional({ nullable: true }).isUUID().withMessage('ID de ave derby verde invalido'),
   body('notas').optional({ nullable: true }).isLength({ max: 1000 })
 ];
 
@@ -200,13 +204,17 @@ router.get('/evento/:eventoId',
         ur.nombre AS partido_rojo_nombre,
         ua.nombre AS partido_verde_nombre,
         ar.codigo_identidad AS ave_roja_codigo,
-        aa.codigo_identidad AS ave_verde_codigo
+        aa.codigo_identidad AS ave_verde_codigo,
+        pdr.nombre AS derby_partido_rojo_nombre,
+        pdv.nombre AS derby_partido_verde_nombre
       FROM peleas p
       LEFT JOIN rondas_derby rd ON rd.id = p.ronda_id
       LEFT JOIN usuarios ur ON ur.id = p.partido_rojo_id
       LEFT JOIN usuarios ua ON ua.id = p.partido_verde_id
       LEFT JOIN aves ar ON ar.id = p.ave_roja_id
       LEFT JOIN aves aa ON aa.id = p.ave_verde_id
+      LEFT JOIN partidos_derby pdr ON pdr.id = p.partido_derby_rojo_id
+      LEFT JOIN partidos_derby pdv ON pdv.id = p.partido_derby_verde_id
       WHERE p.evento_id = $1
       ORDER BY p.numero_pelea ASC`,
       [eventoId]
@@ -312,25 +320,94 @@ router.post('/',
       evento_id, numero_pelea,
       partido_rojo_id, ave_roja_id, anillo_rojo, peso_rojo, placa_rojo,
       partido_verde_id, ave_verde_id, anillo_verde, peso_verde, placa_verde,
+      partido_derby_rojo_id, partido_derby_verde_id,
+      ave_derby_rojo_id, ave_derby_verde_id,
       notas
     } = req.body;
 
     await verifyOrganizador(evento_id, req.userId);
+
+    // Auto-fill data from aves_derby/partidos_derby when manual mode IDs are provided
+    let finalAnilloRojo = anillo_rojo || null;
+    let finalPesoRojo = peso_rojo || null;
+    let finalPlacaRojo = placa_rojo || null;
+    let finalAveDerbyRojoId = ave_derby_rojo_id || null;
+    let finalPartidoDerbyRojoId = partido_derby_rojo_id || null;
+
+    let finalAnilloVerde = anillo_verde || null;
+    let finalPesoVerde = peso_verde || null;
+    let finalPlacaVerde = placa_verde || null;
+    let finalAveDerbyVerdeId = ave_derby_verde_id || null;
+    let finalPartidoDerbyVerdeId = partido_derby_verde_id || null;
+
+    // If ave_derby IDs provided, look up ave + partido data
+    if (ave_derby_rojo_id) {
+      const { rows: aveData } = await db.query(
+        `SELECT a.anillo, a.peso, a.placa, a.partido_id, p.nombre AS partido_nombre, p.usuario_id
+         FROM aves_derby a JOIN partidos_derby p ON p.id = a.partido_id
+         WHERE a.id = $1`, [ave_derby_rojo_id]
+      );
+      if (aveData.length > 0) {
+        const a = aveData[0];
+        if (!finalAnilloRojo) finalAnilloRojo = a.anillo;
+        if (!finalPesoRojo) finalPesoRojo = a.peso ? a.peso / 1000 : null;
+        if (!finalPlacaRojo) finalPlacaRojo = a.partido_nombre;
+        if (!finalPartidoDerbyRojoId) finalPartidoDerbyRojoId = a.partido_id;
+      }
+    } else if (partido_derby_rojo_id && !finalPlacaRojo) {
+      const { rows: pData } = await db.query(
+        `SELECT nombre FROM partidos_derby WHERE id = $1`, [partido_derby_rojo_id]
+      );
+      if (pData.length > 0) finalPlacaRojo = pData[0].nombre;
+    }
+
+    if (ave_derby_verde_id) {
+      const { rows: aveData } = await db.query(
+        `SELECT a.anillo, a.peso, a.placa, a.partido_id, p.nombre AS partido_nombre, p.usuario_id
+         FROM aves_derby a JOIN partidos_derby p ON p.id = a.partido_id
+         WHERE a.id = $1`, [ave_derby_verde_id]
+      );
+      if (aveData.length > 0) {
+        const a = aveData[0];
+        if (!finalAnilloVerde) finalAnilloVerde = a.anillo;
+        if (!finalPesoVerde) finalPesoVerde = a.peso ? a.peso / 1000 : null;
+        if (!finalPlacaVerde) finalPlacaVerde = a.partido_nombre;
+        if (!finalPartidoDerbyVerdeId) finalPartidoDerbyVerdeId = a.partido_id;
+      }
+    } else if (partido_derby_verde_id && !finalPlacaVerde) {
+      const { rows: pData } = await db.query(
+        `SELECT nombre FROM partidos_derby WHERE id = $1`, [partido_derby_verde_id]
+      );
+      if (pData.length > 0) finalPlacaVerde = pData[0].nombre;
+    }
 
     const { rows } = await db.query(
       `INSERT INTO peleas (
         evento_id, numero_pelea,
         partido_rojo_id, ave_roja_id, anillo_rojo, peso_rojo, placa_rojo,
         partido_verde_id, ave_verde_id, anillo_verde, peso_verde, placa_verde,
+        ave_roja_derby_id, ave_verde_derby_id,
+        partido_derby_rojo_id, partido_derby_verde_id,
         estado, notas
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'programada', $13)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'programada', $17)
       RETURNING *`,
       [
         evento_id, numero_pelea,
-        partido_rojo_id || null, ave_roja_id || null, anillo_rojo || null, peso_rojo || null, placa_rojo || null,
-        partido_verde_id || null, ave_verde_id || null, anillo_verde || null, peso_verde || null, placa_verde || null,
+        partido_rojo_id || null, ave_roja_id || null, finalAnilloRojo, finalPesoRojo, finalPlacaRojo,
+        partido_verde_id || null, ave_verde_id || null, finalAnilloVerde, finalPesoVerde, finalPlacaVerde,
+        finalAveDerbyRojoId, finalAveDerbyVerdeId,
+        finalPartidoDerbyRojoId, finalPartidoDerbyVerdeId,
         notas || null
       ]
+    );
+
+    // Update total_peleas on evento
+    await db.query(
+      `UPDATE eventos_palenque SET
+        total_peleas = (SELECT COUNT(*) FROM peleas WHERE evento_id = $1),
+        updated_at = NOW()
+      WHERE id = $1`,
+      [evento_id]
     );
 
     res.status(201).json({ success: true, data: rows[0] });
@@ -360,25 +437,77 @@ router.post('/bulk',
       const created = [];
 
       for (const pelea of peleas) {
+        // Auto-fill from aves_derby if provided
+        let anilloRojo = pelea.anillo_rojo || null;
+        let pesoRojo = pelea.peso_rojo || null;
+        let placaRojo = pelea.placa_rojo || null;
+        let aveDerbyRojoId = pelea.ave_derby_rojo_id || null;
+        let partidoDerbyRojoId = pelea.partido_derby_rojo_id || null;
+
+        let anilloVerde = pelea.anillo_verde || null;
+        let pesoVerde = pelea.peso_verde || null;
+        let placaVerde = pelea.placa_verde || null;
+        let aveDerbyVerdeId = pelea.ave_derby_verde_id || null;
+        let partidoDerbyVerdeId = pelea.partido_derby_verde_id || null;
+
+        if (pelea.ave_derby_rojo_id) {
+          const { rows: a } = await client.query(
+            `SELECT a.anillo, a.peso, a.partido_id, p.nombre AS partido_nombre
+             FROM aves_derby a JOIN partidos_derby p ON p.id = a.partido_id WHERE a.id = $1`,
+            [pelea.ave_derby_rojo_id]
+          );
+          if (a.length > 0) {
+            if (!anilloRojo) anilloRojo = a[0].anillo;
+            if (!pesoRojo) pesoRojo = a[0].peso ? a[0].peso / 1000 : null;
+            if (!placaRojo) placaRojo = a[0].partido_nombre;
+            if (!partidoDerbyRojoId) partidoDerbyRojoId = a[0].partido_id;
+          }
+        }
+
+        if (pelea.ave_derby_verde_id) {
+          const { rows: a } = await client.query(
+            `SELECT a.anillo, a.peso, a.partido_id, p.nombre AS partido_nombre
+             FROM aves_derby a JOIN partidos_derby p ON p.id = a.partido_id WHERE a.id = $1`,
+            [pelea.ave_derby_verde_id]
+          );
+          if (a.length > 0) {
+            if (!anilloVerde) anilloVerde = a[0].anillo;
+            if (!pesoVerde) pesoVerde = a[0].peso ? a[0].peso / 1000 : null;
+            if (!placaVerde) placaVerde = a[0].partido_nombre;
+            if (!partidoDerbyVerdeId) partidoDerbyVerdeId = a[0].partido_id;
+          }
+        }
+
         const { rows } = await client.query(
           `INSERT INTO peleas (
             evento_id, numero_pelea,
             partido_rojo_id, ave_roja_id, anillo_rojo, peso_rojo, placa_rojo,
             partido_verde_id, ave_verde_id, anillo_verde, peso_verde, placa_verde,
+            ave_roja_derby_id, ave_verde_derby_id,
+            partido_derby_rojo_id, partido_derby_verde_id,
             estado, notas
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'programada', $13)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'programada', $17)
           RETURNING *`,
           [
             evento_id, pelea.numero_pelea,
-            pelea.partido_rojo_id || null, pelea.ave_roja_id || null,
-            pelea.anillo_rojo || null, pelea.peso_rojo || null, pelea.placa_rojo || null,
-            pelea.partido_verde_id || null, pelea.ave_verde_id || null,
-            pelea.anillo_verde || null, pelea.peso_verde || null, pelea.placa_verde || null,
+            pelea.partido_rojo_id || null, pelea.ave_roja_id || null, anilloRojo, pesoRojo, placaRojo,
+            pelea.partido_verde_id || null, pelea.ave_verde_id || null, anilloVerde, pesoVerde, placaVerde,
+            aveDerbyRojoId, aveDerbyVerdeId,
+            partidoDerbyRojoId, partidoDerbyVerdeId,
             pelea.notas || null
           ]
         );
         created.push(rows[0]);
       }
+
+      // Update total_peleas
+      await client.query(
+        `UPDATE eventos_palenque SET
+          total_peleas = (SELECT COUNT(*) FROM peleas WHERE evento_id = $1),
+          updated_at = NOW()
+        WHERE id = $1`,
+        [evento_id]
+      );
 
       return created;
     });
@@ -416,6 +545,8 @@ router.put('/:id',
     const {
       numero_pelea, partido_rojo_id, ave_roja_id, anillo_rojo, peso_rojo, placa_rojo,
       partido_verde_id, ave_verde_id, anillo_verde, peso_verde, placa_verde,
+      partido_derby_rojo_id, partido_derby_verde_id,
+      ave_derby_rojo_id, ave_derby_verde_id,
       estado, notas
     } = req.body;
 
@@ -436,13 +567,19 @@ router.put('/:id',
         placa_verde = COALESCE($11, placa_verde),
         estado = COALESCE($12, estado),
         notas = COALESCE($13, notas),
+        partido_derby_rojo_id = COALESCE($15, partido_derby_rojo_id),
+        partido_derby_verde_id = COALESCE($16, partido_derby_verde_id),
+        ave_roja_derby_id = COALESCE($17, ave_roja_derby_id),
+        ave_verde_derby_id = COALESCE($18, ave_verde_derby_id),
         updated_at = NOW()
       WHERE id = $14 AND estado != 'cancelada'
       RETURNING *`,
       [
         numero_pelea, partido_rojo_id, ave_roja_id, anillo_rojo, peso_rojo, placa_rojo,
         partido_verde_id, ave_verde_id, anillo_verde, peso_verde, placa_verde,
-        estado, notas, id
+        estado, notas, id,
+        partido_derby_rojo_id, partido_derby_verde_id,
+        ave_derby_rojo_id, ave_derby_verde_id
       ]
     );
 

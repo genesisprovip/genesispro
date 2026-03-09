@@ -1,11 +1,20 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateJWT } = require('../middleware/auth');
+const { checkPlanLimits } = require('../middleware/planLimits');
 const pool = require('../config/database');
 const logger = require('../config/logger');
 
 // All routes require authentication
 router.use(authenticateJWT);
+
+// Write operations require at least Pro plan
+router.use((req, res, next) => {
+  if (['POST', 'PUT', 'DELETE'].includes(req.method)) {
+    return checkPlanLimits('alimentacion')(req, res, next);
+  }
+  next();
+});
 
 // ==================== ALIMENTOS (Inventario) ====================
 
