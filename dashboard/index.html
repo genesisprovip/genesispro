@@ -151,6 +151,22 @@
     .toast.error { background: var(--error); }
     @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
+    /* Mode toggle (pill) */
+    .mode-toggle { display: inline-flex; background: var(--bg); border-radius: 8px; padding: 3px; gap: 2px; }
+    .mode-toggle button { padding: 6px 16px; border: none; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: transparent; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+    .mode-toggle button.active { background: var(--primary); color: white; }
+
+    /* Finanzas */
+    .finanzas-stat { background: var(--bg-alt); border-radius: var(--radius); padding: 20px; text-align: center; border-left: 4px solid var(--border); }
+    .finanzas-stat.green { border-left-color: var(--primary); }
+    .finanzas-stat.yellow { border-left-color: var(--secondary); }
+    .finanzas-stat.red { border-left-color: var(--error); }
+    .finanzas-stat.blue { border-left-color: var(--accent); }
+    .pago-badge { display: inline-flex; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+    .pago-badge.pagado { background: rgba(16,185,129,0.2); color: var(--primary); }
+    .pago-badge.pendiente { background: rgba(239,68,68,0.2); color: var(--error); }
+    .pago-badge:hover { opacity: 0.8; filter: brightness(1.2); }
+
     @media (max-width: 768px) {
       .main-content { padding: 16px; }
       .events-grid { grid-template-columns: 1fr; }
@@ -714,6 +730,107 @@
   </div>
 </div>
 
+<!-- EDIT PELEA MODAL -->
+<div class="modal-overlay" id="edit-pelea-modal">
+  <div class="modal">
+    <h2 id="edit-pelea-title">Editar Pelea</h2>
+    <input type="hidden" id="edit-pelea-id">
+    <div class="form-group">
+      <label>Número de Pelea</label>
+      <input type="number" id="edit-pelea-numero" min="1">
+    </div>
+    <h3 style="color: var(--rojo); margin: 16px 0 8px;">Esquina Roja</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Anillo</label>
+        <input type="text" id="edit-pelea-anillo-rojo" placeholder="R-001">
+      </div>
+      <div class="form-group">
+        <label>Peso (kg)</label>
+        <input type="number" id="edit-pelea-peso-rojo" step="0.01" placeholder="2.15">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Partido (Placa Rojo)</label>
+      <input type="text" id="edit-pelea-placa-rojo" placeholder="Nombre del partido rojo">
+    </div>
+    <h3 style="color: var(--verde); margin: 16px 0 8px;">Esquina Verde</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Anillo</label>
+        <input type="text" id="edit-pelea-anillo-verde" placeholder="V-001">
+      </div>
+      <div class="form-group">
+        <label>Peso (kg)</label>
+        <input type="number" id="edit-pelea-peso-verde" step="0.01" placeholder="2.18">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Partido (Placa Verde)</label>
+      <input type="text" id="edit-pelea-placa-verde" placeholder="Nombre del partido verde">
+    </div>
+    <div style="display: flex; gap: 12px; margin-top: 24px;">
+      <button class="btn btn-outline" onclick="closeModal('edit-pelea-modal')" style="flex:1;">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarPelea()" style="flex:1;">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- GASTO MODAL (Finanzas) -->
+<div class="modal-overlay" id="gasto-modal">
+  <div class="modal">
+    <h2>Agregar Gasto / Ingreso</h2>
+    <div class="form-group">
+      <label>Partido (opcional)</label>
+      <input type="text" id="gasto-partido" placeholder="Nombre del partido (dejar vacío si es gasto general)">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Concepto</label>
+        <select id="gasto-concepto">
+          <option value="inscripcion">Inscripción</option>
+          <option value="pelea">Cargo por Pelea</option>
+          <option value="premio">Premio</option>
+          <option value="arbitraje">Arbitraje</option>
+          <option value="renta_palenque">Renta de Palenque</option>
+          <option value="navajero">Navajero</option>
+          <option value="pesador">Pesador</option>
+          <option value="comida">Comida/Bebidas</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Tipo</label>
+        <select id="gasto-tipo">
+          <option value="ingreso">Ingreso</option>
+          <option value="egreso">Egreso</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Monto ($)</label>
+        <input type="number" id="gasto-monto" placeholder="5000" min="0" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Estado</label>
+        <select id="gasto-estado">
+          <option value="pendiente">Pendiente</option>
+          <option value="pagado">Pagado</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notas (opcional)</label>
+      <textarea id="gasto-notas" placeholder="Detalles adicionales..." rows="2"></textarea>
+    </div>
+    <div style="display: flex; gap: 12px; margin-top: 24px;">
+      <button class="btn btn-outline" onclick="closeModal('gasto-modal')" style="flex:1;">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarGasto()" style="flex:1;">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -1056,8 +1173,14 @@ async function showEventDetail(id) {
               ${ev.contacto_organizador ? `<span>📱 ${ev.contacto_organizador}</span>` : ''}
             </div>
           </div>
-          <div style="display:flex; gap:8px; align-items:center;">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
             <span class="badge badge-${ev.estado}" style="font-size:14px; padding:6px 16px;">${ev.estado.replace('_',' ')}</span>
+            ${ev.estado !== 'finalizado' ? `
+              <div class="mode-toggle">
+                <button class="${(ev.modo || 'genesispro') === 'genesispro' ? 'active' : ''}" onclick="toggleModo('${ev.id}', 'genesispro')">GenesisPro</button>
+                <button class="${ev.modo === 'manual' ? 'active' : ''}" onclick="toggleModo('${ev.id}', 'manual')">Manual</button>
+              </div>
+            ` : ''}
             <button class="btn btn-secondary btn-sm" onclick="showCartelPreview()">📋 Generar Cartel</button>
             ${ev.estado !== 'finalizado' ? `<button class="btn btn-outline btn-sm" onclick="showEditEvent()">✏️ Editar</button>` : ''}
           </div>
@@ -1092,7 +1215,7 @@ async function showEventDetail(id) {
       <div class="cotejo-section">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
           <h3>Cotejo</h3>
-          ${ev.estado === 'programado' ? `<button class="btn btn-secondary btn-sm" onclick="showAddFight()">+ Agregar Pelea</button>` : ''}
+          ${ev.estado === 'programado' || ev.modo === 'manual' ? `<button class="btn btn-secondary btn-sm" onclick="showAddFight()">+ Agregar Pelea</button>` : ''}
         </div>
         ${peleas.length > 0 ? `
           <table class="cotejo-table">
@@ -1126,10 +1249,11 @@ async function showEventDetail(id) {
                     <td style="font-size:12px; white-space:nowrap;">${p.hora_inicio ? formatTime(p.hora_inicio) + (p.hora_fin ? ' - ' + formatTime(p.hora_fin) : ' ⏱️') : '-'}</td>
                     <td>${p.resultado ? `<span class="result-badge result-${p.resultado}">${resultLabel(p.resultado)}${p.tipo_victoria ? ' <small>(' + motivoLabel(p.tipo_victoria) + ')</small>' : ''}</span>` : '-'}</td>
                     ${ev.estado !== 'finalizado' ? `
-                      <td>
+                      <td style="white-space:nowrap;">
                         ${p.estado === 'programada' && isCurrent ? `<button class="btn btn-primary btn-sm" onclick="startFight('${p.id}')">Iniciar</button>` : ''}
                         ${p.estado === 'en_curso' ? `<button class="btn btn-secondary btn-sm" onclick="showResultModal('${p.id}', ${p.numero_pelea})">Resultado</button>` : ''}
                         ${p.estado === 'programada' && ev.estado === 'programado' ? `<button class="btn btn-danger btn-sm" onclick="deleteFight('${p.id}')">✕</button>` : ''}
+                        ${ev.modo === 'manual' ? `<button class="btn btn-outline btn-sm" onclick="showEditPelea('${p.id}', ${p.numero_pelea}, '${(p.anillo_rojo||'').replace(/'/g,"\\'")}', ${p.peso_rojo||'null'}, '${(p.anillo_verde||'').replace(/'/g,"\\'")}', ${p.peso_verde||'null'}, '${(p.placa_rojo||'').replace(/'/g,"\\'")}', '${(p.placa_verde||'').replace(/'/g,"\\'")}')">Editar</button>` : ''}
                       </td>
                     ` : ''}
                   </tr>`;
@@ -1144,7 +1268,7 @@ async function showEventDetail(id) {
         `}
       </div>
 
-      <div id="derby-section"></div>
+      <div id="derby-section" style="${ev.modo === 'manual' ? 'display:none;' : ''}"></div>
 
       <div class="participants-section">
         <h3 style="margin-bottom: 16px;">Participantes (${participantes.length})</h3>
@@ -1161,10 +1285,12 @@ async function showEventDetail(id) {
 
       <div id="avisos-section"></div>
       <div id="apuestas-section"></div>
+      <div id="finanzas-section"></div>
     `;
     renderAvisosSection(ev);
     renderDerbySection(ev, derbyPartidos, derbyAves, derbyRondas, derbyTabla);
     renderApuestasSection(ev, apuestas, balance, peleas);
+    renderFinanzasSection(ev);
 
     // Auto-refresh when event is live
     if (ev.estado === 'en_curso' || ev.estado === 'pausado') {
@@ -2789,6 +2915,259 @@ async function cobrarApuesta(id) {
   try {
     await api(`/apuestas/${id}/cobrada`, 'POST');
     toast('Apuesta cobrada');
+    showEventDetail(currentEventId);
+  } catch (e) { toast(e.message, true); }
+}
+
+// ─── MODE TOGGLE ───
+async function toggleModo(eventoId, modo) {
+  try {
+    await api(`/eventos/${eventoId}`, 'PUT', { modo });
+    toast(`Modo cambiado a ${modo === 'manual' ? 'Manual' : 'GenesisPro'}`);
+    showEventDetail(eventoId);
+  } catch (e) { toast(e.message, true); }
+}
+
+// ─── EDIT PELEA (Manual Mode) ───
+function showEditPelea(id, numero, anilloRojo, pesoRojo, anilloVerde, pesoVerde, placaRojo, placaVerde) {
+  document.getElementById('edit-pelea-id').value = id;
+  document.getElementById('edit-pelea-numero').value = numero || '';
+  document.getElementById('edit-pelea-anillo-rojo').value = anilloRojo || '';
+  document.getElementById('edit-pelea-peso-rojo').value = pesoRojo || '';
+  document.getElementById('edit-pelea-anillo-verde').value = anilloVerde || '';
+  document.getElementById('edit-pelea-peso-verde').value = pesoVerde || '';
+  document.getElementById('edit-pelea-placa-rojo').value = placaRojo || '';
+  document.getElementById('edit-pelea-placa-verde').value = placaVerde || '';
+  document.getElementById('edit-pelea-title').textContent = `Editar Pelea #${numero}`;
+  document.getElementById('edit-pelea-modal').classList.add('active');
+}
+
+async function guardarPelea() {
+  const id = document.getElementById('edit-pelea-id').value;
+  if (!id) return;
+  const body = {
+    numero_pelea: parseInt(document.getElementById('edit-pelea-numero').value) || undefined,
+    anillo_rojo: document.getElementById('edit-pelea-anillo-rojo').value || null,
+    peso_rojo: parseFloat(document.getElementById('edit-pelea-peso-rojo').value) || null,
+    anillo_verde: document.getElementById('edit-pelea-anillo-verde').value || null,
+    peso_verde: parseFloat(document.getElementById('edit-pelea-peso-verde').value) || null,
+    placa_rojo: document.getElementById('edit-pelea-placa-rojo').value || null,
+    placa_verde: document.getElementById('edit-pelea-placa-verde').value || null
+  };
+  try {
+    await api(`/peleas/${id}`, 'PUT', body);
+    closeModal('edit-pelea-modal');
+    toast('Pelea actualizada');
+    showEventDetail(currentEventId);
+  } catch (e) { toast(e.message, true); }
+}
+
+// ─── FINANZAS SECTION ───
+async function renderFinanzasSection(ev) {
+  const el = document.getElementById('finanzas-section');
+  if (!el) return;
+
+  let resumen = { total_recaudado: 0, total_pendiente: 0, total_gastos: 0, balance_neto: 0, inscripciones_cobradas: 0, inscripciones_pendientes: 0, partidos_pagados: 0, partidos_pendientes: 0 };
+  let balances = [];
+  let pagos = [];
+
+  try {
+    const [finRes, pagosRes] = await Promise.all([
+      api(`/finanzas-evento/${ev.id}`).catch(() => ({ data: { resumen, balances: [] } })),
+      api(`/finanzas-evento/${ev.id}/pagos`).catch(() => ({ data: [] }))
+    ]);
+    resumen = finRes.data?.resumen || resumen;
+    balances = finRes.data?.balances || [];
+    pagos = pagosRes.data || [];
+  } catch (e) { /* ignore - section still renders empty */ }
+
+  const recaudado = Number(resumen.total_recaudado || 0);
+  const pendiente = Number(resumen.total_pendiente || 0);
+  const gastos = Number(resumen.total_gastos || 0);
+  const neto = Number(resumen.balance_neto || 0);
+
+  el.innerHTML = `
+    <div class="cotejo-section" style="margin-top: 24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
+        <h3>Finanzas del Evento</h3>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" onclick="generarInscripciones()">Generar Inscripciones</button>
+          <button class="btn btn-secondary btn-sm" onclick="generarCargosPelea()">Generar Cargos Peleas</button>
+          <button class="btn btn-outline btn-sm" onclick="showGastoModal()">+ Agregar Gasto</button>
+        </div>
+      </div>
+
+      <div class="stats-grid" style="margin-bottom:20px;">
+        <div class="finanzas-stat green">
+          <div class="stat-number" style="color:var(--primary);">$${recaudado.toLocaleString()}</div>
+          <div class="stat-label">Total Recaudado</div>
+        </div>
+        <div class="finanzas-stat yellow">
+          <div class="stat-number" style="color:var(--secondary);">$${pendiente.toLocaleString()}</div>
+          <div class="stat-label">Pendiente</div>
+        </div>
+        <div class="finanzas-stat red">
+          <div class="stat-number" style="color:var(--error);">$${gastos.toLocaleString()}</div>
+          <div class="stat-label">Gastos</div>
+        </div>
+        <div class="finanzas-stat blue">
+          <div class="stat-number" style="color:${neto >= 0 ? 'var(--primary)' : 'var(--error)'};">$${neto.toLocaleString()}</div>
+          <div class="stat-label">Balance Neto</div>
+        </div>
+      </div>
+
+      ${balances.length > 0 ? `
+        <h4 style="margin-bottom:8px; color:var(--secondary);">Balance por Partido</h4>
+        <table class="cotejo-table" style="margin-bottom:20px;">
+          <thead>
+            <tr>
+              <th>Partido</th>
+              <th>Inscripción</th>
+              <th>Peleas Ganadas</th>
+              <th>Peleas Perdidas</th>
+              <th>Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${balances.map(b => {
+              const bal = Number(b.balance || 0);
+              const inscEstado = b.inscripcion_pagada ? 'pagado' : 'pendiente';
+              return `
+              <tr style="border-left:3px solid ${bal > 0 ? 'var(--primary)' : bal < 0 ? 'var(--error)' : 'var(--border)'};">
+                <td><strong>${b.nombre || b.partido_nombre || '-'}</strong></td>
+                <td>
+                  <span class="pago-badge ${inscEstado}" onclick="toggleInscripcion('${ev.id}', '${b.partido_id || ''}', ${b.inscripcion_pagada ? 'false' : 'true'})">
+                    ${b.inscripcion_pagada ? 'Pagado' : 'Pendiente'}
+                  </span>
+                </td>
+                <td style="color:var(--primary);">${b.peleas_ganadas || 0}</td>
+                <td style="color:var(--error);">${b.peleas_perdidas || 0}</td>
+                <td style="font-weight:700; color:${bal >= 0 ? 'var(--primary)' : 'var(--error)'};">
+                  ${bal >= 0 ? '+' : ''}$${bal.toLocaleString()}
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      ` : ''}
+
+      ${pagos.length > 0 ? `
+        <details>
+          <summary style="cursor:pointer; color:var(--text-secondary); font-size:14px; margin-bottom:8px; font-weight:600;">
+            Detalle de Pagos (${pagos.length})
+          </summary>
+          <table class="cotejo-table">
+            <thead>
+              <tr>
+                <th>Partido</th>
+                <th>Concepto</th>
+                <th>Tipo</th>
+                <th>Monto</th>
+                <th>Estado</th>
+                <th>Notas</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${pagos.map(p => `
+                <tr>
+                  <td>${p.partido_nombre || 'General'}</td>
+                  <td>${p.concepto || '-'}</td>
+                  <td><span class="badge badge-${p.tipo === 'ingreso' ? 'programado' : 'finalizado'}">${p.tipo}</span></td>
+                  <td style="font-weight:700; color:${p.tipo === 'ingreso' ? 'var(--primary)' : 'var(--error)'};">$${Number(p.monto || 0).toLocaleString()}</td>
+                  <td>
+                    <span class="pago-badge ${p.estado === 'pagado' ? 'pagado' : 'pendiente'}" onclick="togglePagoEstado('${ev.id}', '${p.id}', '${p.estado === 'pagado' ? 'pendiente' : 'pagado'}')">
+                      ${p.estado === 'pagado' ? 'Pagado' : 'Pendiente'}
+                    </span>
+                  </td>
+                  <td style="font-size:12px; color:var(--text-secondary);">${p.notas || '-'}</td>
+                  <td>
+                    ${p.estado === 'pendiente' ? `<button class="btn btn-primary btn-sm" onclick="togglePagoEstado('${ev.id}', '${p.id}', 'pagado')">Cobrar</button>` : ''}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </details>
+      ` : `
+        <div style="text-align:center; padding:16px; color:var(--text-secondary);">
+          <p style="font-size:13px;">Sin pagos registrados. Usa los botones de arriba para generar cargos automáticos.</p>
+        </div>
+      `}
+    </div>
+  `;
+}
+
+async function generarInscripciones() {
+  if (!currentEventId) return;
+  try {
+    const res = await api(`/finanzas-evento/${currentEventId}/generar-inscripciones`, 'POST');
+    toast('Inscripciones generadas');
+    showEventDetail(currentEventId);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function generarCargosPelea() {
+  if (!currentEventId) return;
+  try {
+    const res = await api(`/finanzas-evento/${currentEventId}/generar-cargos-pelea`, 'POST');
+    toast('Cargos de pelea generados');
+    showEventDetail(currentEventId);
+  } catch (e) { toast(e.message, true); }
+}
+
+function showGastoModal() {
+  document.getElementById('gasto-partido').value = '';
+  document.getElementById('gasto-concepto').value = 'otro';
+  document.getElementById('gasto-tipo').value = 'egreso';
+  document.getElementById('gasto-monto').value = '';
+  document.getElementById('gasto-estado').value = 'pendiente';
+  document.getElementById('gasto-notas').value = '';
+  document.getElementById('gasto-modal').classList.add('active');
+}
+
+async function guardarGasto() {
+  const monto = parseFloat(document.getElementById('gasto-monto').value);
+  if (!monto || monto <= 0) { toast('Ingresa un monto válido', true); return; }
+  const body = {
+    partido_nombre: document.getElementById('gasto-partido').value.trim() || null,
+    concepto: document.getElementById('gasto-concepto').value,
+    tipo: document.getElementById('gasto-tipo').value,
+    monto,
+    estado: document.getElementById('gasto-estado').value,
+    notas: document.getElementById('gasto-notas').value.trim() || null
+  };
+  try {
+    await api(`/finanzas-evento/${currentEventId}/pagos`, 'POST', body);
+    closeModal('gasto-modal');
+    toast('Registro guardado');
+    showEventDetail(currentEventId);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function togglePagoEstado(eventoId, pagoId, nuevoEstado) {
+  try {
+    await api(`/finanzas-evento/${eventoId}/pagos/${pagoId}`, 'PUT', { estado: nuevoEstado });
+    toast(`Pago marcado como ${nuevoEstado}`);
+    showEventDetail(currentEventId);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function toggleInscripcion(eventoId, partidoId, pagado) {
+  // This toggles the inscription payment status through the pagos endpoint
+  // We look for an existing inscripcion pago for this partido and toggle it
+  try {
+    const pagosRes = await api(`/finanzas-evento/${eventoId}/pagos`);
+    const pagos = pagosRes.data || [];
+    const inscPago = pagos.find(p => p.partido_id === partidoId && p.concepto === 'inscripcion');
+    if (inscPago) {
+      await api(`/finanzas-evento/${eventoId}/pagos/${inscPago.id}`, 'PUT', { estado: pagado ? 'pagado' : 'pendiente' });
+    } else {
+      // No inscripcion pago found, create one
+      toast('Genera inscripciones primero', true);
+      return;
+    }
+    toast(`Inscripción ${pagado ? 'cobrada' : 'marcada como pendiente'}`);
     showEventDetail(currentEventId);
   } catch (e) { toast(e.message, true); }
 }

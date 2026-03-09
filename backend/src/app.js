@@ -51,6 +51,7 @@ const notificationsRoutes = require('./routes/notifications');
 const empresarioRoutes = require('./routes/empresario');
 const streamingRoutes = require('./routes/streaming');
 const chatRoutes = require('./routes/chat');
+const finanzasEventoRoutes = require('./routes/finanzasEvento');
 
 const app = express();
 
@@ -123,7 +124,7 @@ app.get('/evento/:codigoAcceso', async (req, res) => {
     const { codigoAcceso } = req.params;
     const { rows } = await db.query(
       `SELECT e.nombre, e.fecha, e.hora_inicio, e.lugar, e.codigo_acceso,
-              e.cartel_url, e.estado, e.total_peleas, e.tipo_derby,
+              e.imagen_cartel_url AS cartel_url, e.estado, e.total_peleas, e.tipo_derby,
               u.nombre AS organizador_nombre
        FROM eventos_palenque e
        JOIN usuarios u ON e.organizador_id = u.id
@@ -262,6 +263,115 @@ app.get('/evento/:codigoAcceso', async (req, res) => {
   }
 });
 
+// Fight result share page with Open Graph meta tags
+app.get('/resultado/:eventoCode/:numeroPelea', async (req, res) => {
+  try {
+    const { eventoCode, numeroPelea } = req.params;
+    const { rows } = await db.query(
+      `SELECT e.nombre AS evento_nombre, e.codigo_acceso, e.tipo_derby, e.total_peleas,
+              p.numero_pelea, p.estado, p.resultado, p.anillo_rojo, p.anillo_verde,
+              p.peso_rojo, p.peso_verde, p.placa_rojo, p.placa_verde,
+              p.duracion_minutos, p.tipo_victoria,
+              rd.numero_ronda,
+              ur.nombre AS partido_rojo_nombre, uv.nombre AS partido_verde_nombre
+       FROM peleas p
+       JOIN eventos_palenque e ON e.id = p.evento_id
+       LEFT JOIN rondas_derby rd ON rd.id = p.ronda_id
+       LEFT JOIN usuarios ur ON ur.id = p.partido_rojo_id
+       LEFT JOIN usuarios uv ON uv.id = p.partido_verde_id
+       WHERE e.codigo_acceso = $1 AND p.numero_pelea = $2 AND e.deleted_at IS NULL`,
+      [eventoCode.toUpperCase(), parseInt(numeroPelea)]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).send(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Pelea no encontrada</title></head>
+        <body style="font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;background:#0F172A;color:#fff;">
+        <div style="text-align:center"><h1>Pelea no encontrada</h1></div></body></html>`);
+    }
+
+    const p = rows[0];
+    const rojoName = p.partido_rojo_nombre || p.placa_rojo || p.anillo_rojo || 'ROJO';
+    const verdeName = p.partido_verde_nombre || p.placa_verde || p.anillo_verde || 'VERDE';
+    const shareUrl = `https://api.genesispro.vip/resultado/${p.codigo_acceso}/${p.numero_pelea}`;
+    const deepLink = `genesispro://palenque/live?code=${p.codigo_acceso}`;
+
+    let resultLabel = 'EN CURSO';
+    let resultColor = '#F59E0B';
+    let resultEmoji = '';
+    if (p.resultado === 'rojo') { resultLabel = `GANA ${rojoName}`; resultColor = '#EF4444'; resultEmoji = '🔴'; }
+    else if (p.resultado === 'verde') { resultLabel = `GANA ${verdeName}`; resultColor = '#10B981'; resultEmoji = '🟢'; }
+    else if (p.resultado === 'tabla' || p.resultado === 'empate') { resultLabel = 'TABLAS'; resultColor = '#F59E0B'; resultEmoji = '🟡'; }
+    else if (p.estado === 'programada') { resultLabel = 'PROXIMA'; resultColor = '#3B82F6'; resultEmoji = ''; }
+
+    const ogTitle = `${resultEmoji} Pelea ${p.numero_pelea} - ${p.evento_nombre}`;
+    const ogDesc = `${rojoName} (${p.peso_rojo || '?'}kg) vs ${verdeName} (${p.peso_verde || '?'}kg) - ${resultLabel}`;
+
+    res.send(`<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${ogTitle} - GenesisPro</title>
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="${ogTitle}">
+  <meta property="og:description" content="${ogDesc}">
+  <meta property="og:url" content="${shareUrl}">
+  <meta property="og:site_name" content="GenesisPro">
+  <meta property="og:locale" content="es_MX">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="${ogTitle}">
+  <meta name="twitter:description" content="${ogDesc}">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #0F172A 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; color: #fff; }
+    .card { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 32px; max-width: 420px; width: 100%; text-align: center; backdrop-filter: blur(10px); }
+    .logo { font-size: 24px; font-weight: 800; color: #F59E0B; margin-bottom: 4px; }
+    .event-name { font-size: 14px; color: rgba(255,255,255,0.5); margin-bottom: 16px; }
+    .fight-num { font-size: 13px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .matchup { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 20px 0; }
+    .corner { text-align: center; flex: 1; }
+    .corner-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-bottom: 4px; }
+    .corner-name { font-size: 18px; font-weight: 800; display: block; }
+    .corner-peso { font-size: 13px; color: rgba(255,255,255,0.5); }
+    .vs { font-size: 14px; color: rgba(255,255,255,0.3); font-weight: 700; }
+    .result-badge { display: inline-block; padding: 8px 24px; border-radius: 12px; font-size: 16px; font-weight: 800; letter-spacing: 1px; margin: 16px 0; background: ${resultColor}22; color: ${resultColor}; border: 2px solid ${resultColor}44; }
+    .ronda { font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 4px; }
+    .btn-open { display: inline-block; margin-top: 20px; padding: 12px 32px; background: linear-gradient(135deg, #F59E0B, #D97706); color: #fff; font-size: 15px; font-weight: 700; border-radius: 14px; text-decoration: none; }
+    .powered { margin-top: 16px; font-size: 11px; color: rgba(255,255,255,0.3); }
+    .powered a { color: #F59E0B; text-decoration: none; }
+    .winner { text-shadow: 0 0 20px ${resultColor}66; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">GenesisPro</div>
+    <div class="event-name">${p.evento_nombre}</div>
+    <div class="fight-num">Pelea ${p.numero_pelea}${p.total_peleas ? ' de ' + p.total_peleas : ''}${p.numero_ronda ? '  &middot;  Ronda ' + p.numero_ronda : ''}</div>
+    <div class="matchup">
+      <div class="corner">
+        <span class="corner-dot" style="background:#EF4444"></span>
+        <span class="corner-name ${p.resultado === 'rojo' ? 'winner' : ''}" style="color:#EF4444">${rojoName}</span>
+        ${p.peso_rojo ? `<span class="corner-peso">${p.peso_rojo}kg</span>` : ''}
+      </div>
+      <span class="vs">VS</span>
+      <div class="corner">
+        <span class="corner-dot" style="background:#10B981"></span>
+        <span class="corner-name ${p.resultado === 'verde' ? 'winner' : ''}" style="color:#10B981">${verdeName}</span>
+        ${p.peso_verde ? `<span class="corner-peso">${p.peso_verde}kg</span>` : ''}
+      </div>
+    </div>
+    <div class="result-badge">${resultLabel}</div>
+    <a class="btn-open" href="${deepLink}">Ver en GenesisPro</a>
+    <div class="powered">Powered by <a href="https://genesispro.vip">GenesisPro</a></div>
+  </div>
+</body>
+</html>`);
+  } catch (error) {
+    logger.error('Error serving fight result page:', error);
+    res.status(500).send('Error interno');
+  }
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({
@@ -291,6 +401,7 @@ app.use('/api/v1/notifications', notificationsRoutes);
 app.use('/api/v1/empresario', empresarioRoutes);
 app.use('/api/v1/streaming', streamingRoutes);
 app.use('/api/v1/chat', chatRoutes);
+app.use('/api/v1/finanzas-evento', finanzasEventoRoutes);
 
 // API info
 app.get('/api/v1', (req, res) => {

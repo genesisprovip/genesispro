@@ -83,7 +83,8 @@ const eventoValidation = [
   body('reglas_navaja').optional().isLength({ max: 500 }).withMessage('Reglas de navaja muy largas'),
   body('contacto_organizador').optional().isLength({ max: 300 }).withMessage('Contacto muy largo'),
   body('hora_peleas').optional().matches(/^\d{2}:\d{2}(:\d{2})?$/).withMessage('Hora de peleas inválida (HH:MM)'),
-  body('ubicacion').optional().isLength({ max: 500 }).withMessage('Ubicación muy larga')
+  body('ubicacion').optional().isLength({ max: 500 }).withMessage('Ubicación muy larga'),
+  body('modo').optional().isIn(['genesispro', 'manual']).withMessage('Modo debe ser genesispro o manual')
 ];
 
 const updateEventoValidation = [
@@ -110,7 +111,8 @@ const updateEventoValidation = [
   body('reglas_navaja').optional().isLength({ max: 500 }).withMessage('Reglas de navaja muy largas'),
   body('contacto_organizador').optional().isLength({ max: 300 }).withMessage('Contacto muy largo'),
   body('hora_peleas').optional().matches(/^\d{2}:\d{2}(:\d{2})?$/).withMessage('Hora de peleas inválida (HH:MM)'),
-  body('ubicacion').optional().isLength({ max: 500 }).withMessage('Ubicación muy larga')
+  body('ubicacion').optional().isLength({ max: 500 }).withMessage('Ubicación muy larga'),
+  body('modo').optional().isIn(['genesispro', 'manual']).withMessage('Modo debe ser genesispro o manual')
 ];
 
 // ============================================
@@ -175,6 +177,7 @@ router.get('/por-codigo/:codigo',
     const { rows } = await db.query(
       `SELECT e.id, e.nombre, e.fecha, e.hora_inicio, e.lugar, e.estado,
               e.total_peleas, e.pelea_actual, e.tipo_derby, e.formato_derby,
+              e.modo, e.costo_inscripcion, e.costo_por_pelea, e.premio_campeon,
               u.nombre AS organizador_nombre
        FROM eventos_palenque e
        JOIN usuarios u ON e.organizador_id = u.id
@@ -470,7 +473,7 @@ router.put('/:id',
       'tipo_derby', 'reglas', 'total_peleas', 'es_publico', 'entrada_costo', 'imagen_url',
       'pesaje_abre', 'pesaje_cierra', 'programa', 'formato_derby',
       'costo_inscripcion', 'costo_por_pelea', 'premio_campeon', 'costos_extra',
-      'aves_por_partido', 'reglas_navaja', 'contacto_organizador', 'hora_peleas', 'ubicacion'
+      'aves_por_partido', 'reglas_navaja', 'contacto_organizador', 'hora_peleas', 'ubicacion', 'modo'
     ];
 
     const updates = [];

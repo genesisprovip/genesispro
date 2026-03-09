@@ -582,6 +582,61 @@ router.post('/:id/resultado',
         );
       }
 
+      // Auto-generate financial charges for this fight result
+      if (resultado === 'rojo' || resultado === 'verde') {
+        try {
+          const { rows: [ev] } = await client.query(
+            `SELECT costo_por_pelea FROM eventos_palenque WHERE id = $1`,
+            [pelea.evento_id]
+          );
+
+          const costoPelea = ev && parseFloat(ev.costo_por_pelea) > 0 ? parseFloat(ev.costo_por_pelea) : 0;
+
+          if (costoPelea > 0) {
+            // Check if charges already exist for this fight
+            const { rows: existingCharges } = await client.query(
+              `SELECT concepto FROM pagos_evento WHERE pelea_id = $1 AND estado != 'cancelado'`,
+              [id]
+            );
+            const existingConcepts = new Set(existingCharges.map(e => e.concepto));
+
+            const ganadorId = resultado === 'rojo' ? pelea.partido_rojo_id : pelea.partido_verde_id;
+            const perdedorId = resultado === 'rojo' ? pelea.partido_verde_id : pelea.partido_rojo_id;
+
+            // Get partido names
+            const ganadorNombre = resultado === 'rojo'
+              ? (updated[0].placa_rojo || updated[0].anillo_rojo || 'Rojo')
+              : (updated[0].placa_verde || updated[0].anillo_verde || 'Verde');
+            const perdedorNombre = resultado === 'rojo'
+              ? (updated[0].placa_verde || updated[0].anillo_verde || 'Verde')
+              : (updated[0].placa_rojo || updated[0].anillo_rojo || 'Rojo');
+
+            // Winner: egreso (organizer pays winner)
+            if (!existingConcepts.has('pelea_ganada')) {
+              await client.query(
+                `INSERT INTO pagos_evento (evento_id, partido_id, partido_nombre, concepto, tipo, monto, estado, pelea_id, notas)
+                 VALUES ($1, $2, $3, 'pelea_ganada', 'egreso', $4, 'pendiente', $5, $6)`,
+                [pelea.evento_id, ganadorId, ganadorNombre, costoPelea, id, `Pelea ${pelea.numero_pelea} - Ganador`]
+              );
+            }
+
+            // Loser: ingreso (loser pays organizer)
+            if (!existingConcepts.has('pelea_perdida')) {
+              await client.query(
+                `INSERT INTO pagos_evento (evento_id, partido_id, partido_nombre, concepto, tipo, monto, estado, pelea_id, notas)
+                 VALUES ($1, $2, $3, 'pelea_perdida', 'ingreso', $4, 'pendiente', $5, $6)`,
+                [pelea.evento_id, perdedorId, perdedorNombre, costoPelea, id, `Pelea ${pelea.numero_pelea} - Perdedor`]
+              );
+            }
+
+            logger.info(`Auto-generated fight charges for pelea ${pelea.numero_pelea} (costo: ${costoPelea})`);
+          }
+        } catch (finError) {
+          logger.error('Error auto-generating fight charges:', finError);
+          // Don't fail the result registration if charges fail
+        }
+      }
+
       return updated[0];
     });
 
