@@ -52,6 +52,7 @@ const empresarioRoutes = require('./routes/empresario');
 const streamingRoutes = require('./routes/streaming');
 const chatRoutes = require('./routes/chat');
 const finanzasEventoRoutes = require('./routes/finanzasEvento');
+const alimentacionRoutes = require('./routes/alimentacion');
 
 const app = express();
 
@@ -402,6 +403,7 @@ app.use('/api/v1/empresario', empresarioRoutes);
 app.use('/api/v1/streaming', streamingRoutes);
 app.use('/api/v1/chat', chatRoutes);
 app.use('/api/v1/finanzas-evento', finanzasEventoRoutes);
+app.use('/api/v1/alimentacion', alimentacionRoutes);
 
 // API info
 app.get('/api/v1', (req, res) => {

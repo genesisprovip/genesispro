@@ -725,6 +725,62 @@ class ApiService {
     return this.request<{ success: boolean; data: { vacunas: any[]; combates: any[] } }>('/calendario/proximos');
   }
 
+  // ==================== ALIMENTACION ====================
+
+  async getAlimentos() {
+    return this.request<{ success: boolean; data: any[] }>('/alimentacion/alimentos');
+  }
+
+  async createAlimento(data: any) {
+    return this.request<{ success: boolean; data: any }>('/alimentacion/alimentos', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateAlimento(id: number | string, data: any) {
+    return this.request<{ success: boolean; data: any }>(`/alimentacion/alimentos/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteAlimento(id: number | string) {
+    return this.request<{ success: boolean }>(`/alimentacion/alimentos/${id}`, { method: 'DELETE' });
+  }
+
+  async getRegistrosAlimentacion(params?: { fecha?: string; ave_id?: string; limit?: number }) {
+    const query = new URLSearchParams();
+    if (params?.fecha) query.append('fecha', params.fecha);
+    if (params?.ave_id) query.append('ave_id', params.ave_id);
+    if (params?.limit) query.append('limit', params.limit.toString());
+    const qs = query.toString();
+    return this.request<{ success: boolean; data: any[] }>(`/alimentacion/registros${qs ? `?${qs}` : ''}`);
+  }
+
+  async createRegistroAlimentacion(data: any) {
+    return this.request<{ success: boolean; data: any }>('/alimentacion/registros', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async deleteRegistroAlimentacion(id: number | string) {
+    return this.request<{ success: boolean }>(`/alimentacion/registros/${id}`, { method: 'DELETE' });
+  }
+
+  async getDietas(ave_id?: string) {
+    const qs = ave_id ? `?ave_id=${ave_id}` : '';
+    return this.request<{ success: boolean; data: any[] }>(`/alimentacion/dietas${qs}`);
+  }
+
+  async createDieta(data: any) {
+    return this.request<{ success: boolean; data: any }>('/alimentacion/dietas', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateDieta(id: number | string, data: any) {
+    return this.request<{ success: boolean; data: any }>(`/alimentacion/dietas/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteDieta(id: number | string) {
+    return this.request<{ success: boolean }>(`/alimentacion/dietas/${id}`, { method: 'DELETE' });
+  }
+
+  async getAlimentacionStats() {
+    return this.request<{ success: boolean; data: any }>('/alimentacion/stats');
+  }
+
   isAuthenticated() {
     return !!this.accessToken;
   }

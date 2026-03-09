@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import createContextHook from '@nkzw/create-context-hook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './AuthContext';
+import api from '@/services/api';
 
 export interface Alimento {
   id: string;
@@ -91,14 +92,54 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Cargar datos locales al inicio
+  // Load data: try API first, fallback to local
   useEffect(() => {
-    loadLocalData();
-  }, []);
+    loadData();
+  }, [isAuthenticated]);
 
-  const loadLocalData = async () => {
+  const loadData = async () => {
     try {
       setIsLoading(true);
+
+      if (isAuthenticated && api.isAuthenticated()) {
+        // Try loading from backend API
+        try {
+          const [alimentosRes, registrosRes, dietasRes] = await Promise.all([
+            api.getAlimentos(),
+            api.getRegistrosAlimentacion({ limit: 200 }),
+            api.getDietas(),
+          ]);
+
+          if (alimentosRes?.data) {
+            const mapped = alimentosRes.data.map((a: any) => ({ ...a, id: String(a.id) }));
+            setAlimentos(mapped);
+            await AsyncStorage.setItem(STORAGE_KEYS.alimentos, JSON.stringify(mapped));
+          }
+          if (registrosRes?.data) {
+            const mapped = registrosRes.data.map((r: any) => ({
+              ...r,
+              id: String(r.id),
+              fecha: (r.fecha || '').split('T')[0],
+            }));
+            setRegistros(mapped);
+            await AsyncStorage.setItem(STORAGE_KEYS.registros, JSON.stringify(mapped));
+          }
+          if (dietasRes?.data) {
+            const mapped = dietasRes.data.map((d: any) => ({
+              ...d,
+              id: String(d.id),
+              alimentos: typeof d.alimentos === 'string' ? JSON.parse(d.alimentos) : d.alimentos || [],
+            }));
+            setDietas(mapped);
+            await AsyncStorage.setItem(STORAGE_KEYS.dietas, JSON.stringify(mapped));
+          }
+          return; // API loaded successfully
+        } catch {
+          console.log('[alimentacion] API unavailable, falling back to local');
+        }
+      }
+
+      // Fallback: load from local storage
       const [alimentosData, registrosData, dietasData] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.alimentos),
         AsyncStorage.getItem(STORAGE_KEYS.registros),
@@ -151,11 +192,22 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
   // ALIMENTOS (Inventario)
   const addAlimento = useCallback(async (alimentoData: Omit<Alimento, 'id' | 'created_at'>) => {
     try {
-      const newAlimento: Alimento = {
-        ...alimentoData,
-        id: `alimento-${Date.now()}`,
-        created_at: new Date().toISOString(),
-      };
+      let newAlimento: Alimento;
+
+      if (api.isAuthenticated()) {
+        try {
+          const res = await api.createAlimento(alimentoData);
+          if (res?.data) {
+            newAlimento = { ...res.data, id: String(res.data.id) };
+          } else {
+            throw new Error('API error');
+          }
+        } catch {
+          newAlimento = { ...alimentoData, id: `alimento-${Date.now()}`, created_at: new Date().toISOString() };
+        }
+      } else {
+        newAlimento = { ...alimentoData, id: `alimento-${Date.now()}`, created_at: new Date().toISOString() };
+      }
 
       setAlimentos(prev => {
         const updated = [newAlimento, ...prev];
@@ -171,6 +223,9 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
 
   const updateAlimento = useCallback(async (id: string, data: Partial<Alimento>) => {
     try {
+      if (api.isAuthenticated() && !id.startsWith('alimento-')) {
+        try { await api.updateAlimento(id, data); } catch { /* local fallback */ }
+      }
       setAlimentos(prev => {
         const updated = prev.map(a => (a.id === id ? { ...a, ...data } : a));
         saveAlimentos(updated);
@@ -184,6 +239,9 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
 
   const deleteAlimento = useCallback(async (id: string) => {
     try {
+      if (api.isAuthenticated() && !id.startsWith('alimento-')) {
+        try { await api.deleteAlimento(id); } catch { /* local fallback */ }
+      }
       setAlimentos(prev => {
         const updated = prev.filter(a => a.id !== id);
         saveAlimentos(updated);
@@ -198,11 +256,22 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
   // REGISTROS DE ALIMENTACIÓN
   const addRegistro = useCallback(async (registroData: Omit<RegistroAlimentacion, 'id' | 'created_at'>) => {
     try {
-      const newRegistro: RegistroAlimentacion = {
-        ...registroData,
-        id: `registro-${Date.now()}`,
-        created_at: new Date().toISOString(),
-      };
+      let newRegistro: RegistroAlimentacion;
+
+      if (api.isAuthenticated()) {
+        try {
+          const res = await api.createRegistroAlimentacion(registroData);
+          if (res?.data) {
+            newRegistro = { ...res.data, id: String(res.data.id), fecha: (res.data.fecha || '').split('T')[0] };
+          } else {
+            throw new Error('API error');
+          }
+        } catch {
+          newRegistro = { ...registroData, id: `registro-${Date.now()}`, created_at: new Date().toISOString() };
+        }
+      } else {
+        newRegistro = { ...registroData, id: `registro-${Date.now()}`, created_at: new Date().toISOString() };
+      }
 
       setRegistros(prev => {
         const updated = [newRegistro, ...prev];
@@ -210,8 +279,8 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
         return updated;
       });
 
-      // Descontar del inventario si hay alimento_id
-      if (registroData.alimento_id) {
+      // Descontar del inventario localmente (API ya lo descuenta en el backend)
+      if (registroData.alimento_id && !api.isAuthenticated()) {
         setAlimentos(prev => {
           const updated = prev.map(a => {
             if (a.id === registroData.alimento_id) {
@@ -222,6 +291,16 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
           saveAlimentos(updated);
           return updated;
         });
+      } else if (registroData.alimento_id && api.isAuthenticated()) {
+        // Refresh alimentos to get updated quantity from API
+        try {
+          const res = await api.getAlimentos();
+          if (res?.data) {
+            const mapped = res.data.map((a: any) => ({ ...a, id: String(a.id) }));
+            setAlimentos(mapped);
+            saveAlimentos(mapped);
+          }
+        } catch { /* ignore */ }
       }
 
       return { success: true };
@@ -232,6 +311,9 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
 
   const deleteRegistro = useCallback(async (id: string) => {
     try {
+      if (api.isAuthenticated() && !id.startsWith('registro-')) {
+        try { await api.deleteRegistroAlimentacion(id); } catch { /* local fallback */ }
+      }
       setRegistros(prev => {
         const updated = prev.filter(r => r.id !== id);
         saveRegistros(updated);
@@ -256,11 +338,26 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
   // DIETAS
   const addDieta = useCallback(async (dietaData: Omit<Dieta, 'id' | 'created_at'>) => {
     try {
-      const newDieta: Dieta = {
-        ...dietaData,
-        id: `dieta-${Date.now()}`,
-        created_at: new Date().toISOString(),
-      };
+      let newDieta: Dieta;
+
+      if (api.isAuthenticated()) {
+        try {
+          const res = await api.createDieta(dietaData);
+          if (res?.data) {
+            newDieta = {
+              ...res.data,
+              id: String(res.data.id),
+              alimentos: typeof res.data.alimentos === 'string' ? JSON.parse(res.data.alimentos) : res.data.alimentos || [],
+            };
+          } else {
+            throw new Error('API error');
+          }
+        } catch {
+          newDieta = { ...dietaData, id: `dieta-${Date.now()}`, created_at: new Date().toISOString() };
+        }
+      } else {
+        newDieta = { ...dietaData, id: `dieta-${Date.now()}`, created_at: new Date().toISOString() };
+      }
 
       setDietas(prev => {
         const updated = [newDieta, ...prev];
@@ -276,6 +373,9 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
 
   const updateDieta = useCallback(async (id: string, data: Partial<Dieta>) => {
     try {
+      if (api.isAuthenticated() && !id.startsWith('dieta-')) {
+        try { await api.updateDieta(id, data); } catch { /* local fallback */ }
+      }
       setDietas(prev => {
         const updated = prev.map(d => (d.id === id ? { ...d, ...data } : d));
         saveDietas(updated);
@@ -289,6 +389,9 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
 
   const deleteDieta = useCallback(async (id: string) => {
     try {
+      if (api.isAuthenticated() && !id.startsWith('dieta-')) {
+        try { await api.deleteDieta(id); } catch { /* local fallback */ }
+      }
       setDietas(prev => {
         const updated = prev.filter(d => d.id !== id);
         saveDietas(updated);
@@ -305,8 +408,8 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
   }, [dietas]);
 
   const refreshData = useCallback(async () => {
-    await loadLocalData();
-  }, []);
+    await loadData();
+  }, [isAuthenticated]);
 
   return {
     alimentos,
