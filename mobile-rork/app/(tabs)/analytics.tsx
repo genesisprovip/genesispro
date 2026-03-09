@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -18,39 +18,66 @@ import {
   BarChart3,
   PieChart,
   Wallet,
+  Award,
 } from 'lucide-react-native';
 import { useAves } from '@/context/AvesContext';
 import { useCombates } from '@/context/CombatesContext';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
+import api from '@/services/api';
 
 export default function AnalyticsScreen() {
   const insets = useSafeAreaInsets();
   const { aves, isLoading: loadingAves } = useAves();
   const { combates, stats, isLoading: loadingCombates } = useCombates();
   const [activeTab, setActiveTab] = useState<'general' | 'combates' | 'financiero'>('general');
+  const [apiDashboard, setApiDashboard] = useState<any>(null);
+  const [apiFinanciero, setApiFinanciero] = useState<any>(null);
+  const [topAves, setTopAves] = useState<any[]>([]);
+
+  useEffect(() => {
+    loadApiData();
+  }, []);
+
+  async function loadApiData() {
+    try {
+      const [dashRes, finRes, topRes] = await Promise.all([
+        api.getAnalyticsDashboard().catch(() => null),
+        api.getFinancialSummary('12m').catch(() => null),
+        api.getTopAves(5).catch(() => null),
+      ]);
+      if (dashRes?.data) setApiDashboard(dashRes.data);
+      if (finRes?.data) setApiFinanciero(finRes.data);
+      if (topRes?.data) setTopAves(topRes.data);
+    } catch { /* use local data as fallback */ }
+  }
 
   const isLoading = loadingAves || loadingCombates;
 
-  const victorias = stats.victorias;
-  const derrotas = stats.derrotas;
-  const totalCombates = stats.total;
-  const porcentajeVictorias = stats.porcentajeVictorias;
+  // Prefer API data when available, fallback to local context
+  const dashboard = apiDashboard || {};
+  const victorias = dashboard.victorias ?? stats.victorias;
+  const derrotas = dashboard.derrotas ?? stats.derrotas;
+  const totalCombates = dashboard.total_combates ?? stats.total;
+  const empates = dashboard.empates ?? stats.empates;
+  const porcentajeVictorias = totalCombates > 0 ? Math.round((victorias / totalCombates) * 100) : 0;
 
-  const totalGanado = stats.totalGanado;
-  const totalApostado = stats.totalApostado;
-  const roi = stats.roi;
-  const roiPercentage = totalApostado > 0 ? Math.round(((totalGanado - totalApostado) / totalApostado) * 100) : 0;
+  const fin = apiFinanciero || {};
+  const totalIngresos = Number(fin.total_ingresos || stats.totalGanado || 0);
+  const totalEgresos = Number(fin.total_egresos || stats.totalApostado || 0);
+  const balanceNeto = Number(fin.balance_neto ?? (totalIngresos - totalEgresos));
+  const roiPercentage = totalEgresos > 0 ? Math.round(((totalIngresos - totalEgresos) / totalEgresos) * 100) : 0;
 
+  const totalAves = dashboard.total_aves ?? aves.length;
   const avesPorSexo = {
-    machos: aves.filter(a => a.sexo === 'M').length,
-    hembras: aves.filter(a => a.sexo === 'H').length,
+    machos: dashboard.machos ?? aves.filter(a => a.sexo === 'M').length,
+    hembras: dashboard.hembras ?? aves.filter(a => a.sexo === 'H').length,
   };
 
   const avesPorEstado = {
-    activos: aves.filter(a => a.estado === 'activo').length,
-    vendidos: aves.filter(a => a.estado === 'vendido').length,
-    retirados: aves.filter(a => a.estado === 'retirado').length,
+    activos: dashboard.activos ?? aves.filter(a => a.estado === 'activo').length,
+    vendidos: dashboard.vendidos ?? aves.filter(a => a.estado === 'vendido').length,
+    retirados: dashboard.retirados ?? aves.filter(a => a.estado === 'retirado').length,
   };
 
   const tabs = [
@@ -108,7 +135,7 @@ export default function AnalyticsScreen() {
               <KPICard
                 icon={<Bird size={22} color={COLORS.primary} />}
                 title="Total Aves"
-                value={aves.length.toString()}
+                value={totalAves.toString()}
                 detail={`${avesPorSexo.machos}M / ${avesPorSexo.hembras}H`}
                 color={COLORS.primary}
               />
@@ -164,11 +191,33 @@ export default function AnalyticsScreen() {
             <View style={[styles.sectionCard, SHADOWS.md]}>
               <Text style={styles.cardTitle}>Estado de Aves</Text>
               <View style={styles.stateRow}>
-                <StateChip label="Activos" value={avesPorEstado.activos} color={COLORS.success} total={aves.length} />
-                <StateChip label="Vendidos" value={avesPorEstado.vendidos} color={COLORS.info} total={aves.length} />
-                <StateChip label="Retirados" value={avesPorEstado.retirados} color={COLORS.warning} total={aves.length} />
+                <StateChip label="Activos" value={avesPorEstado.activos} color={COLORS.success} total={totalAves} />
+                <StateChip label="Vendidos" value={avesPorEstado.vendidos} color={COLORS.info} total={totalAves} />
+                <StateChip label="Retirados" value={avesPorEstado.retirados} color={COLORS.warning} total={totalAves} />
               </View>
             </View>
+
+            {topAves.length > 0 && (
+              <View style={[styles.sectionCard, SHADOWS.md]}>
+                <Text style={styles.cardTitle}>Top Aves por Victorias</Text>
+                {topAves.map((ave: any, i: number) => (
+                  <View key={ave.id || i} style={styles.histItem}>
+                    <View style={[styles.histBadge, { backgroundColor: i === 0 ? COLORS.secondary + '20' : COLORS.primary + '10' }]}>
+                      <Text style={[styles.histResult, { color: i === 0 ? COLORS.secondary : COLORS.primary }]}>
+                        {i + 1}
+                      </Text>
+                    </View>
+                    <View style={[styles.histInfo, { marginLeft: SPACING.sm }]}>
+                      <Text style={styles.histDate}>{ave.codigo_identidad || ave.nombre || `Ave ${i + 1}`}</Text>
+                      <Text style={styles.histPlace}>{ave.victorias || 0}V · {ave.derrotas || 0}D · {ave.total_combates || 0} peleas</Text>
+                    </View>
+                    <Text style={[styles.kpiDetail, { color: COLORS.primary }]}>
+                      {ave.total_combates > 0 ? Math.round((ave.victorias / ave.total_combates) * 100) : 0}%
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </>
         )}
 
@@ -201,7 +250,7 @@ export default function AnalyticsScreen() {
                 <View style={styles.perfBars}>
                   <ResultBar label="Victorias" value={victorias} total={totalCombates} color={COLORS.victory} />
                   <ResultBar label="Derrotas" value={derrotas} total={totalCombates} color={COLORS.defeat} />
-                  <ResultBar label="Empates" value={stats.empates} total={totalCombates} color={COLORS.draw} />
+                  <ResultBar label="Empates" value={empates} total={totalCombates} color={COLORS.draw} />
                 </View>
               </View>
             </View>
@@ -246,31 +295,47 @@ export default function AnalyticsScreen() {
             <View style={styles.kpiRow}>
               <KPICard
                 icon={<DollarSign size={22} color={COLORS.success} />}
-                title="Ganado"
-                value={`$${totalGanado.toLocaleString()}`}
+                title="Ingresos"
+                value={`$${totalIngresos.toLocaleString()}`}
                 color={COLORS.success}
               />
               <KPICard
-                icon={<TrendingUp size={22} color={roi >= 0 ? COLORS.success : COLORS.error} />}
-                title="ROI"
-                value={`${roi >= 0 ? '+' : ''}$${roi.toLocaleString()}`}
+                icon={<TrendingUp size={22} color={balanceNeto >= 0 ? COLORS.success : COLORS.error} />}
+                title="Balance"
+                value={`${balanceNeto >= 0 ? '+' : ''}$${balanceNeto.toLocaleString()}`}
                 detail={`${roiPercentage >= 0 ? '+' : ''}${roiPercentage}%`}
-                color={roi >= 0 ? COLORS.success : COLORS.error}
+                color={balanceNeto >= 0 ? COLORS.success : COLORS.error}
               />
             </View>
 
             <View style={[styles.sectionCard, SHADOWS.md]}>
               <Text style={styles.cardTitle}>Resumen Financiero</Text>
-              <FinRow label="Total Apostado" value={`$${totalApostado.toLocaleString()}`} />
+              <FinRow label="Total Ingresos" value={`$${totalIngresos.toLocaleString()}`} color={COLORS.success} />
               <View style={styles.finDivider} />
-              <FinRow label="Total Ganado" value={`$${totalGanado.toLocaleString()}`} color={COLORS.success} />
+              <FinRow label="Total Egresos" value={`$${totalEgresos.toLocaleString()}`} color={COLORS.error} />
               <View style={styles.finDivider} />
               <FinRow
                 label="Balance Neto"
-                value={`${roi >= 0 ? '+' : ''}$${roi.toLocaleString()}`}
-                color={roi >= 0 ? COLORS.success : COLORS.error}
+                value={`${balanceNeto >= 0 ? '+' : ''}$${balanceNeto.toLocaleString()}`}
+                color={balanceNeto >= 0 ? COLORS.success : COLORS.error}
                 bold
               />
+              {fin.por_periodo && fin.por_periodo.length > 0 && (
+                <>
+                  <View style={[styles.finDivider, { marginTop: SPACING.md }]} />
+                  <Text style={[styles.cardTitle, { marginTop: SPACING.md }]}>Por Periodo</Text>
+                  {fin.por_periodo.slice(0, 6).map((p: any, i: number) => (
+                    <View key={i}>
+                      <FinRow
+                        label={p.periodo || p.mes || `Periodo ${i + 1}`}
+                        value={`$${Number(p.ingresos || 0).toLocaleString()}`}
+                        color={Number(p.balance || p.ingresos - p.egresos) >= 0 ? COLORS.success : COLORS.error}
+                      />
+                      {i < Math.min(fin.por_periodo.length, 6) - 1 && <View style={styles.finDivider} />}
+                    </View>
+                  ))}
+                </>
+              )}
             </View>
 
             <View style={[styles.sectionCard, SHADOWS.md]}>

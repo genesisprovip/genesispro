@@ -1,12 +1,6 @@
 /**
  * Sound effects for live event notifications.
- *
- * NOTE: Actual .mp3 files need to be added to assets/sounds/:
- *   - assets/sounds/fight-start.mp3  (short bell / ring sound)
- *   - assets/sounds/result.mp3       (victory fanfare)
- *
- * Until real audio files are placed there, the play functions will
- * silently catch the "asset not found" error and do nothing.
+ * Uses WAV files generated synthetically (bell ring + victory fanfare).
  */
 
 import { Audio } from 'expo-av';
@@ -33,7 +27,6 @@ export async function playFightStartSound(): Promise<void> {
   try {
     await ensureAudioMode();
 
-    // Unload previous instance to avoid leaks
     if (fightStartSound) {
       await fightStartSound.unloadAsync().catch(() => {});
       fightStartSound = null;
@@ -41,12 +34,11 @@ export async function playFightStartSound(): Promise<void> {
 
     const { sound } = await Audio.Sound.createAsync(
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require('@/assets/sounds/fight-start.mp3'),
+      require('@/assets/sounds/fight-start.wav'),
       { shouldPlay: true, volume: 0.8 }
     );
     fightStartSound = sound;
 
-    // Auto-unload when done
     sound.setOnPlaybackStatusUpdate((status) => {
       if (status.isLoaded && status.didJustFinish) {
         sound.unloadAsync().catch(() => {});
@@ -54,9 +46,7 @@ export async function playFightStartSound(): Promise<void> {
       }
     });
   } catch {
-    // Sound file not found or playback error – silently ignore.
-    // Add the actual .mp3 to assets/sounds/fight-start.mp3 to enable.
-    console.log('[sounds] fight-start.mp3 not available – skipping');
+    console.log('[sounds] fight-start.wav not available – skipping');
   }
 }
 
@@ -74,7 +64,7 @@ export async function playResultSound(): Promise<void> {
 
     const { sound } = await Audio.Sound.createAsync(
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require('@/assets/sounds/result.mp3'),
+      require('@/assets/sounds/result.wav'),
       { shouldPlay: true, volume: 0.9 }
     );
     resultSound = sound;
@@ -86,7 +76,7 @@ export async function playResultSound(): Promise<void> {
       }
     });
   } catch {
-    console.log('[sounds] result.mp3 not available – skipping');
+    console.log('[sounds] result.wav not available – skipping');
   }
 }
 

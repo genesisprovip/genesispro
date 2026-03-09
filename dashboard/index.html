@@ -3,7 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0F172A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="GenesisPro">
   <title>GenesisPro Palenque - Panel de Control</title>
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="apple-touch-icon" href="logo.png">
+  <link rel="manifest" href="manifest.json">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
@@ -62,7 +69,11 @@
     .topbar .user-info { display: flex; align-items: center; gap: 16px; }
     .topbar .user-name { font-size: 14px; color: var(--text-secondary); }
 
-    .main-content { max-width: 1200px; margin: 0 auto; padding: 32px; }
+    .main-content { max-width: 1400px; margin: 0 auto; padding: 32px; }
+
+    /* Two-column split layout for live event */
+    .split-view { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+    .split-view .split-left, .split-view .split-right { min-width: 0; }
 
     /* Event cards */
     .section-title { font-size: 13px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px; }
@@ -104,9 +115,13 @@
     .cotejo-table { width: 100%; border-collapse: collapse; }
     .cotejo-table th { padding: 12px 16px; text-align: left; font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
     .cotejo-table td { padding: 14px 16px; border-bottom: 1px solid rgba(71,85,105,0.3); font-size: 14px; }
-    .cotejo-table tr.current { background: rgba(16,185,129,0.1); }
+    .cotejo-table tr.current { background: rgba(16,185,129,0.15); border-left: 3px solid var(--primary); animation: pulse 2s infinite; }
     .cotejo-table tr.current td { color: var(--primary); font-weight: 600; }
-    .cotejo-table tr.finished td { color: var(--text-secondary); }
+    .cotejo-table tr.finished td { color: var(--text-secondary); opacity: 0.7; }
+    .cotejo-scroll { max-height: 500px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+    .cotejo-scroll::-webkit-scrollbar { width: 6px; }
+    .cotejo-scroll::-webkit-scrollbar-track { background: transparent; }
+    .cotejo-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
     .corner-rojo { color: var(--rojo); font-weight: 700; }
     .corner-verde { color: var(--verde); font-weight: 700; }
     .result-badge { padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
@@ -167,6 +182,9 @@
     .pago-badge.pendiente { background: rgba(239,68,68,0.2); color: var(--error); }
     .pago-badge:hover { opacity: 0.8; filter: brightness(1.2); }
 
+    @media (max-width: 1024px) {
+      .split-view { grid-template-columns: 1fr; }
+    }
     @media (max-width: 768px) {
       .main-content { padding: 16px; }
       .events-grid { grid-template-columns: 1fr; }
@@ -982,6 +1000,11 @@ function stopAutoRefresh() {
   }
 }
 
+function updateTimestamp() {
+  const el = document.getElementById('last-update');
+  if (el) el.textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
 function startAutoRefresh(id) {
   stopAutoRefresh();
   autoRefreshInterval = setInterval(() => {
@@ -1160,28 +1183,37 @@ async function showEventDetail(id) {
     document.getElementById('detail-content').innerHTML = `
       <div class="detail-header">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
-          <div>
-            <h1>${ev.nombre}</h1>
-            <div class="info">
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+              <h1 style="margin:0;">${ev.nombre}</h1>
+              <span class="badge badge-${ev.estado}" style="font-size:14px; padding:6px 16px;">${ev.estado.replace('_',' ')}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:16px; margin-top:8px; color:var(--text-secondary); font-size:14px; flex-wrap:wrap;">
               <span>📅 ${fecha}${ev.hora_inicio ? ' · ' + ev.hora_inicio.slice(0,5) : ''}</span>
               <span>📍 ${ev.lugar || 'Sin lugar'}</span>
-              ${ev.pesaje_abre ? `<span>⚖️ Pesaje: ${ev.pesaje_abre.slice(0,5)} - ${(ev.pesaje_cierra || '').slice(0,5)}</span>` : ''}
-              <span>⚔️ ${peleas.length} peleas · ${derbyRondas.length} ronda${derbyRondas.length !== 1 ? 's' : ''}${ev.tipo_derby ? ' · ' + ev.tipo_derby : ''}</span>
-              ${ev.aves_por_partido ? `<span>🐓 ${ev.aves_por_partido} aves por partido · ${derbyPartidos.length} partidos</span>` : ''}
-              ${ev.costo_inscripcion ? `<span>💰 Inscripción: $${Number(ev.costo_inscripcion).toLocaleString()} · Pelea: $${Number(ev.costo_por_pelea || 0).toLocaleString()}</span>` : ''}
-              ${ev.premio_campeon ? `<span>🏆 Premio: $${Number(ev.premio_campeon).toLocaleString()}</span>` : ''}
-              ${ev.contacto_organizador ? `<span>📱 ${ev.contacto_organizador}</span>` : ''}
+              <span>⚔️ ${peleas.length} peleas · ${derbyRondas.length} ronda${derbyRondas.length !== 1 ? 's' : ''}</span>
+              <span id="last-update" style="font-size:11px; opacity:0.5;"></span>
             </div>
+            <details style="margin-top:8px;">
+              <summary style="cursor:pointer; font-size:12px; color:var(--text-secondary); user-select:none;">Más detalles del evento</summary>
+              <div class="info" style="margin-top:8px; font-size:13px;">
+                ${ev.tipo_derby ? `<span>🏷️ ${ev.tipo_derby}</span>` : ''}
+                ${ev.aves_por_partido ? `<span>🐓 ${ev.aves_por_partido} aves/partido · ${derbyPartidos.length} partidos</span>` : ''}
+                ${ev.pesaje_abre ? `<span>⚖️ Pesaje: ${ev.pesaje_abre.slice(0,5)} - ${(ev.pesaje_cierra || '').slice(0,5)}</span>` : ''}
+                ${ev.costo_inscripcion ? `<span>💰 Inscripción: $${Number(ev.costo_inscripcion).toLocaleString()} · Pelea: $${Number(ev.costo_por_pelea || 0).toLocaleString()}</span>` : ''}
+                ${ev.premio_campeon ? `<span>🏆 Premio: $${Number(ev.premio_campeon).toLocaleString()}</span>` : ''}
+                ${ev.contacto_organizador ? `<span>📱 ${ev.contacto_organizador}</span>` : ''}
+              </div>
+            </details>
           </div>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-            <span class="badge badge-${ev.estado}" style="font-size:14px; padding:6px 16px;">${ev.estado.replace('_',' ')}</span>
             ${ev.estado !== 'finalizado' ? `
               <div class="mode-toggle">
                 <button class="${(ev.modo || 'genesispro') === 'genesispro' ? 'active' : ''}" onclick="toggleModo('${ev.id}', 'genesispro')">GenesisPro</button>
                 <button class="${ev.modo === 'manual' ? 'active' : ''}" onclick="toggleModo('${ev.id}', 'manual')">Manual</button>
               </div>
             ` : ''}
-            <button class="btn btn-secondary btn-sm" onclick="showCartelPreview()">📋 Generar Cartel</button>
+            <button class="btn btn-secondary btn-sm" onclick="showCartelPreview()">📋 Cartel</button>
             ${ev.estado !== 'finalizado' ? `<button class="btn btn-outline btn-sm" onclick="showEditEvent()">✏️ Editar</button>` : ''}
           </div>
         </div>
@@ -1212,85 +1244,104 @@ async function showEventDetail(id) {
         </div>
       </div>
 
-      <div class="cotejo-section">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-          <h3>Cotejo</h3>
-          ${ev.estado === 'programado' || ev.modo === 'manual' ? `<button class="btn btn-secondary btn-sm" onclick="showAddFight()">+ Agregar Pelea</button>` : ''}
-        </div>
-        ${peleas.length > 0 ? `
-          <table class="cotejo-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Rda</th>
-                <th>🔴 Esquina Roja</th>
-                <th>Peso</th>
-                <th>🟢 Esquina Verde</th>
-                <th>Peso</th>
-                <th>Estado</th>
-                <th>Hora</th>
-                <th>Resultado</th>
-                ${ev.estado !== 'finalizado' ? '<th>Acción</th>' : ''}
-              </tr>
-            </thead>
-            <tbody>
-              ${peleas.map(p => {
-                const isCurrent = p.numero_pelea === ev.pelea_actual && ev.estado === 'en_curso';
-                const isFinished = p.estado === 'finalizada';
-                return `
-                  <tr class="${isCurrent ? 'current' : ''} ${isFinished ? 'finished' : ''}">
-                    <td><strong>${p.numero_pelea}</strong>${isCurrent ? ' 🔴' : ''}</td>
-                    <td style="font-size:12px; color:var(--secondary);">${p.ronda_id ? (derbyRondas.find(r => r.id === p.ronda_id)?.numero_ronda || '-') : '-'}</td>
-                    <td class="corner-rojo">${p.anillo_rojo || '---'}${p.placa_rojo ? '<br><small style="color:var(--text-secondary);">' + p.placa_rojo + '</small>' : ''}</td>
-                    <td>${p.peso_rojo ? p.peso_rojo + ' kg' : '-'}</td>
-                    <td class="corner-verde">${p.anillo_verde || '---'}${p.placa_verde ? '<br><small style="color:var(--text-secondary);">' + p.placa_verde + '</small>' : ''}</td>
-                    <td>${p.peso_verde ? p.peso_verde + ' kg' : '-'}</td>
-                    <td><span class="badge badge-${p.estado === 'en_curso' ? 'en_curso' : p.estado === 'finalizada' ? 'finalizado' : 'programado'}">${p.estado}</span></td>
-                    <td style="font-size:12px; white-space:nowrap;">${p.hora_inicio ? formatTime(p.hora_inicio) + (p.hora_fin ? ' - ' + formatTime(p.hora_fin) : ' ⏱️') : '-'}</td>
-                    <td>${p.resultado ? `<span class="result-badge result-${p.resultado}">${resultLabel(p.resultado)}${p.tipo_victoria ? ' <small>(' + motivoLabel(p.tipo_victoria) + ')</small>' : ''}</span>` : '-'}</td>
-                    ${ev.estado !== 'finalizado' ? `
-                      <td style="white-space:nowrap;">
-                        ${p.estado === 'programada' && isCurrent ? `<button class="btn btn-primary btn-sm" onclick="startFight('${p.id}')">Iniciar</button>` : ''}
-                        ${p.estado === 'en_curso' ? `<button class="btn btn-secondary btn-sm" onclick="showResultModal('${p.id}', ${p.numero_pelea})">Resultado</button>` : ''}
-                        ${p.estado === 'programada' && ev.estado === 'programado' ? `<button class="btn btn-danger btn-sm" onclick="deleteFight('${p.id}')">✕</button>` : ''}
-                        ${ev.modo === 'manual' ? `<button class="btn btn-outline btn-sm" onclick="showEditPelea('${p.id}', ${p.numero_pelea}, '${(p.anillo_rojo||'').replace(/'/g,"\\'")}', ${p.peso_rojo||'null'}, '${(p.anillo_verde||'').replace(/'/g,"\\'")}', ${p.peso_verde||'null'}, '${(p.placa_rojo||'').replace(/'/g,"\\'")}', '${(p.placa_verde||'').replace(/'/g,"\\'")}')">Editar</button>` : ''}
-                      </td>
-                    ` : ''}
-                  </tr>`;
-              }).join('')}
-            </tbody>
-          </table>
-        ` : `
-          <div class="empty-state">
-            <h3>Sin peleas en el cotejo</h3>
-            <p>Agrega peleas para armar el cotejo del evento</p>
+      <div class="split-view">
+        <div class="split-left">
+          <div class="cotejo-section">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+              <h3>Cotejo</h3>
+              ${ev.estado === 'programado' || ev.modo === 'manual' ? `<button class="btn btn-secondary btn-sm" onclick="showAddFight()">+ Agregar Pelea</button>` : ''}
+            </div>
+            ${peleas.length > 0 ? `
+              <div class="cotejo-scroll" style="overflow-x:auto;">
+              <table class="cotejo-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Rda</th>
+                    <th>🔴 Roja</th>
+                    <th>🟢 Verde</th>
+                    <th>Resultado</th>
+                    ${ev.estado !== 'finalizado' ? '<th>Acción</th>' : ''}
+                  </tr>
+                </thead>
+                <tbody>
+                  ${peleas.map(p => {
+                    const isCurrent = p.numero_pelea === ev.pelea_actual && ev.estado === 'en_curso';
+                    const isFinished = p.estado === 'finalizada';
+                    return `
+                      <tr class="${isCurrent ? 'current' : ''} ${isFinished ? 'finished' : ''}">
+                        <td><strong>${p.numero_pelea}</strong>${isCurrent ? ' 🔴' : ''}</td>
+                        <td style="font-size:12px; color:var(--secondary);">${p.ronda_id ? (derbyRondas.find(r => r.id === p.ronda_id)?.numero_ronda || '-') : '-'}</td>
+                        <td class="corner-rojo">
+                          ${p.anillo_rojo || '---'}
+                          ${p.peso_rojo ? '<br><small style="color:var(--text-secondary);">' + p.peso_rojo + 'kg</small>' : ''}
+                          ${p.placa_rojo ? '<br><small style="color:var(--text-secondary);">' + p.placa_rojo + '</small>' : ''}
+                        </td>
+                        <td class="corner-verde">
+                          ${p.anillo_verde || '---'}
+                          ${p.peso_verde ? '<br><small style="color:var(--text-secondary);">' + p.peso_verde + 'kg</small>' : ''}
+                          ${p.placa_verde ? '<br><small style="color:var(--text-secondary);">' + p.placa_verde + '</small>' : ''}
+                        </td>
+                        <td>
+                          ${p.resultado ? `<span class="result-badge result-${p.resultado}">${resultLabel(p.resultado)}</span>` : `<span class="badge badge-${p.estado === 'en_curso' ? 'en_curso' : 'programado'}" style="font-size:10px;">${p.estado === 'en_curso' ? 'EN CURSO' : '—'}</span>`}
+                          ${p.hora_inicio ? `<br><small style="color:var(--text-secondary); font-size:10px;">${formatTime(p.hora_inicio)}${p.hora_fin ? '-' + formatTime(p.hora_fin) : ''}</small>` : ''}
+                        </td>
+                        ${ev.estado !== 'finalizado' ? `
+                          <td style="white-space:nowrap;">
+                            ${p.estado === 'programada' && isCurrent ? `<button class="btn btn-primary btn-sm" onclick="startFight('${p.id}')" style="padding:4px 10px; font-size:11px;">Iniciar</button>` : ''}
+                            ${p.estado === 'en_curso' ? `<button class="btn btn-secondary btn-sm" onclick="showResultModal('${p.id}', ${p.numero_pelea})" style="padding:4px 10px; font-size:11px;">Result</button>` : ''}
+                            ${p.estado === 'programada' && ev.estado === 'programado' ? `<button class="btn btn-danger btn-sm" onclick="deleteFight('${p.id}')" style="padding:4px 8px; font-size:11px;">✕</button>` : ''}
+                            ${ev.modo === 'manual' ? `<button class="btn btn-outline btn-sm" onclick="showEditPelea('${p.id}', ${p.numero_pelea}, '${(p.anillo_rojo||'').replace(/'/g,"\\'")}', ${p.peso_rojo||'null'}, '${(p.anillo_verde||'').replace(/'/g,"\\'")}', ${p.peso_verde||'null'}, '${(p.placa_rojo||'').replace(/'/g,"\\'")}', '${(p.placa_verde||'').replace(/'/g,"\\'")}')}" style="padding:4px 8px; font-size:11px;">✏️</button>` : ''}
+                          </td>
+                        ` : ''}
+                      </tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+              </div>
+            ` : `
+              <div class="empty-state">
+                <h3>Sin peleas en el cotejo</h3>
+                <p>Agrega peleas para armar el cotejo del evento</p>
+              </div>
+            `}
           </div>
-        `}
+
+          <div id="avisos-section"></div>
+        </div>
+
+        <div class="split-right">
+          <div id="finanzas-section"></div>
+
+          <div class="participants-section">
+            <details ${participantes.length <= 5 ? 'open' : ''}>
+              <summary style="cursor:pointer; font-weight:700; font-size:16px; margin-bottom:12px; user-select:none;">
+                Participantes (${participantes.length})
+              </summary>
+              <div style="max-height:250px; overflow-y:auto;">
+                ${participantes.length > 0 ? participantes.map(p => `
+                  <div class="participant-row">
+                    <div>
+                      <div class="participant-name">${p.nombre || p.email || 'Sin nombre'}</div>
+                      <div class="participant-role">${p.rol} · ${p.estado}</div>
+                    </div>
+                    ${p.numero_partido ? `<span class="badge badge-programado">#${p.numero_partido}</span>` : ''}
+                  </div>
+                `).join('') : '<p style="color: var(--text-secondary);">Comparte el código de acceso para que los partidos se unan</p>'}
+              </div>
+            </details>
+          </div>
+        </div>
       </div>
 
       <div id="derby-section" style="${ev.modo === 'manual' ? 'display:none;' : ''}"></div>
-
-      <div class="participants-section">
-        <h3 style="margin-bottom: 16px;">Participantes (${participantes.length})</h3>
-        ${participantes.length > 0 ? participantes.map(p => `
-          <div class="participant-row">
-            <div>
-              <div class="participant-name">${p.nombre || p.email || 'Sin nombre'}</div>
-              <div class="participant-role">${p.rol} · ${p.estado}</div>
-            </div>
-            ${p.numero_partido ? `<span class="badge badge-programado">#${p.numero_partido}</span>` : ''}
-          </div>
-        `).join('') : '<p style="color: var(--text-secondary);">Comparte el código de acceso para que los partidos se unan</p>'}
-      </div>
-
-      <div id="avisos-section"></div>
       <div id="apuestas-section"></div>
-      <div id="finanzas-section"></div>
     `;
     renderAvisosSection(ev);
     renderDerbySection(ev, derbyPartidos, derbyAves, derbyRondas, derbyTabla);
     renderApuestasSection(ev, apuestas, balance, peleas);
     renderFinanzasSection(ev);
+    updateTimestamp();
 
     // Auto-refresh when event is live
     if (ev.estado === 'en_curso' || ev.estado === 'pausado') {
@@ -2987,38 +3038,46 @@ async function renderFinanzasSection(ev) {
   const neto = Number(resumen.balance_neto || 0);
 
   el.innerHTML = `
-    <div class="cotejo-section" style="margin-top: 24px;">
+    <div class="cotejo-section">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
         <h3>Finanzas del Evento</h3>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button class="btn btn-primary btn-sm" onclick="generarInscripciones()">Generar Inscripciones</button>
-          <button class="btn btn-secondary btn-sm" onclick="generarCargosPelea()">Generar Cargos Peleas</button>
-          <button class="btn btn-outline btn-sm" onclick="showGastoModal()">+ Agregar Gasto</button>
-        </div>
+        <button class="btn btn-outline btn-sm" onclick="showGastoModal()">+ Gasto</button>
       </div>
+      ${pagos.length === 0 ? `
+        <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" onclick="generarInscripciones()" style="flex:1; min-width:120px;">Generar Inscripciones</button>
+          <button class="btn btn-secondary btn-sm" onclick="generarCargosPelea()" style="flex:1; min-width:120px;">Generar Cargos Peleas</button>
+        </div>
+      ` : `
+        <div style="display:flex; gap:8px; margin-bottom:12px;">
+          <button class="btn btn-outline btn-sm" onclick="generarInscripciones()" style="font-size:11px; padding:4px 10px; opacity:0.7;">+ Inscripciones</button>
+          <button class="btn btn-outline btn-sm" onclick="generarCargosPelea()" style="font-size:11px; padding:4px 10px; opacity:0.7;">+ Cargos Peleas</button>
+        </div>
+      `}
 
-      <div class="stats-grid" style="margin-bottom:20px;">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px;">
         <div class="finanzas-stat green">
-          <div class="stat-number" style="color:var(--primary);">$${recaudado.toLocaleString()}</div>
-          <div class="stat-label">Total Recaudado</div>
+          <div class="stat-number" style="color:var(--primary); font-size:24px;">$${recaudado.toLocaleString()}</div>
+          <div class="stat-label">Recaudado</div>
         </div>
         <div class="finanzas-stat yellow">
-          <div class="stat-number" style="color:var(--secondary);">$${pendiente.toLocaleString()}</div>
+          <div class="stat-number" style="color:var(--secondary); font-size:24px;">$${pendiente.toLocaleString()}</div>
           <div class="stat-label">Pendiente</div>
         </div>
         <div class="finanzas-stat red">
-          <div class="stat-number" style="color:var(--error);">$${gastos.toLocaleString()}</div>
+          <div class="stat-number" style="color:var(--error); font-size:24px;">$${gastos.toLocaleString()}</div>
           <div class="stat-label">Gastos</div>
         </div>
         <div class="finanzas-stat blue">
-          <div class="stat-number" style="color:${neto >= 0 ? 'var(--primary)' : 'var(--error)'};">$${neto.toLocaleString()}</div>
+          <div class="stat-number" style="color:${neto >= 0 ? 'var(--primary)' : 'var(--error)'}; font-size:24px;">$${neto.toLocaleString()}</div>
           <div class="stat-label">Balance Neto</div>
         </div>
       </div>
 
       ${balances.length > 0 ? `
-        <h4 style="margin-bottom:8px; color:var(--secondary);">Balance por Partido</h4>
-        <table class="cotejo-table" style="margin-bottom:20px;">
+        <h4 style="margin-bottom:8px; color:var(--secondary);">Balance por Partido (${balances.length})</h4>
+        <div style="max-height:300px; overflow-y:auto; margin-bottom:20px;">
+        <table class="cotejo-table">
           <thead>
             <tr>
               <th>Partido</th>
@@ -3049,6 +3108,7 @@ async function renderFinanzasSection(ev) {
             }).join('')}
           </tbody>
         </table>
+        </div>
       ` : ''}
 
       ${pagos.length > 0 ? `
@@ -3304,6 +3364,11 @@ async function exportarResultadosPDF() {
 // ─── INIT ───
 if (token) {
   showDashboard();
+}
+
+// Register service worker for PWA
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 </script>
 </body>

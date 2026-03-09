@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -23,6 +23,7 @@ import {
 import { useEventos, Evento } from '@/context/EventosContext';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
+import api from '@/services/api';
 
 const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 const MESES = [
@@ -38,14 +39,53 @@ export default function CalendarioScreen() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [apiEvents, setApiEvents] = useState<Evento[]>([]);
+
+  // Load backend calendar events for current month
+  useEffect(() => {
+    loadApiCalendar();
+  }, [currentDate]);
+
+  async function loadApiCalendar() {
+    try {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const inicio = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      const fin = `${year}-${String(month + 1).padStart(2, '0')}-${lastDay}`;
+      const res = await api.getCalendarEvents(inicio, fin);
+      if (res?.data && Array.isArray(res.data)) {
+        const mapped: Evento[] = res.data.map((e: any) => ({
+          id: e.id || Math.random().toString(),
+          titulo: e.titulo || e.nombre || e.tipo || 'Evento',
+          tipo: e.tipo || 'otro',
+          fecha: (e.fecha || '').split('T')[0],
+          descripcion: e.descripcion || e.notas || '',
+          color: e.tipo === 'combate' ? '#4CAF50' : e.tipo === 'vacuna' ? '#9C27B0' : e.tipo === 'desparasitacion' ? '#FF9800' : e.tipo === 'consulta' ? '#2196F3' : '#607D8B',
+          ave_codigo: e.ave_codigo || e.codigo_identidad || '',
+        }));
+        setApiEvents(mapped);
+      }
+    } catch { /* fallback to local */ }
+  }
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  // Obtener eventos del mes actual
+  // Obtener eventos del mes actual (local + API merged)
   const eventosDelMes = useMemo(() => {
-    return getEventosByMes(year, month);
-  }, [year, month, getEventosByMes]);
+    const local = getEventosByMes(year, month);
+    // Merge API events grouped by date
+    const merged: Record<string, Evento[]> = { ...local };
+    for (const ev of apiEvents) {
+      if (!merged[ev.fecha]) merged[ev.fecha] = [];
+      const existing = merged[ev.fecha];
+      if (!existing.some(e => e.id === ev.id)) {
+        existing.push(ev);
+      }
+    }
+    return merged;
+  }, [year, month, getEventosByMes, apiEvents]);
 
   // Generar días del calendario
   const calendarDays = useMemo(() => {
@@ -89,7 +129,11 @@ export default function CalendarioScreen() {
 
   const getDayEvents = (day: number): Evento[] => {
     const fechaStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return getEventosByFecha(fechaStr);
+    const local = getEventosByFecha(fechaStr);
+    const fromApi = apiEvents.filter(e => e.fecha === fechaStr);
+    // Merge, avoiding duplicates by id
+    const localIds = new Set(local.map(e => e.id));
+    return [...local, ...fromApi.filter(e => !localIds.has(e.id))];
   };
 
   const isToday = (day: number): boolean => {
@@ -107,6 +151,9 @@ export default function CalendarioScreen() {
         return <Bird size={16} color={COLORS.textLight} />;
       case 'vacuna':
       case 'tratamiento':
+      case 'desparasitacion':
+        return <Heart size={16} color={COLORS.textLight} />;
+      case 'consulta':
         return <Heart size={16} color={COLORS.textLight} />;
       case 'venta':
         return <DollarSign size={16} color={COLORS.textLight} />;
@@ -115,7 +162,13 @@ export default function CalendarioScreen() {
     }
   };
 
-  const selectedDateEvents = selectedDate ? getEventosByFecha(selectedDate) : [];
+  const selectedDateEvents = useMemo(() => {
+    if (!selectedDate) return [];
+    const local = getEventosByFecha(selectedDate);
+    const fromApi = apiEvents.filter(e => e.fecha === selectedDate);
+    const localIds = new Set(local.map(e => e.id));
+    return [...local, ...fromApi.filter(e => !localIds.has(e.id))];
+  }, [selectedDate, apiEvents, getEventosByFecha]);
 
   return (
     <View style={styles.container}>
@@ -212,10 +265,10 @@ export default function CalendarioScreen() {
         <View style={styles.legend}>
           <Text style={styles.legendTitle}>Tipos de eventos</Text>
           <View style={styles.legendItems}>
-            <LegendItem color="#4CAF50" label="Victoria" />
-            <LegendItem color="#F44336" label="Derrota" />
-            <LegendItem color="#2196F3" label="Nacimiento" />
-            <LegendItem color="#9C27B0" label="Venta" />
+            <LegendItem color="#4CAF50" label="Combate" />
+            <LegendItem color="#9C27B0" label="Vacuna" />
+            <LegendItem color="#FF9800" label="Desparasitación" />
+            <LegendItem color="#2196F3" label="Consulta" />
           </View>
         </View>
 
