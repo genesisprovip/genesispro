@@ -4,251 +4,438 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GenesisPro - Gestión Profesional de Gallos de Combate</title>
-  <meta name="description" content="GenesisPro: la app para criadores, galleros y empresarios de palenque. Control de aves, derby, salud, genética y eventos en vivo.">
+  <meta name="description" content="GenesisPro: la app para criadores, galleros y empresarios de palenque. Control de aves, derby, salud, genética, streaming en vivo y más.">
   <meta property="og:title" content="GenesisPro - Gestión de Gallos de Combate">
-  <meta property="og:description" content="La app profesional para criadores, galleros y empresarios de palenque. Registra aves, organiza derbys, controla eventos en vivo.">
+  <meta property="og:description" content="La app profesional para criadores, galleros y empresarios de palenque. Registra aves, organiza derbys, transmite eventos en vivo.">
   <meta property="og:image" content="https://genesispro.vip/palenque/logo.png">
   <meta property="og:url" content="https://genesispro.vip">
+  <meta name="theme-color" content="#0F172A">
   <link rel="icon" href="/palenque/logo.png" type="image/png">
   <style>
     :root {
       --bg: #0F172A;
       --bg-alt: #1E293B;
+      --bg-card: #1a2332;
       --primary: #10B981;
       --primary-dark: #059669;
       --secondary: #F59E0B;
       --accent: #6366F1;
+      --red: #EF4444;
       --text: #F8FAFC;
       --text-sec: #94A3B8;
-      --gold: #D4AF37;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
+    a { text-decoration: none; color: inherit; }
+
+    /* Navbar */
+    .nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      padding: 16px 24px; display: flex; align-items: center; justify-content: space-between;
+      background: rgba(15,23,42,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.05);
+      transition: all 0.3s;
+    }
+    .nav-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; }
+    .nav-brand img { width: 36px; height: 36px; border-radius: 8px; }
+    .nav-links { display: flex; gap: 28px; align-items: center; }
+    .nav-links a { color: var(--text-sec); font-weight: 500; font-size: 14px; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--primary); }
+    .nav-cta { background: var(--primary); color: white !important; padding: 8px 20px; border-radius: 8px; font-weight: 600; }
+    .nav-cta:hover { background: var(--primary-dark); }
 
     /* Hero */
     .hero {
-      min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
-      text-align: center; padding: 40px 20px; position: relative;
-      background: radial-gradient(ellipse at center top, #1E293B 0%, #0F172A 70%);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      text-align: center; padding: 120px 20px 80px;
+      background: radial-gradient(ellipse at 30% 20%, rgba(16,185,129,0.08) 0%, transparent 50%),
+                  radial-gradient(ellipse at 70% 80%, rgba(99,102,241,0.06) 0%, transparent 50%),
+                  var(--bg);
     }
-    .hero::before {
-      content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-      background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="%2310B98110" stroke-width="0.5"/><circle cx="50" cy="50" r="30" fill="none" stroke="%23F59E0B08" stroke-width="0.3"/></svg>') center/400px repeat;
-      pointer-events: none;
+    .hero-content { max-width: 900px; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px;
+      background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3);
+      border-radius: 100px; font-size: 13px; color: var(--primary); font-weight: 600; margin-bottom: 24px;
     }
-    .hero-content { position: relative; z-index: 1; max-width: 800px; }
-    .logo-hero { width: 160px; height: 160px; border-radius: 30px; margin-bottom: 24px; filter: drop-shadow(0 0 30px rgba(16,185,129,0.3)); }
-    .hero h1 { font-size: 48px; font-weight: 800; margin-bottom: 8px; background: linear-gradient(135deg, var(--primary), var(--secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .hero .tagline { font-size: 20px; color: var(--text-sec); margin-bottom: 40px; line-height: 1.5; }
-    .hero .tagline strong { color: var(--text); }
+    .hero-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); animation: pulse 2s infinite; }
+    .logo-hero { width: 140px; height: 140px; border-radius: 28px; margin-bottom: 28px; filter: drop-shadow(0 0 40px rgba(16,185,129,0.25)); }
+    .hero h1 { font-size: 56px; font-weight: 900; line-height: 1.1; margin-bottom: 16px; }
+    .hero h1 .gradient { background: linear-gradient(135deg, var(--primary), var(--secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .hero .tagline { font-size: 20px; color: var(--text-sec); margin-bottom: 40px; line-height: 1.6; max-width: 600px; margin-left: auto; margin-right: auto; }
 
-    /* Download buttons */
-    .download-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-bottom: 40px; }
-    .dl-btn {
-      display: inline-flex; align-items: center; gap: 12px; padding: 16px 32px;
-      border-radius: 14px; font-size: 17px; font-weight: 700; text-decoration: none;
-      transition: all 0.3s; border: none; cursor: pointer;
+    .hero-buttons { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 48px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 10px; padding: 14px 28px;
+      border-radius: 12px; font-size: 16px; font-weight: 700; transition: all 0.3s; border: none; cursor: pointer;
     }
-    .dl-btn-primary { background: var(--primary); color: white; }
-    .dl-btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(16,185,129,0.3); }
-    .dl-btn-outline { background: transparent; color: var(--text); border: 2px solid var(--primary); }
-    .dl-btn-outline:hover { background: rgba(16,185,129,0.1); transform: translateY(-2px); }
-    .dl-btn svg { width: 24px; height: 24px; fill: currentColor; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(16,185,129,0.25); }
+    .btn-outline { background: transparent; color: var(--text); border: 2px solid #334155; }
+    .btn-outline:hover { border-color: var(--primary); background: rgba(16,185,129,0.05); }
+    .btn-accent { background: var(--accent); color: white; }
+    .btn-accent:hover { opacity: 0.9; transform: translateY(-2px); }
 
-    /* Features */
-    .features {
-      padding: 80px 20px; background: var(--bg-alt);
-    }
+    /* Stats row */
+    .stats { display: flex; justify-content: center; gap: 60px; flex-wrap: wrap; }
+    .stat { text-align: center; }
+    .stat-num { font-size: 36px; font-weight: 900; color: var(--primary); }
+    .stat-lbl { font-size: 12px; color: var(--text-sec); text-transform: uppercase; letter-spacing: 1.5px; margin-top: 4px; }
+
+    /* Section defaults */
+    .section { padding: 100px 20px; }
+    .section-header { text-align: center; margin-bottom: 56px; }
+    .section-title { font-size: 40px; font-weight: 900; margin-bottom: 12px; }
+    .section-sub { font-size: 18px; color: var(--text-sec); max-width: 600px; margin: 0 auto; }
+    .container { max-width: 1100px; margin: 0 auto; }
+
+    /* Features grid */
     .features-grid {
-      max-width: 1000px; margin: 0 auto;
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
     }
     .feature-card {
-      background: var(--bg); border-radius: 16px; padding: 32px;
-      border: 1px solid #334155; transition: border-color 0.3s;
+      background: var(--bg-card); border-radius: 16px; padding: 28px;
+      border: 1px solid #1e293b; transition: all 0.3s; position: relative; overflow: hidden;
     }
-    .feature-card:hover { border-color: var(--primary); }
-    .feature-icon { font-size: 40px; margin-bottom: 16px; }
-    .feature-card h3 { font-size: 20px; margin-bottom: 8px; }
-    .feature-card p { color: var(--text-sec); line-height: 1.6; font-size: 15px; }
-    .section-title { text-align: center; font-size: 36px; font-weight: 800; margin-bottom: 16px; }
-    .section-subtitle { text-align: center; color: var(--text-sec); font-size: 18px; margin-bottom: 48px; }
+    .feature-card:hover { border-color: var(--primary); transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+    .feature-card .icon { font-size: 36px; margin-bottom: 14px; display: block; }
+    .feature-card h3 { font-size: 18px; margin-bottom: 8px; font-weight: 700; }
+    .feature-card p { color: var(--text-sec); line-height: 1.5; font-size: 14px; }
+    .feature-card.highlight { border-color: var(--primary); background: linear-gradient(135deg, rgba(16,185,129,0.08), var(--bg-card)); }
+    .feature-card .tag { position: absolute; top: 12px; right: 12px; background: var(--primary); color: white; font-size: 10px; padding: 3px 8px; border-radius: 6px; font-weight: 700; text-transform: uppercase; }
+
+    /* Live streaming section */
+    .live-section { background: linear-gradient(180deg, var(--bg-alt), var(--bg)); }
+    .live-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+    .live-visual {
+      aspect-ratio: 16/9; background: #000; border-radius: 16px; position: relative; overflow: hidden;
+      border: 1px solid #334155; display: flex; align-items: center; justify-content: center;
+    }
+    .live-visual .badge-live {
+      position: absolute; top: 12px; left: 12px; background: var(--red); color: white;
+      padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 800;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .live-visual .badge-live .dot { width: 8px; height: 8px; border-radius: 50%; background: white; animation: pulse 1.5s infinite; }
+    .live-visual .badge-webrtc {
+      position: absolute; top: 12px; right: 12px; background: rgba(16,185,129,0.9);
+      padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; color: white;
+    }
+    .live-visual .mock-text {
+      color: var(--text-sec); font-size: 48px; opacity: 0.15;
+    }
+    .live-visual .badge-viewers {
+      position: absolute; bottom: 12px; right: 12px; background: rgba(0,0,0,0.7);
+      padding: 4px 10px; border-radius: 6px; font-size: 12px; color: var(--text-sec);
+    }
+    .live-content h2 { font-size: 36px; font-weight: 900; margin-bottom: 16px; }
+    .live-content p { color: var(--text-sec); line-height: 1.7; margin-bottom: 20px; font-size: 16px; }
+    .live-features { list-style: none; }
+    .live-features li { padding: 8px 0; display: flex; align-items: center; gap: 10px; font-size: 15px; }
+    .live-features .check { color: var(--primary); font-weight: 800; font-size: 18px; }
+
+    /* Plans */
+    .plans-section { background: var(--bg-alt); }
+    .plans-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    .plan-card {
+      background: var(--bg); border-radius: 20px; padding: 36px 28px; text-align: center;
+      border: 1px solid #1e293b; transition: all 0.3s; position: relative;
+    }
+    .plan-card:hover { transform: translateY(-4px); }
+    .plan-card.popular { border-color: var(--primary); box-shadow: 0 0 40px rgba(16,185,129,0.15); }
+    .plan-card.popular::before {
+      content: 'Popular'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: var(--primary); color: white; padding: 4px 16px; border-radius: 100px; font-size: 12px; font-weight: 700;
+    }
+    .plan-name { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+    .plan-price { font-size: 42px; font-weight: 900; margin-bottom: 4px; }
+    .plan-price span { font-size: 16px; font-weight: 400; color: var(--text-sec); }
+    .plan-period { font-size: 13px; color: var(--text-sec); margin-bottom: 24px; }
+    .plan-features { list-style: none; text-align: left; margin-bottom: 28px; }
+    .plan-features li { padding: 6px 0; font-size: 14px; color: var(--text-sec); display: flex; align-items: center; gap: 8px; }
+    .plan-features .check { color: var(--primary); }
+    .plan-btn { width: 100%; padding: 12px; border-radius: 10px; font-size: 15px; font-weight: 700; border: none; cursor: pointer; transition: all 0.3s; }
+    .plan-btn-primary { background: var(--primary); color: white; }
+    .plan-btn-outline { background: transparent; color: var(--text); border: 2px solid #334155; }
 
     /* Palenque section */
-    .palenque-section {
-      padding: 80px 20px; text-align: center;
-      background: linear-gradient(135deg, #7F1D1D20, #0F172A, #F59E0B10);
-    }
-    .palenque-features {
-      max-width: 700px; margin: 0 auto; text-align: left;
-    }
+    .palenque-section { background: linear-gradient(135deg, rgba(127,29,29,0.08), var(--bg), rgba(245,158,11,0.05)); }
+    .palenque-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 800px; margin: 0 auto; }
     .palenque-item {
-      display: flex; gap: 16px; align-items: flex-start; margin-bottom: 20px;
-      padding: 16px; background: rgba(255,255,255,0.03); border-radius: 12px;
+      display: flex; gap: 14px; align-items: flex-start; padding: 20px;
+      background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);
+      transition: border-color 0.3s;
     }
-    .palenque-item .icon { font-size: 28px; flex-shrink: 0; }
-    .palenque-item h4 { font-size: 16px; margin-bottom: 4px; }
-    .palenque-item p { font-size: 14px; color: var(--text-sec); }
+    .palenque-item:hover { border-color: var(--secondary); }
+    .palenque-item .icon { font-size: 24px; flex-shrink: 0; margin-top: 2px; }
+    .palenque-item h4 { font-size: 15px; margin-bottom: 4px; font-weight: 700; }
+    .palenque-item p { font-size: 13px; color: var(--text-sec); line-height: 1.5; }
 
     /* CTA */
     .cta-section {
-      padding: 80px 20px; text-align: center;
-      background: radial-gradient(ellipse at center, #10B98115, transparent 60%);
+      padding: 100px 20px; text-align: center;
+      background: radial-gradient(ellipse at center, rgba(16,185,129,0.1), transparent 60%);
     }
-    .cta-section .logo-small { width: 80px; height: 80px; border-radius: 16px; margin-bottom: 20px; }
+    .cta-section .logo-small { width: 72px; height: 72px; border-radius: 16px; margin-bottom: 20px; }
 
     /* Footer */
     .footer {
-      padding: 40px 20px; text-align: center; border-top: 1px solid #334155;
-      color: var(--text-sec); font-size: 14px;
+      padding: 40px 20px; text-align: center; border-top: 1px solid #1e293b;
+      color: var(--text-sec); font-size: 13px;
     }
-    .footer a { color: var(--primary); text-decoration: none; }
+    .footer-links { display: flex; justify-content: center; gap: 24px; margin-bottom: 16px; }
+    .footer a { color: var(--text-sec); transition: color 0.2s; }
+    .footer a:hover { color: var(--primary); }
 
-    /* Stats */
-    .stats { display: flex; justify-content: center; gap: 48px; flex-wrap: wrap; margin: 40px 0; }
-    .stat { text-align: center; }
-    .stat-num { font-size: 32px; font-weight: 800; color: var(--primary); }
-    .stat-lbl { font-size: 13px; color: var(--text-sec); text-transform: uppercase; letter-spacing: 1px; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 
-    /* Responsive */
+    @media (max-width: 900px) {
+      .features-grid, .plans-grid { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto; }
+      .live-grid, .palenque-grid { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+    }
     @media (max-width: 600px) {
-      .hero h1 { font-size: 32px; }
+      .hero h1 { font-size: 36px; }
       .hero .tagline { font-size: 16px; }
-      .logo-hero { width: 120px; height: 120px; }
+      .logo-hero { width: 100px; height: 100px; }
       .section-title { font-size: 28px; }
-      .download-buttons { flex-direction: column; align-items: center; }
+      .hero-buttons { flex-direction: column; align-items: center; }
       .stats { gap: 24px; }
+      .stat-num { font-size: 28px; }
+      .live-content h2 { font-size: 28px; }
     }
   </style>
 </head>
 <body>
 
+<!-- NAV -->
+<nav class="nav">
+  <a href="#" class="nav-brand">
+    <img src="/palenque/logo.png" alt="GenesisPro">
+    GenesisPro
+  </a>
+  <div class="nav-links">
+    <a href="#funciones">Funciones</a>
+    <a href="#streaming">Streaming</a>
+    <a href="#palenque">Palenque</a>
+    <a href="#planes">Planes</a>
+    <a href="#descargar" class="nav-cta">Descargar</a>
+  </div>
+</nav>
+
 <!-- HERO -->
 <section class="hero">
   <div class="hero-content">
-    <img src="/palenque/logo.png" alt="GenesisPro" class="logo-hero">
-    <h1>GenesisPro</h1>
+    <div class="hero-badge"><span class="dot"></span> v1.7.0 disponible</div>
+    <img src="/palenque/logo.png" alt="GenesisPro" class="logo-hero" style="animation: float 4s ease-in-out infinite;">
+    <h1>La app #1 para<br><span class="gradient">Gallos de Combate</span></h1>
     <p class="tagline">
-      La app profesional para <strong>criadores</strong>, <strong>galleros</strong> y <strong>empresarios de palenque</strong>.<br>
-      Controla tus aves, organiza derbys, registra salud y genética.
+      Controla tus aves, organiza derbys, registra salud y genetica.
+      Transmite eventos en vivo con latencia sub-segundo.
     </p>
 
-    <div class="download-buttons">
-      <a href="#descargar" class="dl-btn dl-btn-primary">
-        <svg viewBox="0 0 24 24"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
-        App Store
+    <div class="hero-buttons">
+      <a href="#descargar" class="btn btn-primary">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        Descargar APK
       </a>
-      <a href="#descargar" class="dl-btn dl-btn-primary">
-        <svg viewBox="0 0 24 24"><path d="M3.18 23.04L13.22 12 3.18.96c-.12.16-.18.38-.18.64v20.8c0 .26.06.48.18.64zm1.78 1.02l11.2-6.36-2.48-2.48-8.72 8.84zm13.34-7.6L5.72 9.14l8.72 8.84 2.48-2.48zm1.88-1.06c.56-.32.82-.72.82-1.18v-.44c0-.46-.26-.86-.82-1.18L17.3 11l-2.74 2.74 2.74 2.74 2.88-1.08z"/></svg>
-        Google Play
-      </a>
-      <a href="/palenque" class="dl-btn dl-btn-outline">
-        Panel de Palenque
-      </a>
+      <a href="/palenque" class="btn btn-outline">Panel de Palenque</a>
     </div>
 
     <div class="stats">
-      <div class="stat">
-        <div class="stat-num">100%</div>
-        <div class="stat-lbl">Gratuita</div>
-      </div>
-      <div class="stat">
-        <div class="stat-num">Mexico</div>
-        <div class="stat-lbl">Hecho en</div>
-      </div>
-      <div class="stat">
-        <div class="stat-num">24/7</div>
-        <div class="stat-lbl">Disponible</div>
-      </div>
+      <div class="stat"><div class="stat-num">15+</div><div class="stat-lbl">Modulos</div></div>
+      <div class="stat"><div class="stat-num">&lt;1s</div><div class="stat-lbl">Latencia WebRTC</div></div>
+      <div class="stat"><div class="stat-num">24/7</div><div class="stat-lbl">Disponible</div></div>
+      <div class="stat"><div class="stat-num">100%</div><div class="stat-lbl">Hecho en Mexico</div></div>
     </div>
   </div>
 </section>
 
 <!-- FEATURES -->
-<section class="features" id="funciones">
-  <h2 class="section-title">Todo lo que necesitas</h2>
-  <p class="section-subtitle">Una sola app para manejar tu criadero, tus aves y tus eventos</p>
+<section class="section" id="funciones">
+  <div class="container">
+    <div class="section-header">
+      <h2 class="section-title">Todo lo que necesitas</h2>
+      <p class="section-sub">Una sola app para manejar tu criadero, tus aves y tus eventos</p>
+    </div>
 
-  <div class="features-grid">
-    <div class="feature-card">
-      <div class="feature-icon">🐓</div>
-      <h3>Registro de Aves</h3>
-      <p>Controla cada gallo: peso, color, linaje, marcas de identificacion, historial de combates y mas.</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <span class="icon">🐓</span>
+        <h3>Registro de Aves</h3>
+        <p>Peso, color, linaje, marcas de identificacion, historial de combates y genealogia completa.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">🧬</span>
+        <h3>Genealogia</h3>
+        <p>Arbol genealogico visual. Controla cruces, lineas de sangre y selecciona los mejores ejemplares.</p>
+      </div>
+      <div class="feature-card highlight">
+        <span class="tag">Nuevo</span>
+        <span class="icon">📡</span>
+        <h3>Streaming WebRTC</h3>
+        <p>Transmite eventos en vivo con latencia menor a 1 segundo. Calidad hasta 1080p.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">⚔️</span>
+        <h3>Combates y Derby</h3>
+        <p>Registra cada pelea: resultado, duracion, tipo de victoria. Estadisticas completas.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">💊</span>
+        <h3>Salud y Medicacion</h3>
+        <p>Calendario de vacunas, tratamientos y desparasitaciones. Nunca olvides una dosis.</p>
+      </div>
+      <div class="feature-card highlight">
+        <span class="tag">Nuevo</span>
+        <span class="icon">🍽️</span>
+        <h3>Alimentacion</h3>
+        <p>Inventario, registros diarios y dietas personalizadas. Control de peso y nutricion.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">📊</span>
+        <h3>Analiticas</h3>
+        <p>Graficas de rendimiento, tasa de victoria, tendencias financieras y top aves.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">📅</span>
+        <h3>Calendario</h3>
+        <p>Eventos de salud, combates y actividades sincronizados. Vista mensual completa.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">💰</span>
+        <h3>Finanzas</h3>
+        <p>Control de ingresos, egresos, costos por evento y balance automatico por partido.</p>
+      </div>
     </div>
-    <div class="feature-card">
-      <div class="feature-icon">🧬</div>
-      <h3>Genealogia</h3>
-      <p>Arbol genealogico completo. Controla cruces, lineas de sangre y selecciona los mejores ejemplares.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">⚔️</div>
-      <h3>Combates y Derby</h3>
-      <p>Registra cada pelea: resultado, duracion, tipo de victoria. Estadisticas completas por ave.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">💊</div>
-      <h3>Salud y Medicacion</h3>
-      <p>Calendario de vacunas, tratamientos, desparasitaciones. Nunca olvides una dosis.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">🍽️</div>
-      <h3>Alimentacion</h3>
-      <p>Programas de alimentacion personalizados. Control de peso y nutricion para cada ave.</p>
-    </div>
-    <div class="feature-card">
-      <div class="feature-icon">📊</div>
-      <h3>Analiticas</h3>
-      <p>Graficas y estadisticas: tasa de victoria, rendimiento por linea, tendencias de salud.</p>
+  </div>
+</section>
+
+<!-- LIVE STREAMING -->
+<section class="section live-section" id="streaming">
+  <div class="container">
+    <div class="live-grid">
+      <div class="live-visual">
+        <div class="badge-live"><span class="dot"></span> EN VIVO</div>
+        <div class="badge-webrtc">⚡ WebRTC</div>
+        <div class="mock-text">🐓</div>
+        <div class="badge-viewers">👁 247 viendo</div>
+      </div>
+      <div class="live-content">
+        <h2>Streaming en Vivo<br>con <span style="color: var(--primary)">WebRTC</span></h2>
+        <p>
+          Transmite tus eventos de palenque con la menor latencia posible.
+          Los espectadores ven la pelea en tiempo real, no con 15 segundos de retraso.
+        </p>
+        <ul class="live-features">
+          <li><span class="check">✓</span> Latencia menor a 1 segundo (WebRTC)</li>
+          <li><span class="check">✓</span> Fallback automatico a HLS si la red es lenta</li>
+          <li><span class="check">✓</span> Calidad adaptativa: 360p hasta 1080p</li>
+          <li><span class="check">✓</span> Chat en vivo con los espectadores</li>
+          <li><span class="check">✓</span> Comparte el link por WhatsApp</li>
+          <li><span class="check">✓</span> Controles de Rojo/Verde/Tablas en pantalla</li>
+        </ul>
+      </div>
     </div>
   </div>
 </section>
 
 <!-- PALENQUE MODULE -->
-<section class="palenque-section" id="palenque">
-  <h2 class="section-title">Modulo Palenque</h2>
-  <p class="section-subtitle">Para empresarios y organizadores de eventos</p>
+<section class="section palenque-section" id="palenque">
+  <div class="container">
+    <div class="section-header">
+      <h2 class="section-title">Modulo Palenque</h2>
+      <p class="section-sub">Para empresarios y organizadores de eventos profesionales</p>
+    </div>
 
-  <div class="palenque-features">
-    <div class="palenque-item">
-      <div class="icon">📋</div>
-      <div>
-        <h4>Crea Eventos Completos</h4>
-        <p>Derby, octerola, compromiso. Define costos, reglas, horarios y genera el cartel automaticamente.</p>
+    <div class="palenque-grid">
+      <div class="palenque-item">
+        <div class="icon">📋</div>
+        <div><h4>Eventos Completos</h4><p>Derby, octerola, compromiso. Define costos, reglas y genera el cartel.</p></div>
+      </div>
+      <div class="palenque-item">
+        <div class="icon">🎲</div>
+        <div><h4>Sorteo Automatico</h4><p>Emparejamiento por peso con margen configurable. Multiples rondas.</p></div>
+      </div>
+      <div class="palenque-item">
+        <div class="icon">🔴</div>
+        <div><h4>Control en Vivo</h4><p>Panel de control en tiempo real. Registra resultados, avanza el cotejo.</p></div>
+      </div>
+      <div class="palenque-item">
+        <div class="icon">📊</div>
+        <div><h4>Tabla de Posiciones</h4><p>Puntos automaticos. Tabla actualizada pelea a pelea.</p></div>
+      </div>
+      <div class="palenque-item">
+        <div class="icon">💰</div>
+        <div><h4>Finanzas por Evento</h4><p>Cobros automaticos: inscripciones, peleas ganadas/perdidas, balance.</p></div>
+      </div>
+      <div class="palenque-item">
+        <div class="icon">📱</div>
+        <div><h4>Acceso con Codigo</h4><p>Los participantes siguen el evento en vivo desde su celular.</p></div>
+      </div>
+      <div class="palenque-item">
+        <div class="icon">📢</div>
+        <div><h4>Avisos Broadcast</h4><p>Envia mensajes a todos los asistentes del evento al instante.</p></div>
+      </div>
+      <div class="palenque-item">
+        <div class="icon">📄</div>
+        <div><h4>Cartel y WhatsApp</h4><p>Genera carteles con imagenes. Comparte resultados por WhatsApp.</p></div>
       </div>
     </div>
-    <div class="palenque-item">
-      <div class="icon">🎲</div>
-      <div>
-        <h4>Sorteo Automatico</h4>
-        <p>Emparejamiento por peso con margen configurable. Multiples rondas, ganadores vs perdedores, comodin.</p>
-      </div>
+  </div>
+</section>
+
+<!-- PLANS -->
+<section class="section plans-section" id="planes">
+  <div class="container">
+    <div class="section-header">
+      <h2 class="section-title">Planes</h2>
+      <p class="section-sub">Elige el plan que mejor se adapte a tus necesidades</p>
     </div>
-    <div class="palenque-item">
-      <div class="icon">🔴</div>
-      <div>
-        <h4>Control en Vivo</h4>
-        <p>Panel de control del evento en tiempo real. Inicia peleas, registra resultados, avanza el cotejo.</p>
+
+    <div class="plans-grid">
+      <div class="plan-card">
+        <div class="plan-name">Basico</div>
+        <div class="plan-price">$299<span>/mes</span></div>
+        <div class="plan-period">MXN mensual</div>
+        <ul class="plan-features">
+          <li><span class="check">✓</span> Hasta 50 aves</li>
+          <li><span class="check">✓</span> Registro de combates</li>
+          <li><span class="check">✓</span> Salud y alimentacion</li>
+          <li><span class="check">✓</span> Calendario</li>
+          <li><span class="check">✓</span> Analiticas basicas</li>
+        </ul>
+        <button class="plan-btn plan-btn-outline">Comenzar</button>
       </div>
-    </div>
-    <div class="palenque-item">
-      <div class="icon">📊</div>
-      <div>
-        <h4>Tabla de Posiciones</h4>
-        <p>Puntos automaticos: Victoria 2, Tablas 1, Derrota 0. Tabla actualizada pelea a pelea.</p>
+
+      <div class="plan-card popular">
+        <div class="plan-name">Pro</div>
+        <div class="plan-price">$599<span>/mes</span></div>
+        <div class="plan-period">MXN mensual</div>
+        <ul class="plan-features">
+          <li><span class="check">✓</span> Aves ilimitadas</li>
+          <li><span class="check">✓</span> Todo lo del Basico</li>
+          <li><span class="check">✓</span> Genealogia completa</li>
+          <li><span class="check">✓</span> Finanzas avanzadas</li>
+          <li><span class="check">✓</span> Streaming 720p</li>
+          <li><span class="check">✓</span> Soporte prioritario</li>
+        </ul>
+        <button class="plan-btn plan-btn-primary">Elegir Pro</button>
       </div>
-    </div>
-    <div class="palenque-item">
-      <div class="icon">📱</div>
-      <div>
-        <h4>Los Galleros Siguen el Evento</h4>
-        <p>Con el codigo de acceso, los participantes ven las peleas en vivo desde su celular.</p>
-      </div>
-    </div>
-    <div class="palenque-item">
-      <div class="icon">📄</div>
-      <div>
-        <h4>Cartel y PDF</h4>
-        <p>Genera el cartel de tu evento con plantillas profesionales. Descarga PDF o comparte por WhatsApp.</p>
+
+      <div class="plan-card">
+        <div class="plan-name">Premium</div>
+        <div class="plan-price">$999<span>/mes</span></div>
+        <div class="plan-period">MXN mensual</div>
+        <ul class="plan-features">
+          <li><span class="check">✓</span> Todo lo del Pro</li>
+          <li><span class="check">✓</span> Streaming 1080p WebRTC</li>
+          <li><span class="check">✓</span> Eventos ilimitados</li>
+          <li><span class="check">✓</span> Comisiones por referidos</li>
+          <li><span class="check">✓</span> API personalizada</li>
+          <li><span class="check">✓</span> Soporte dedicado</li>
+        </ul>
+        <button class="plan-btn plan-btn-outline">Elegir Premium</button>
       </div>
     </div>
   </div>
@@ -258,32 +445,47 @@
 <section class="cta-section" id="descargar">
   <img src="/palenque/logo.png" alt="GenesisPro" class="logo-small">
   <h2 class="section-title">Descarga GenesisPro</h2>
-  <p class="section-subtitle">Disponible para iOS y Android. Comienza gratis.</p>
+  <p class="section-sub" style="margin-bottom: 32px;">Disponible para Android. Comienza gratis hoy.</p>
 
-  <div class="download-buttons">
-    <a href="#" class="dl-btn dl-btn-primary">
-      <svg viewBox="0 0 24 24"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
-      App Store
+  <div class="hero-buttons">
+    <a href="#" class="btn btn-primary" id="download-btn">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+      Descargar APK
     </a>
-    <a href="#" class="dl-btn dl-btn-primary">
-      <svg viewBox="0 0 24 24"><path d="M3.18 23.04L13.22 12 3.18.96c-.12.16-.18.38-.18.64v20.8c0 .26.06.48.18.64zm1.78 1.02l11.2-6.36-2.48-2.48-8.72 8.84zm13.34-7.6L5.72 9.14l8.72 8.84 2.48-2.48zm1.88-1.06c.56-.32.82-.72.82-1.18v-.44c0-.46-.26-.86-.82-1.18L17.3 11l-2.74 2.74 2.74 2.74 2.88-1.08z"/></svg>
-      Google Play
-    </a>
+    <a href="/palenque" class="btn btn-accent">Abrir Panel de Palenque</a>
   </div>
 
   <p style="color: var(--text-sec); margin-top: 24px; font-size: 14px;">
-    Proximamente en las tiendas de aplicaciones.<br>
+    Proximamente en App Store y Google Play.<br>
     Contacto: <a href="mailto:genesispro.app@outlook.com" style="color: var(--primary);">genesispro.app@outlook.com</a>
   </p>
 </section>
 
 <!-- FOOTER -->
 <footer class="footer">
-  <p>&copy; 2026 GenesisPro. Todos los derechos reservados.</p>
-  <p style="margin-top: 8px;">
+  <div class="footer-links">
     <a href="/palenque">Panel Palenque</a>
-  </p>
+    <a href="#funciones">Funciones</a>
+    <a href="#planes">Planes</a>
+    <a href="mailto:genesispro.app@outlook.com">Contacto</a>
+  </div>
+  <p>&copy; 2026 GenesisPro. Todos los derechos reservados. Hecho en Mexico.</p>
 </footer>
 
+<script>
+  // Navbar scroll effect
+  window.addEventListener('scroll', () => {
+    const nav = document.querySelector('.nav');
+    nav.style.borderBottomColor = window.scrollY > 50 ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)';
+  });
+
+  // Smooth scroll for anchor links
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const target = document.querySelector(a.getAttribute('href'));
+      if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    });
+  });
+</script>
 </body>
 </html>
