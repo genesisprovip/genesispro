@@ -13,13 +13,14 @@ import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS } from '@/constants/theme';
 
-const FREE_PREVIEW_SECONDS = 15 * 60; // 15 minutes
+const DEFAULT_PREVIEW_MINUTES = 5;
 
 interface LiveStreamViewerProps {
   hlsUrl: string;
   isLive: boolean;
   viewersCount: number;
   calidad: string;
+  previewMinutos?: number | null;
   onFullscreen?: () => void;
   userPlan?: 'free' | 'basico' | 'pro' | 'premium';
 }
@@ -29,6 +30,7 @@ export default function LiveStreamViewer({
   isLive,
   viewersCount,
   calidad,
+  previewMinutos,
   onFullscreen,
   userPlan = 'free',
 }: LiveStreamViewerProps) {
@@ -36,10 +38,11 @@ export default function LiveStreamViewer({
   const videoViewRef = useRef<VideoView>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [playerStatus, setPlayerStatus] = useState<'buffering' | 'playing' | 'error'>('buffering');
-  const [previewTimeLeft, setPreviewTimeLeft] = useState(FREE_PREVIEW_SECONDS);
+  const previewSeconds = (previewMinutos ?? DEFAULT_PREVIEW_MINUTES) * 60;
+  const [previewTimeLeft, setPreviewTimeLeft] = useState(previewSeconds);
   const [previewExpired, setPreviewExpired] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const isFreeUser = userPlan === 'free';
+  const isFreeUser = previewMinutos !== null && previewMinutos !== undefined ? true : userPlan === 'free';
 
   // Native video player via expo-video (ExoPlayer on Android, AVPlayer on iOS)
   // Use source object with buffering hints for low latency

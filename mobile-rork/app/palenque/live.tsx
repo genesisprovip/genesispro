@@ -627,6 +627,7 @@ export default function LiveEventScreen() {
             isLive={streamInfo.isLive}
             viewersCount={streamInfo.viewersCount}
             calidad={streamInfo.calidad}
+            previewMinutos={streamInfo.previewMinutos}
             userPlan={isPublic ? 'free' : 'premium'}
           />
         </View>
