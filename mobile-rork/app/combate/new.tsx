@@ -14,7 +14,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronLeft, Trophy, Calendar, MapPin, Scale, Clock, DollarSign } from 'lucide-react-native';
+import { ChevronLeft, Trophy, Calendar, MapPin, Scale, Clock } from 'lucide-react-native';
 import { useAves } from '@/context/AvesContext';
 import { useCombates } from '@/context/CombatesContext';
 import { COLORS } from '@/constants/colors';
@@ -38,8 +38,6 @@ export default function NuevoCombateScreen() {
   const [resultado, setResultado] = useState<Resultado>('pendiente');
   const [duracionMinutos, setDuracionMinutos] = useState('');
   const [tipoVictoria, setTipoVictoria] = useState('');
-  const [apostado, setApostado] = useState('');
-  const [ganado, setGanado] = useState('');
   const [notas, setNotas] = useState('');
 
   const machos = aves.filter(ave => ave.sexo === 'M' && ave.estado === 'activo');
@@ -78,15 +76,13 @@ export default function NuevoCombateScreen() {
       const combateData = {
         macho_id: selectedAveId,
         fecha,
-        lugar: lugar.trim(),
-        oponente_info: oponenteInfo.trim() || undefined,
-        peso_pelea: parseFloat(pesoAve),
+        ubicacion: lugar.trim(),
+        oponente_codigo: oponenteInfo.trim() || undefined,
+        peso_combate: parseFloat(pesoAve),
         peso_oponente: pesoOponente ? parseFloat(pesoOponente) : undefined,
         resultado,
         duracion_minutos: duracionMinutos ? parseInt(duracionMinutos) : undefined,
         tipo_victoria: tipoVictoria.trim() || undefined,
-        monto_apuesta: apostado ? parseFloat(apostado) : undefined,
-        monto_ganado: ganado ? parseFloat(ganado) : undefined,
         notas: notas.trim() || undefined,
       };
 
@@ -295,39 +291,6 @@ export default function NuevoCombateScreen() {
                 onChangeText={setDuracionMinutos}
                 keyboardType="number-pad"
               />
-            </View>
-          </View>
-
-          {/* Apuestas */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Apuestas (opcional)</Text>
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, styles.halfInput]}>
-                <View style={styles.inputIcon}>
-                  <DollarSign size={20} color={COLORS.textSecondary} />
-                </View>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Apostado"
-                  placeholderTextColor={COLORS.textSecondary}
-                  value={apostado}
-                  onChangeText={setApostado}
-                  keyboardType="decimal-pad"
-                />
-              </View>
-              <View style={[styles.inputGroup, styles.halfInput]}>
-                <View style={styles.inputIcon}>
-                  <DollarSign size={20} color={COLORS.success} />
-                </View>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ganado"
-                  placeholderTextColor={COLORS.textSecondary}
-                  value={ganado}
-                  onChangeText={setGanado}
-                  keyboardType="decimal-pad"
-                />
-              </View>
             </View>
           </View>
 

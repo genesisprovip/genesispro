@@ -47,7 +47,7 @@ export default function WebRTCPlayer({
   </style>
 </head>
 <body>
-  <video id="player" autoplay playsinline muted></video>
+  <video id="player" autoplay playsinline></video>
   <div class="connecting" id="status">Conectando WebRTC...</div>
   <script>
     const SIGNALING_URL = '${signalingUrl}';
@@ -97,7 +97,16 @@ export default function WebRTCPlayer({
             pc.ontrack = (e) => {
               if (e.streams && e.streams[0]) {
                 video.srcObject = e.streams[0];
-                video.play().catch(() => {});
+                video.muted = false;
+                video.play().then(() => {
+                  // Unmuted playback started
+                }).catch(() => {
+                  // Autoplay policy blocked unmuted, try muted first then unmute
+                  video.muted = true;
+                  video.play().then(() => {
+                    setTimeout(() => { video.muted = false; }, 500);
+                  }).catch(() => {});
+                });
                 status.style.display = 'none';
                 sendToApp('ready');
               }

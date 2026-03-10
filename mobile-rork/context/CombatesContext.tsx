@@ -8,17 +8,21 @@ export interface Combate {
   ave_id: string;
   macho_id?: string;
   fecha: string;
-  lugar: string;
-  oponente_info?: string;
-  peso_ave: number;
+  ubicacion: string;
+  oponente_codigo?: string;
+  peso_combate: number;
   peso_oponente?: number;
-  resultado: 'victoria' | 'derrota' | 'empate' | 'pendiente';
+  resultado: 'victoria' | 'derrota' | 'empate' | 'pendiente' | 'cancelado';
   duracion_minutos?: number;
   tipo_victoria?: string;
-  apostado?: number;
-  ganado?: number;
   notas?: string;
   created_at: string;
+  // Legacy aliases (local data may still use these)
+  lugar?: string;
+  oponente_info?: string;
+  peso_ave?: number;
+  apostado?: number;
+  ganado?: number;
 }
 
 interface CombatesStats {

@@ -142,9 +142,9 @@ export default function SaludDetailScreen() {
                   : `Próxima dosis en ${diasProxima} días`}
               </Text>
               <Text style={styles.alertDate}>
-                {new Date(registro.fecha_proxima).toLocaleDateString('es-ES', {
+                {registro.fecha_proxima ? new Date(registro.fecha_proxima).toLocaleDateString('es-ES', {
                   weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-                })}
+                }) : '-'}
               </Text>
             </View>
           </View>
@@ -155,9 +155,9 @@ export default function SaludDetailScreen() {
           <DetailCard
             icon={<Calendar size={18} color={COLORS.primary} />}
             label="Fecha"
-            value={new Date(registro.fecha).toLocaleDateString('es-ES', {
+            value={registro.fecha ? new Date(registro.fecha).toLocaleDateString('es-ES', {
               day: 'numeric', month: 'long', year: 'numeric'
-            })}
+            }) : 'Sin fecha'}
           />
           {registro.veterinario && (
             <DetailCard

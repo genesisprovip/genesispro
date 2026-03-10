@@ -360,7 +360,7 @@ export default function CalendarioScreen() {
                       )}
                       <View style={styles.eventCardMeta}>
                         <Text style={styles.eventCardType}>
-                          {evento.tipo.charAt(0).toUpperCase() + evento.tipo.slice(1)}
+                          {(evento.tipo || 'otro').charAt(0).toUpperCase() + (evento.tipo || 'otro').slice(1)}
                         </Text>
                         {evento.ave_codigo && (
                           <Text style={styles.eventCardAve}>{evento.ave_codigo}</Text>

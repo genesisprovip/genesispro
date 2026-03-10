@@ -146,6 +146,19 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="forgot-password"
+        options={{
+          headerShown: false,
+          presentation: 'fullScreenModal'
+        }}
+      />
+      <Stack.Screen
+        name="empresario"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="empresario/dashboard"
         options={{
           headerShown: false,

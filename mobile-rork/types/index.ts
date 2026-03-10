@@ -16,6 +16,13 @@ export interface User {
   plan_empresario?: 'empresario_basico' | 'empresario_pro' | 'empresario_premium' | null;
 }
 
+export interface ComposicionGenetica {
+  linea: string;
+  fraccion: string;
+  decimal: number;
+  via?: string; // 'padre', 'madre', 'padre+madre', 'puro'
+}
+
 export interface Ave {
   id: string;
   codigo_identidad: string;
@@ -33,7 +40,15 @@ export interface Ave {
   notas?: string;
   padre_id?: string;
   madre_id?: string;
+  // Composición genética
+  composicion_genetica?: ComposicionGenetica[];
+  es_puro?: boolean;
+  // Origen
   criadero_origen?: string;
+  criador_nombre?: string;
+  fecha_adquisicion?: string;
+  tipo_adquisicion?: 'cria_propia' | 'compra' | 'regalo' | 'intercambio';
+  notas_origen?: string;
   created_at: string;
   updated_at: string;
 }
@@ -42,17 +57,19 @@ export interface Combate {
   id: string;
   ave_id: string;
   fecha: string;
-  lugar: string;
-  oponente_info?: string;
-  peso_ave: number;
+  ubicacion: string;
+  oponente_codigo?: string;
+  peso_combate: number;
   peso_oponente?: number;
   resultado: 'victoria' | 'derrota' | 'empate' | 'cancelado';
   duracion_minutos?: number;
   tipo_victoria?: string;
-  apostado?: number;
-  ganado?: number;
   notas?: string;
   created_at: string;
+  // Legacy aliases (local data may still use these)
+  lugar?: string;
+  oponente_info?: string;
+  peso_ave?: number;
 }
 
 export interface RegistroSalud {

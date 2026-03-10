@@ -8,6 +8,7 @@ import {
   Switch,
   Alert,
   Platform,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,7 +23,6 @@ import {
   HelpCircle,
   MessageCircle,
   ChevronRight,
-  Database,
   Wifi,
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
@@ -201,12 +201,6 @@ export default function SettingsScreen() {
             value={offlineMode}
             onToggle={handleToggleOffline}
           />
-          <View style={styles.divider} />
-          <LinkRow
-            icon={<Database size={20} color={COLORS.accent} />}
-            label="Almacenamiento"
-            subtitle="Gestionar datos locales"
-          />
         </View>
 
         {/* Legal */}
@@ -216,12 +210,14 @@ export default function SettingsScreen() {
             icon={<Shield size={20} color={COLORS.success} />}
             label="Politica de Privacidad"
             subtitle="Como manejamos tus datos"
+            onPress={() => Linking.openURL('https://api.genesispro.vip/privacidad')}
           />
           <View style={styles.divider} />
           <LinkRow
             icon={<FileText size={20} color={COLORS.textSecondary} />}
             label="Terminos y Condiciones"
             subtitle="Condiciones de uso"
+            onPress={() => Linking.openURL('https://api.genesispro.vip/terminos')}
           />
         </View>
 
@@ -232,18 +228,20 @@ export default function SettingsScreen() {
             icon={<HelpCircle size={20} color={COLORS.info} />}
             label="Centro de Ayuda"
             subtitle="Preguntas frecuentes"
+            onPress={() => Linking.openURL('https://api.genesispro.vip/ayuda')}
           />
           <View style={styles.divider} />
           <LinkRow
             icon={<MessageCircle size={20} color={COLORS.primary} />}
             label="Contactar Soporte"
             subtitle="Enviar un mensaje"
+            onPress={() => Linking.openURL('mailto:soporte@genesispro.vip')}
           />
         </View>
 
         {/* App Info */}
         <View style={styles.appInfo}>
-          <Text style={styles.appInfoText}>GenesisPro v1.2.0</Text>
+          <Text style={styles.appInfoText}>GenesisPro v1.8.2</Text>
           <Text style={styles.appInfoSub}>Gestion avicola profesional</Text>
         </View>
       </ScrollView>
@@ -278,14 +276,15 @@ function ToggleRow({
 }
 
 function LinkRow({
-  icon, label, subtitle,
+  icon, label, subtitle, onPress,
 }: {
   icon: React.ReactNode;
   label: string;
   subtitle: string;
+  onPress?: () => void;
 }) {
   return (
-    <TouchableOpacity style={styles.row} activeOpacity={0.7}>
+    <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={onPress}>
       <View style={styles.rowIcon}>{icon}</View>
       <View style={styles.rowContent}>
         <Text style={styles.rowLabel}>{label}</Text>

@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Linking,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -23,6 +24,10 @@ import {
   MapPin,
   DollarSign,
   Trash2,
+  Dna,
+  FileDown,
+  Home,
+  User,
 } from 'lucide-react-native';
 import { useAves } from '@/context/AvesContext';
 import { useCombates } from '@/context/CombatesContext';
@@ -30,6 +35,16 @@ import { useSalud } from '@/context/SaludContext';
 import GenealogyTree from '@/components/aves/GenealogyTree';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
+import api from '@/services/api';
+
+const GENETIC_COLORS = ['#10B981', '#F59E0B', '#6366F1', '#EF4444', '#3B82F6', '#EC4899', '#14B8A6', '#8B5CF6'];
+
+const TIPO_ADQUISICION_LABELS: Record<string, string> = {
+  'cria_propia': 'Cría Propia',
+  'compra': 'Compra',
+  'regalo': 'Regalo',
+  'intercambio': 'Intercambio',
+};
 
 export default function AveDetailScreen() {
   const router = useRouter();
@@ -240,7 +255,7 @@ export default function AveDetailScreen() {
             <InfoCard
               icon={<DollarSign size={18} color={COLORS.success} />}
               label="Precio venta"
-              value={ave.precio_venta ? `$${ave.precio_venta.toLocaleString()}` : 'Consultar'}
+              value={ave.precio_venta ? `$${Number(ave.precio_venta).toLocaleString()}` : 'Consultar'}
             />
           )}
         </View>
@@ -252,6 +267,113 @@ export default function AveDetailScreen() {
             <Text style={styles.notasText}>{ave.notas}</Text>
           </View>
         )}
+
+        {/* Composición Genética */}
+        {ave.composicion_genetica && ave.composicion_genetica.length > 0 && (
+          <View style={[styles.section, SHADOWS.sm]}>
+            <View style={styles.sectionHeader}>
+              <Dna size={18} color={COLORS.accent} />
+              <Text style={styles.sectionTitle}>Composición Genética</Text>
+              {ave.es_puro && (
+                <View style={styles.puroBadge}>
+                  <Text style={styles.puroBadgeText}>PURO</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Barra visual de composición */}
+            <View style={styles.composicionBar}>
+              {ave.composicion_genetica.map((comp, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.composicionBarSegment,
+                    {
+                      flex: comp.decimal,
+                      backgroundColor: GENETIC_COLORS[i % GENETIC_COLORS.length],
+                      borderTopLeftRadius: i === 0 ? 6 : 0,
+                      borderBottomLeftRadius: i === 0 ? 6 : 0,
+                      borderTopRightRadius: i === ave.composicion_genetica!.length - 1 ? 6 : 0,
+                      borderBottomRightRadius: i === ave.composicion_genetica!.length - 1 ? 6 : 0,
+                    },
+                  ]}
+                />
+              ))}
+            </View>
+
+            {/* Detalle por línea */}
+            {ave.composicion_genetica.map((comp, i) => (
+              <View key={i} style={styles.composicionRow}>
+                <View style={[styles.composicionDot, { backgroundColor: GENETIC_COLORS[i % GENETIC_COLORS.length] }]} />
+                <Text style={styles.composicionLinea}>{comp.linea}</Text>
+                <Text style={styles.composicionFraccion}>{comp.fraccion}</Text>
+                <Text style={styles.composicionPct}>{Math.round(comp.decimal * 100)}%</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Origen y Procedencia */}
+        {((ave as any).criador_nombre || (ave as any).tipo_adquisicion || (ave as any).notas_origen) && (
+          <View style={[styles.section, SHADOWS.sm]}>
+            <View style={styles.sectionHeader}>
+              <Home size={18} color={COLORS.info} />
+              <Text style={styles.sectionTitle}>Origen</Text>
+            </View>
+            {(ave as any).tipo_adquisicion && (
+              <View style={styles.origenRow}>
+                <Text style={styles.origenLabel}>Adquisición</Text>
+                <Text style={styles.origenValue}>{TIPO_ADQUISICION_LABELS[(ave as any).tipo_adquisicion] || (ave as any).tipo_adquisicion}</Text>
+              </View>
+            )}
+            {ave.criadero_origen && (
+              <View style={styles.origenRow}>
+                <Text style={styles.origenLabel}>Criadero</Text>
+                <Text style={styles.origenValue}>{ave.criadero_origen}</Text>
+              </View>
+            )}
+            {(ave as any).criador_nombre && (
+              <View style={styles.origenRow}>
+                <Text style={styles.origenLabel}>Criador</Text>
+                <Text style={styles.origenValue}>{(ave as any).criador_nombre}</Text>
+              </View>
+            )}
+            {(ave as any).fecha_adquisicion && (
+              <View style={styles.origenRow}>
+                <Text style={styles.origenLabel}>Fecha</Text>
+                <Text style={styles.origenValue}>
+                  {new Date((ave as any).fecha_adquisicion).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </Text>
+              </View>
+            )}
+            {(ave as any).notas_origen && (
+              <View style={[styles.origenRow, { borderBottomWidth: 0 }]}>
+                <Text style={styles.origenLabel}>Notas</Text>
+                <Text style={[styles.origenValue, { flex: 1 }]}>{(ave as any).notas_origen}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Botón Pedigree */}
+        <TouchableOpacity
+          style={[styles.pedigreeButton, SHADOWS.sm]}
+          onPress={async () => {
+            const url = await api.getAvePedigreeUrl(ave.id);
+            Linking.openURL(url);
+          }}
+          activeOpacity={0.8}
+        >
+          <LinearGradient
+            colors={[COLORS.accent, '#4F46E5']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.pedigreeButtonGradient}
+          >
+            <FileDown size={20} color="#fff" />
+            <Text style={styles.pedigreeButtonText}>Descargar Pedigree PDF</Text>
+          </LinearGradient>
+        </TouchableOpacity>
 
         {/* Genealogy Tree */}
         <View style={styles.genealogySection}>
@@ -280,15 +402,15 @@ export default function AveDetailScreen() {
                   ]} />
                   <View style={styles.historyContent}>
                     <Text style={styles.historyResult}>
-                      {combate.resultado.charAt(0).toUpperCase() + combate.resultado.slice(1)}
+                      {(combate.resultado || 'pendiente').charAt(0).toUpperCase() + (combate.resultado || 'pendiente').slice(1)}
                     </Text>
                     <Text style={styles.historyMeta}>
-                      {new Date(combate.fecha).toLocaleDateString('es-ES')}
-                      {combate.lugar ? ` • ${combate.lugar}` : ''}
-                      {combate.oponente_info ? ` vs ${combate.oponente_info}` : ''}
+                      {combate.fecha ? new Date(combate.fecha).toLocaleDateString('es-ES') : 'Sin fecha'}
+                      {combate.ubicacion ? ` • ${combate.ubicacion}` : ''}
+                      {combate.oponente_codigo ? ` vs ${combate.oponente_codigo}` : ''}
                     </Text>
                   </View>
-                  <Text style={styles.historyWeight}>{combate.peso_ave}g</Text>
+                  <Text style={styles.historyWeight}>{combate.peso_combate || combate.peso_ave || '-'}g</Text>
                 </View>
               );
             })}
@@ -309,7 +431,7 @@ export default function AveDetailScreen() {
                 <View style={styles.historyContent}>
                   <Text style={styles.historyResult}>{registro.nombre}</Text>
                   <Text style={styles.historyMeta}>
-                    {registro.tipo} • {new Date(registro.fecha).toLocaleDateString('es-ES')}
+                    {registro.tipo} • {registro.fecha ? new Date(registro.fecha).toLocaleDateString('es-ES') : 'Sin fecha'}
                   </Text>
                 </View>
               </View>
@@ -583,5 +705,98 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: COLORS.textSecondary,
+  },
+  // Composición genética
+  composicionBar: {
+    flexDirection: 'row',
+    height: 12,
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginBottom: SPACING.md,
+  },
+  composicionBarSegment: {
+    height: '100%',
+  },
+  composicionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    gap: 8,
+  },
+  composicionDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  composicionLinea: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  composicionFraccion: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.text,
+    width: 36,
+    textAlign: 'right',
+  },
+  composicionPct: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    width: 36,
+    textAlign: 'right',
+  },
+  puroBadge: {
+    backgroundColor: COLORS.accent + '20',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.accent + '40',
+  },
+  puroBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.accent,
+    letterSpacing: 1,
+  },
+  // Origen
+  origenRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.divider,
+  },
+  origenLabel: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+    marginRight: SPACING.md,
+  },
+  origenValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  // Pedigree button
+  pedigreeButton: {
+    borderRadius: BORDER_RADIUS.lg,
+    overflow: 'hidden',
+    marginBottom: SPACING.md,
+  },
+  pedigreeButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 14,
+  },
+  pedigreeButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
   },
 });

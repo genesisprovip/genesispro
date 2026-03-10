@@ -10,12 +10,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
-import { Mail, Lock, User, Eye, EyeOff, ChevronLeft } from 'lucide-react-native';
+import { Mail, Lock, User, Eye, EyeOff, ChevronLeft, Check } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS } from '@/constants/theme';
@@ -32,6 +33,7 @@ export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('pro');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const handleRegister = async () => {
     if (!nombre.trim()) {
@@ -52,6 +54,10 @@ export default function RegisterScreen() {
     }
     if (password !== confirmPassword) {
       Alert.alert('Error', 'Las contraseñas no coinciden');
+      return;
+    }
+    if (!acceptedTerms) {
+      Alert.alert('Términos', 'Debes aceptar los Términos y Condiciones para continuar');
       return;
     }
 
@@ -223,6 +229,33 @@ export default function RegisterScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            {/* Terms checkbox */}
+            <TouchableOpacity
+              style={styles.termsRow}
+              onPress={() => setAcceptedTerms(!acceptedTerms)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.termsCheckbox, acceptedTerms && styles.termsCheckboxChecked]}>
+                {acceptedTerms && <Check size={14} color="#fff" />}
+              </View>
+              <Text style={styles.termsText}>
+                Acepto los{' '}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => Linking.openURL('https://api.genesispro.vip/terminos')}
+                >
+                  Términos y Condiciones
+                </Text>
+                {' '}y la{' '}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => Linking.openURL('https://api.genesispro.vip/privacidad')}
+                >
+                  Política de Privacidad
+                </Text>
+              </Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.registerButton, isLoading && styles.registerButtonDisabled]}
@@ -446,5 +479,35 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: 4,
     textAlign: 'center',
+  },
+  termsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: SPACING.md,
+    gap: 10,
+  },
+  termsCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 1,
+  },
+  termsCheckboxChecked: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  termsText: {
+    flex: 1,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
+  },
+  termsLink: {
+    color: COLORS.primary,
+    fontWeight: '600',
   },
 });

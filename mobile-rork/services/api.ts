@@ -180,6 +180,13 @@ class ApiService {
     return this.request<{ success: boolean; data: { user: any; limites: any } }>('/auth/me');
   }
 
+  async updateProfile(data: { nombre?: string; telefono?: string }) {
+    return this.request<{ success: boolean; message: string; data: { user: any } }>('/auth/me', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Password Recovery
   async forgotPassword(email: string) {
     return this.request<{ success: boolean; message: string }>('/auth/forgot-password', {
@@ -255,6 +262,18 @@ class ApiService {
     return this.request<{ success: boolean }>(`/aves/${id}`, {
       method: 'DELETE',
     }, 'Eliminar ave');
+  }
+
+  async getAvePedigreeUrl(id: string): Promise<string> {
+    return `${API_URL}/aves/${id}/pedigree`;
+  }
+
+  async getAveGenealogia(id: string) {
+    return this.request<{ success: boolean; data: any }>(`/aves/${id}/genealogia`);
+  }
+
+  async getAveDescendencia(id: string) {
+    return this.request<{ success: boolean; data: any }>(`/aves/${id}/descendencia`);
   }
 
   // Combates

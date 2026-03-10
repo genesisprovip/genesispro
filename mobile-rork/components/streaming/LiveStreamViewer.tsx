@@ -74,7 +74,7 @@ export default function LiveStreamViewer({
     p.loop = false;
     p.muted = false;
     // Minimize buffer for lower latency on live streams
-    p.preferredForwardBufferDuration = 2; // Only buffer 2 seconds ahead
+    (p as any).preferredForwardBufferDuration = 2; // Only buffer 2 seconds ahead
     p.play();
   });
 

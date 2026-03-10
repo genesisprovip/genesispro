@@ -5,7 +5,8 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Alert
+  Alert,
+  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -14,9 +15,7 @@ import { Image } from 'expo-image';
 import {
   User,
   Settings,
-  Bell,
   Shield,
-  HelpCircle,
   FileText,
   LogOut,
   ChevronRight,
@@ -27,6 +26,8 @@ import {
   Smartphone,
   Trophy,
   Radio,
+  LifeBuoy,
+  MessageCircle,
 } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { COLORS } from '@/constants/colors';
@@ -94,7 +95,7 @@ export default function MoreScreen() {
           icon: <Radio size={20} color={COLORS.error} />,
           label: 'Transmitir En Vivo',
           subtitle: 'Inicia un stream desde tu evento',
-          onPress: () => router.push('/empresario/dashboard'),
+          onPress: () => router.push('/empresario/broadcast'),
         },
       ],
     }] : []),
@@ -146,26 +147,9 @@ export default function MoreScreen() {
           badgeColor: COLORS.secondary,
         },
         {
-          icon: <Bell size={20} color={COLORS.primary} />,
-          label: 'Notificaciones',
-          subtitle: 'Configurar alertas',
-          onPress: () => router.push('/settings'),
-        },
-      ],
-    },
-    {
-      title: 'Configuración',
-      items: [
-        {
           icon: <Settings size={20} color={COLORS.textSecondary} />,
           label: 'Ajustes',
-          subtitle: 'Preferencias de la app',
-          onPress: () => router.push('/settings'),
-        },
-        {
-          icon: <Shield size={20} color={COLORS.success} />,
-          label: 'Privacidad',
-          subtitle: 'Seguridad y datos',
+          subtitle: 'Preferencias y notificaciones',
           onPress: () => router.push('/settings'),
         },
       ],
@@ -174,15 +158,33 @@ export default function MoreScreen() {
       title: 'Soporte',
       items: [
         {
-          icon: <HelpCircle size={20} color={COLORS.info} />,
-          label: 'Ayuda',
-          subtitle: 'Centro de ayuda',
-          onPress: () => router.push('/settings'),
+          icon: <LifeBuoy size={20} color={COLORS.primary} />,
+          label: 'Centro de Ayuda',
+          subtitle: 'Preguntas frecuentes y guias',
+          onPress: () => Linking.openURL('https://api.genesispro.vip/ayuda'),
         },
         {
+          icon: <MessageCircle size={20} color={COLORS.info} />,
+          label: 'Contactar Soporte',
+          subtitle: 'soporte@genesispro.vip',
+          onPress: () => Linking.openURL('mailto:soporte@genesispro.vip'),
+        },
+      ],
+    },
+    {
+      title: 'Legal',
+      items: [
+        {
           icon: <FileText size={20} color={COLORS.textSecondary} />,
-          label: 'Términos y Condiciones',
-          onPress: () => router.push('/settings'),
+          label: 'Terminos y Condiciones',
+          subtitle: 'Uso del servicio',
+          onPress: () => Linking.openURL('https://api.genesispro.vip/terminos'),
+        },
+        {
+          icon: <Shield size={20} color={COLORS.success} />,
+          label: 'Aviso de Privacidad',
+          subtitle: 'Proteccion de datos',
+          onPress: () => Linking.openURL('https://api.genesispro.vip/privacidad'),
         },
       ],
     },
@@ -216,7 +218,7 @@ export default function MoreScreen() {
           <View style={{ flex: 1 }} />
           <TouchableOpacity style={styles.planButton} onPress={() => router.push('/subscription')}>
             <Text style={styles.planButtonText}>
-              {user?.plan === 'gratuito' || user?.plan === 'basico' ? 'Mejorar' : 'Gestionar'}
+              {!user?.plan || user.plan === 'basico' ? 'Mejorar' : 'Gestionar'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -275,7 +277,7 @@ export default function MoreScreen() {
 
         <View style={styles.footer}>
           <Smartphone size={14} color={COLORS.textDisabled} />
-          <Text style={styles.versionText}>GenesisPro v1.1.0</Text>
+          <Text style={styles.versionText}>GenesisPro v1.8.2</Text>
         </View>
       </ScrollView>
     </View>

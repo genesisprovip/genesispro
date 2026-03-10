@@ -21,7 +21,7 @@ import {
   Users,
   Swords,
   ChevronRight,
-  BarChart3,
+  ChartColumn,
   Settings,
   Globe,
   Lock,
@@ -52,8 +52,11 @@ interface EmpresarioStatus {
   plan: string | null;
   hasSubscription: boolean;
   isActive: boolean;
+  fechaExpiracion?: string | null;
+  currentPriceId?: string | null;
   eventosEsteMes: number;
   limiteEventos: number | null;
+  estadisticasEvento?: boolean;
   streamingEnVivo: boolean;
   maxEventosSimultaneos: number | null;
 }
@@ -83,7 +86,11 @@ export default function EmpresarioDashboard() {
         api.getEventos(),
         api.getActiveStreams().catch(() => null),
       ]);
-      if (statusRes.success) setStatus(statusRes.data);
+      if (statusRes.success) setStatus({
+        streamingEnVivo: false,
+        maxEventosSimultaneos: null,
+        ...statusRes.data,
+      });
       if (eventosRes.success) setEventos(eventosRes.data);
       if (streamsRes?.success && streamsRes.data?.streams) {
         setActiveStreamIds(new Set(streamsRes.data.streams.map((s: any) => s.evento_id)));
@@ -162,7 +169,7 @@ export default function EmpresarioDashboard() {
     }
   };
 
-  const planLabel = (plan: string | null) => {
+  const planLabel = (plan: string | null | undefined) => {
     const labels: Record<string, string> = {
       empresario_basico: 'Basico',
       empresario_pro: 'Pro',

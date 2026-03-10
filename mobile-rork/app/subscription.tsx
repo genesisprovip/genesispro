@@ -15,7 +15,7 @@ import { Crown, Star, Zap, Check, ChevronLeft } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
-import { api } from '@/services/api';
+import api from '@/services/api';
 
 interface PlanInfo {
   id: 'basico' | 'pro' | 'premium';

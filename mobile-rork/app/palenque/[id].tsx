@@ -261,11 +261,11 @@ export default function PalenqueDetalleScreen() {
           <View style={styles.headerDetailItem}>
             <Calendar size={14} color="rgba(255,255,255,0.6)" />
             <Text style={styles.headerDetailText}>
-              {new Date(evento.fecha).toLocaleDateString('es-ES', {
+              {evento.fecha ? new Date(evento.fecha).toLocaleDateString('es-ES', {
                 day: 'numeric',
                 month: 'long',
                 year: 'numeric',
-              })}
+              }) : 'Sin fecha'}
             </Text>
           </View>
           <View style={styles.headerDetailItem}>
@@ -483,7 +483,7 @@ export default function PalenqueDetalleScreen() {
             <View key={p.id} style={styles.participanteRow}>
               <View style={styles.participanteAvatar}>
                 <Text style={styles.participanteInitial}>
-                  {p.nombre.charAt(0)}
+                  {(p.nombre || '?').charAt(0)}
                 </Text>
               </View>
               <View style={styles.participanteInfo}>

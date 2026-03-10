@@ -111,7 +111,12 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
           ]);
 
           if (alimentosRes?.data) {
-            const mapped = alimentosRes.data.map((a: any) => ({ ...a, id: String(a.id) }));
+            const mapped = alimentosRes.data.map((a: any) => ({
+              ...a,
+              id: String(a.id),
+              cantidad: Number(a.cantidad) || 0,
+              precio_unitario: a.precio_unitario ? Number(a.precio_unitario) : undefined,
+            }));
             setAlimentos(mapped);
             await AsyncStorage.setItem(STORAGE_KEYS.alimentos, JSON.stringify(mapped));
           }
@@ -119,6 +124,7 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
             const mapped = registrosRes.data.map((r: any) => ({
               ...r,
               id: String(r.id),
+              cantidad: Number(r.cantidad) || 0,
               fecha: (r.fecha || '').split('T')[0],
             }));
             setRegistros(mapped);
@@ -171,7 +177,7 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
   const stats = useMemo((): AlimentacionStats => {
     const hoy = new Date().toISOString().split('T')[0];
 
-    const alimentosBajoStock = alimentos.filter(a => a.cantidad < 5).length;
+    const alimentosBajoStock = alimentos.filter(a => Number(a.cantidad) < 5).length;
     const registrosHoy = registros.filter(r => r.fecha === hoy).length;
 
     // Calcular gasto mensual
@@ -179,7 +185,7 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
     inicioMes.setDate(1);
     const gastoMensual = alimentos
       .filter(a => a.fecha_compra && new Date(a.fecha_compra) >= inicioMes)
-      .reduce((acc, a) => acc + ((a.precio_unitario || 0) * a.cantidad), 0);
+      .reduce((acc, a) => acc + ((Number(a.precio_unitario) || 0) * (Number(a.cantidad) || 0)), 0);
 
     return {
       totalAlimentos: alimentos.length,

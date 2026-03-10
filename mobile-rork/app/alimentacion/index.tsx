@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -20,11 +21,11 @@ import {
   AlertTriangle,
   Calendar,
   Trash2,
-  Edit,
 } from 'lucide-react-native';
 import { useAlimentacion, Alimento, RegistroAlimentacion, Dieta } from '@/context/AlimentacionContext';
+import { useAves } from '@/context/AvesContext';
 import { COLORS } from '@/constants/colors';
-import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS } from '@/constants/theme';
 
 type TabType = 'inventario' | 'registros' | 'dietas';
 
@@ -42,6 +43,7 @@ export default function AlimentacionScreen() {
     deleteDieta,
     refreshData,
   } = useAlimentacion();
+  const { getAveById } = useAves();
 
   const [activeTab, setActiveTab] = useState<TabType>('inventario');
   const [refreshing, setRefreshing] = useState(false);
@@ -134,8 +136,8 @@ export default function AlimentacionScreen() {
           <View key={alimento.id} style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={[styles.tipoBadge, { backgroundColor: getTipoColor(alimento.tipo) + '20' }]}>
-                <Text style={[styles.tipoBadgeText, { color: getTipoColor(alimento.tipo) }]}>
-                  {alimento.tipo.charAt(0).toUpperCase() + alimento.tipo.slice(1)}
+                <Text style={[styles.tipoBadgeText, { color: getTipoColor(alimento.tipo || 'otro') }]}>
+                  {(alimento.tipo || 'otro').charAt(0).toUpperCase() + (alimento.tipo || 'otro').slice(1)}
                 </Text>
               </View>
               <TouchableOpacity
@@ -151,17 +153,17 @@ export default function AlimentacionScreen() {
                 <Text style={styles.detailLabel}>Cantidad:</Text>
                 <Text style={[
                   styles.detailValue,
-                  alimento.cantidad < 5 && styles.lowStock
+                  Number(alimento.cantidad) < 5 && styles.lowStock
                 ]}>
                   {alimento.cantidad} {alimento.unidad}
-                  {alimento.cantidad < 5 && ' ⚠️'}
+                  {Number(alimento.cantidad) < 5 && ' ⚠️'}
                 </Text>
               </View>
-              {alimento.precio_unitario && (
+              {alimento.precio_unitario != null && (
                 <View style={styles.detailRow}>
                   <Text style={styles.detailLabel}>Precio:</Text>
                   <Text style={styles.detailValue}>
-                    ${alimento.precio_unitario.toFixed(2)}/{alimento.unidad}
+                    ${Number(alimento.precio_unitario).toFixed(2)}/{alimento.unidad}
                   </Text>
                 </View>
               )}
@@ -199,8 +201,8 @@ export default function AlimentacionScreen() {
           <View key={registro.id} style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={[styles.tipoBadge, { backgroundColor: getTipoComidaColor(registro.tipo_comida) + '20' }]}>
-                <Text style={[styles.tipoBadgeText, { color: getTipoComidaColor(registro.tipo_comida) }]}>
-                  {registro.tipo_comida.charAt(0).toUpperCase() + registro.tipo_comida.slice(1)}
+                <Text style={[styles.tipoBadgeText, { color: getTipoComidaColor(registro.tipo_comida || 'otro') }]}>
+                  {(registro.tipo_comida || 'otro').charAt(0).toUpperCase() + (registro.tipo_comida || 'otro').slice(1)}
                 </Text>
               </View>
               <TouchableOpacity
@@ -211,6 +213,11 @@ export default function AlimentacionScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.cardTitle}>{registro.alimento_nombre}</Text>
+            {registro.ave_id && (
+              <Text style={styles.aveIdentifier}>
+                Ave: {getAveById(registro.ave_id)?.codigo_identidad || registro.ave_id}
+              </Text>
+            )}
             <View style={styles.cardDetails}>
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Cantidad:</Text>
@@ -267,6 +274,11 @@ export default function AlimentacionScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.cardTitle}>{dieta.nombre}</Text>
+            {dieta.ave_id && (
+              <Text style={styles.aveIdentifier}>
+                Ave: {getAveById(dieta.ave_id)?.codigo_identidad || dieta.ave_id}
+              </Text>
+            )}
             {dieta.descripcion && (
               <Text style={styles.descripcionText}>{dieta.descripcion}</Text>
             )}
@@ -325,7 +337,7 @@ export default function AlimentacionScreen() {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>${stats.gastoMensual.toFixed(0)}</Text>
+            <Text style={styles.statValue}>${(Number(stats.gastoMensual) || 0).toFixed(0)}</Text>
             <Text style={styles.statLabel}>Este Mes</Text>
           </View>
         </View>
@@ -372,23 +384,29 @@ export default function AlimentacionScreen() {
         </View>
       )}
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[COLORS.warning]}
-            tintColor={COLORS.warning}
-          />
-        }
-      >
-        {activeTab === 'inventario' && renderInventario()}
-        {activeTab === 'registros' && renderRegistros()}
-        {activeTab === 'dietas' && renderDietas()}
-      </ScrollView>
+      {isLoading && !refreshing ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.warning} />
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.warning]}
+              tintColor={COLORS.warning}
+            />
+          }
+        >
+          {activeTab === 'inventario' && renderInventario()}
+          {activeTab === 'registros' && renderRegistros()}
+          {activeTab === 'dietas' && renderDietas()}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -504,6 +522,11 @@ const styles = StyleSheet.create({
     color: COLORS.warning,
     fontWeight: '500',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   scrollView: {
     flex: 1,
   },
@@ -585,6 +608,12 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     fontStyle: 'italic',
     marginTop: SPACING.xs,
+  },
+  aveIdentifier: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: '500',
+    marginBottom: SPACING.xs,
   },
   descripcionText: {
     fontSize: 13,

@@ -179,10 +179,10 @@ export default function CombatesScreen() {
                 <View style={styles.combateDateContainer}>
                   <Calendar size={12} color={COLORS.textSecondary} />
                   <Text style={styles.combateDate}>
-                    {new Date(item.fecha).toLocaleDateString('es-ES', {
+                    {item.fecha ? new Date(item.fecha).toLocaleDateString('es-ES', {
                       day: 'numeric',
                       month: 'short',
-                    })}
+                    }) : 'Sin fecha'}
                   </Text>
                 </View>
               </View>
@@ -197,10 +197,10 @@ export default function CombatesScreen() {
               <View style={styles.combateFooter}>
                 <View style={styles.combateLocation}>
                   <MapPin size={12} color={COLORS.textSecondary} />
-                  <Text style={styles.locationText}>{item.lugar || 'Sin ubicación'}</Text>
+                  <Text style={styles.locationText}>{item.ubicacion || 'Sin ubicación'}</Text>
                 </View>
                 <View style={styles.combateStats}>
-                  <Text style={styles.pesoText}>{item.peso_ave}g</Text>
+                  <Text style={styles.pesoText}>{item.peso_combate || item.peso_ave}g</Text>
                   {item.duracion_minutos != null && (
                     <Text style={styles.duracionText}>{item.duracion_minutos} min</Text>
                   )}

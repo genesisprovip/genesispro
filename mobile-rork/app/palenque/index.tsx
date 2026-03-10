@@ -174,11 +174,11 @@ export default function PalenqueScreen() {
           <View style={styles.metaItem}>
             <Calendar size={13} color={COLORS.textSecondary} />
             <Text style={styles.metaText}>
-              {new Date(item.fecha).toLocaleDateString('es-ES', {
+              {item.fecha ? new Date(item.fecha).toLocaleDateString('es-ES', {
                 day: 'numeric',
                 month: 'short',
                 year: 'numeric',
-              })} {item.hora_inicio ? `- ${item.hora_inicio.slice(0, 5)}` : ''}
+              }) : 'Sin fecha'} {item.hora_inicio ? `- ${item.hora_inicio.slice(0, 5)}` : ''}
             </Text>
           </View>
           {item.lugar && (

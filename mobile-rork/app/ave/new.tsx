@@ -15,23 +15,38 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { 
-  ArrowLeft, 
-  Camera, 
+import {
+  ArrowLeft,
+  Camera,
   X,
   Check,
-  ChevronDown
+  ChevronDown,
+  Plus,
+  Trash2,
+  Dna
 } from 'lucide-react-native';
 import { useAves } from '@/context/AvesContext';
-import { Ave } from '@/types';
+import { Ave, ComposicionGenetica } from '@/types';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 
 type SexoType = 'M' | 'H';
 type EstadoType = 'activo' | 'vendido' | 'muerto' | 'retirado';
+type TipoAdquisicion = 'cria_propia' | 'compra' | 'regalo' | 'intercambio';
 
 const COLORES_OPTIONS = ['Giro', 'Cenizo', 'Colorado', 'Negro', 'Jabado', 'Blanco', 'Giro Claro', 'Otro'];
-const LINEAS_OPTIONS = ['Kelso', 'Hatch', 'Sweater', 'Roundhead', 'Albany', 'Asil', 'Otro'];
+const LINEAS_OPTIONS = ['Kelso', 'Hatch', 'Sweater', 'Roundhead', 'Albany', 'Asil', 'Yellow Leg', 'Plumer', 'Otro'];
+const FRACCIONES_OPTIONS = ['1/8', '1/4', '3/8', '1/2', '5/8', '3/4', '7/8', '1/1'];
+const FRACCION_TO_DECIMAL: Record<string, number> = {
+  '1/8': 0.125, '1/4': 0.25, '3/8': 0.375, '1/2': 0.5,
+  '5/8': 0.625, '3/4': 0.75, '7/8': 0.875, '1/1': 1.0,
+};
+const TIPO_ADQUISICION_LABELS: Record<TipoAdquisicion, string> = {
+  'cria_propia': 'Cría Propia',
+  'compra': 'Compra',
+  'regalo': 'Regalo',
+  'intercambio': 'Intercambio',
+};
 
 // Sistema de marcas de patas (1-16)
 // Izq Afuera=1, Izq Dentro=2, Der Afuera=4, Der Dentro=8
@@ -85,6 +100,7 @@ export default function AveFormScreen() {
     foto_principal: '',
     notas: '',
     criadero_origen: '',
+    precio_compra: '',
     padre_id: '',
     madre_id: '',
     marca_nariz: '',
@@ -99,8 +115,54 @@ export default function AveFormScreen() {
 
   const numeroLote = calcularNumeroLote(marcasPata);
 
+  // Composición genética
+  const [composicionGenetica, setComposicionGenetica] = useState<ComposicionGenetica[]>([]);
+  const [esPuro, setEsPuro] = useState(false);
+
+  // Origen
+  const [criadorNombre, setCriadorNombre] = useState('');
+  const [tipoAdquisicion, setTipoAdquisicion] = useState<TipoAdquisicion>('cria_propia');
+  const [fechaAdquisicion, setFechaAdquisicion] = useState('');
+  const [notasOrigen, setNotasOrigen] = useState('');
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Helpers para composición genética
+  const addLineaGenetica = () => {
+    setComposicionGenetica(prev => [...prev, { linea: '', fraccion: '1/4', decimal: 0.25 }]);
+  };
+
+  const removeLineaGenetica = (index: number) => {
+    setComposicionGenetica(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateLineaGenetica = (index: number, field: keyof ComposicionGenetica, value: string | number) => {
+    setComposicionGenetica(prev => prev.map((item, i) => {
+      if (i !== index) return item;
+      if (field === 'fraccion') {
+        return { ...item, fraccion: value as string, decimal: FRACCION_TO_DECIMAL[value as string] || 0 };
+      }
+      return { ...item, [field]: value };
+    }));
+  };
+
+  const togglePuro = () => {
+    if (!esPuro) {
+      // Activar puro: limpiar composición y poner 1/1 de la línea genética
+      setEsPuro(true);
+      if (formData.linea_genetica) {
+        setComposicionGenetica([{ linea: formData.linea_genetica, fraccion: '1/1', decimal: 1.0, via: 'puro' }]);
+      } else {
+        setComposicionGenetica([]);
+      }
+    } else {
+      setEsPuro(false);
+      setComposicionGenetica([]);
+    }
+  };
+
+  const sumaFracciones = composicionGenetica.reduce((sum, c) => sum + c.decimal, 0);
 
   // Helper to extract date from ISO string
   const formatDate = (dateStr: string) => {
@@ -126,6 +188,7 @@ export default function AveFormScreen() {
         foto_principal: existingAve.foto_principal || '',
         notas: existingAve.notas || '',
         criadero_origen: existingAve.criadero_origen || '',
+        precio_compra: (existingAve as any).precio_compra?.toString() || '',
         padre_id: existingAve.padre_id || '',
         madre_id: existingAve.madre_id || '',
         marca_nariz: (existingAve as any).marca_nariz || '',
@@ -135,12 +198,25 @@ export default function AveFormScreen() {
       const marcaIzq = (existingAve as any).marca_pata_izquierda;
       const marcaDer = (existingAve as any).marca_pata_derecha;
       if (marcaIzq || marcaDer) {
-        // Si hay marcas guardadas como texto, intentar parsear el número
         const numLote = parseInt(marcaIzq) || parseInt(marcaDer) || 0;
         if (numLote > 0 && numLote <= 15) {
           setMarcasPata(marcasDesdeNumero(numLote));
         }
       }
+
+      // Cargar composición genética
+      if (existingAve.composicion_genetica && Array.isArray(existingAve.composicion_genetica)) {
+        setComposicionGenetica(existingAve.composicion_genetica);
+      }
+      if (existingAve.es_puro) {
+        setEsPuro(true);
+      }
+
+      // Cargar origen
+      setCriadorNombre((existingAve as any).criador_nombre || '');
+      setTipoAdquisicion((existingAve as any).tipo_adquisicion || 'cria_propia');
+      setFechaAdquisicion((existingAve as any).fecha_adquisicion ? formatDate((existingAve as any).fecha_adquisicion) : '');
+      setNotasOrigen((existingAve as any).notas_origen || '');
     }
   }, [existingAve]);
 
@@ -206,9 +282,19 @@ export default function AveFormScreen() {
         codigo_personal: formData.codigo_personal || undefined,
         nombre: formData.nombre || undefined,
         marca_nariz: formData.marca_nariz || undefined,
-        // Marcas de patas - guardamos el número de lote y descripción
+        // Marcas de patas
         marca_pata_izquierda: numeroLote > 0 ? String(numeroLote) : undefined,
         marca_pata_derecha: numeroLote > 0 ? `Lote ${numeroLote}` : undefined,
+        // Precio de compra
+        precio_compra: formData.precio_compra ? parseFloat(formData.precio_compra) : undefined,
+        // Composición genética
+        composicion_genetica: composicionGenetica.length > 0 ? composicionGenetica : undefined,
+        es_puro: esPuro || undefined,
+        // Origen
+        criador_nombre: criadorNombre || undefined,
+        tipo_adquisicion: tipoAdquisicion || undefined,
+        fecha_adquisicion: fechaAdquisicion || undefined,
+        notas_origen: notasOrigen || undefined,
       };
 
       let result;
@@ -599,9 +685,133 @@ export default function AveFormScreen() {
             )}
           </View>
 
+          {/* Composición Genética */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Información Adicional</Text>
-            
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.md }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Dna size={18} color={COLORS.accent} />
+                <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Composición Genética</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.puroToggle, esPuro && styles.puroToggleActive]}
+                onPress={togglePuro}
+              >
+                <Text style={[styles.puroToggleText, esPuro && styles.puroToggleTextActive]}>
+                  Puro
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {esPuro ? (
+              <View style={styles.puroInfo}>
+                <Text style={styles.puroInfoText}>
+                  {formData.linea_genetica
+                    ? `Ave pura: 100% ${formData.linea_genetica}`
+                    : 'Ingresa la Línea Genética arriba para marcar como puro'}
+                </Text>
+              </View>
+            ) : (
+              <>
+                {composicionGenetica.map((comp, index) => (
+                  <View key={index} style={styles.geneticaRow}>
+                    <TouchableOpacity
+                      style={[styles.geneticaLineaInput, { flex: 2 }]}
+                      onPress={() => {
+                        Alert.alert('Línea Genética', undefined, [
+                          ...LINEAS_OPTIONS.map(l => ({
+                            text: l,
+                            onPress: () => {
+                              if (l === 'Otro') {
+                                // Keep current or empty
+                              } else {
+                                updateLineaGenetica(index, 'linea', l);
+                              }
+                            },
+                          })),
+                          { text: 'Cancelar', style: 'cancel' as const },
+                        ]);
+                      }}
+                    >
+                      <Text style={{ color: comp.linea ? COLORS.text : COLORS.placeholder, fontSize: 14 }} numberOfLines={1}>
+                        {comp.linea || 'Línea...'}
+                      </Text>
+                      <ChevronDown size={12} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
+
+                    <TextInput
+                      style={[styles.geneticaLineaInput, { flex: 2 }]}
+                      placeholder="Línea manual"
+                      placeholderTextColor={COLORS.placeholder}
+                      value={comp.linea}
+                      onChangeText={(v) => updateLineaGenetica(index, 'linea', v)}
+                    />
+
+                    <TouchableOpacity
+                      style={[styles.geneticaFraccionBtn, { flex: 1 }]}
+                      onPress={() => {
+                        Alert.alert('Fracción', undefined, [
+                          ...FRACCIONES_OPTIONS.map(f => ({
+                            text: `${f} (${Math.round(FRACCION_TO_DECIMAL[f] * 100)}%)`,
+                            onPress: () => updateLineaGenetica(index, 'fraccion', f),
+                          })),
+                          { text: 'Cancelar', style: 'cancel' as const },
+                        ]);
+                      }}
+                    >
+                      <Text style={styles.geneticaFraccionText}>{comp.fraccion}</Text>
+                      <Text style={styles.geneticaPctText}>{Math.round(comp.decimal * 100)}%</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.geneticaRemoveBtn}
+                      onPress={() => removeLineaGenetica(index)}
+                    >
+                      <Trash2 size={16} color={COLORS.error} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
+                <TouchableOpacity style={styles.addLineaBtn} onPress={addLineaGenetica}>
+                  <Plus size={16} color={COLORS.primary} />
+                  <Text style={styles.addLineaBtnText}>Agregar línea genética</Text>
+                </TouchableOpacity>
+
+                {composicionGenetica.length > 0 && (
+                  <View style={styles.sumaBar}>
+                    <View style={[styles.sumaBarFill, {
+                      width: `${Math.min(sumaFracciones * 100, 100)}%`,
+                      backgroundColor: Math.abs(sumaFracciones - 1) < 0.01 ? COLORS.primary : sumaFracciones > 1 ? COLORS.error : COLORS.warning,
+                    }]} />
+                    <Text style={styles.sumaBarText}>
+                      Total: {Math.round(sumaFracciones * 100)}% {Math.abs(sumaFracciones - 1) < 0.01 ? '✓' : sumaFracciones > 1 ? '(excede 100%)' : ''}
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+
+          {/* Origen y Procedencia */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Origen y Procedencia</Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Tipo de Adquisición</Text>
+              <View style={styles.adquisicionContainer}>
+                {(Object.keys(TIPO_ADQUISICION_LABELS) as TipoAdquisicion[]).map(tipo => (
+                  <TouchableOpacity
+                    key={tipo}
+                    style={[styles.adquisicionOption, tipoAdquisicion === tipo && styles.adquisicionOptionActive]}
+                    onPress={() => setTipoAdquisicion(tipo)}
+                  >
+                    <Text style={[styles.adquisicionText, tipoAdquisicion === tipo && styles.adquisicionTextActive]}>
+                      {TIPO_ADQUISICION_LABELS[tipo]}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Criadero de Origen</Text>
               <TextInput
@@ -612,6 +822,64 @@ export default function AveFormScreen() {
                 onChangeText={(v) => updateField('criadero_origen', v)}
               />
             </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Criador / Vendedor</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Nombre del criador"
+                placeholderTextColor={COLORS.placeholder}
+                value={criadorNombre}
+                onChangeText={setCriadorNombre}
+              />
+            </View>
+
+            {tipoAdquisicion !== 'cria_propia' && (
+              <>
+                <View style={styles.row}>
+                  <View style={[styles.inputGroup, styles.halfInput]}>
+                    <Text style={styles.inputLabel}>Fecha de Adquisición</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor={COLORS.placeholder}
+                      value={fechaAdquisicion}
+                      onChangeText={setFechaAdquisicion}
+                    />
+                  </View>
+                  {tipoAdquisicion === 'compra' && (
+                    <View style={[styles.inputGroup, styles.halfInput]}>
+                      <Text style={styles.inputLabel}>Precio de Compra ($)</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="0.00"
+                        placeholderTextColor={COLORS.placeholder}
+                        value={formData.precio_compra}
+                        onChangeText={(v) => updateField('precio_compra', v)}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                  )}
+                </View>
+              </>
+            )}
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Notas de Origen</Text>
+              <TextInput
+                style={[styles.input, { height: 70 }]}
+                placeholder="Detalles de procedencia, línea, etc."
+                placeholderTextColor={COLORS.placeholder}
+                value={notasOrigen}
+                onChangeText={setNotasOrigen}
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Genealogía y Notas</Text>
 
             {/* Genealogia - Padre y Madre */}
             <View style={styles.inputGroup}>
@@ -1068,6 +1336,149 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   narizLabelActive: {
+    color: COLORS.textLight,
+  },
+  // Composición genética
+  puroToggle: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: COLORS.accent,
+    backgroundColor: 'transparent',
+  },
+  puroToggleActive: {
+    backgroundColor: COLORS.accent,
+  },
+  puroToggleText: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: COLORS.accent,
+  },
+  puroToggleTextActive: {
+    color: COLORS.textLight,
+  },
+  puroInfo: {
+    backgroundColor: COLORS.accent + '15',
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.accent,
+  },
+  puroInfoText: {
+    fontSize: 14,
+    color: COLORS.accent,
+    fontWeight: '500' as const,
+  },
+  geneticaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  geneticaLineaInput: {
+    backgroundColor: COLORS.card,
+    borderRadius: BORDER_RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: COLORS.text,
+    height: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  geneticaFraccionBtn: {
+    backgroundColor: COLORS.primary + '15',
+    borderRadius: BORDER_RADIUS.sm,
+    paddingVertical: 6,
+    alignItems: 'center',
+    height: 40,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.primary + '30',
+  },
+  geneticaFraccionText: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: COLORS.primary,
+  },
+  geneticaPctText: {
+    fontSize: 10,
+    color: COLORS.primaryDark,
+  },
+  geneticaRemoveBtn: {
+    width: 32,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addLineaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '40',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  addLineaBtnText: {
+    fontSize: 13,
+    color: COLORS.primary,
+    fontWeight: '500' as const,
+  },
+  sumaBar: {
+    marginTop: 10,
+    height: 24,
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    overflow: 'hidden',
+    justifyContent: 'center',
+  },
+  sumaBarFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    borderRadius: 12,
+    opacity: 0.25,
+  },
+  sumaBarText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: COLORS.text,
+    textAlign: 'center',
+  },
+  // Origen
+  adquisicionContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  adquisicionOption: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  adquisicionOptionActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  adquisicionText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: '500' as const,
+  },
+  adquisicionTextActive: {
     color: COLORS.textLight,
   },
 });

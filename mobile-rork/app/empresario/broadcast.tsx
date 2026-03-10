@@ -30,7 +30,7 @@ import {
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS } from '@/constants/theme';
-import { api } from '@/services/api';
+import api from '@/services/api';
 
 interface Pelea {
   id: string;

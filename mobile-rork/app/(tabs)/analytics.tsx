@@ -15,8 +15,8 @@ import {
   Trophy,
   DollarSign,
   Activity,
-  BarChart3,
-  PieChart,
+  ChartColumn,
+  ChartPie,
   Wallet,
   Award,
 } from 'lucide-react-native';
@@ -81,8 +81,8 @@ export default function AnalyticsScreen() {
   };
 
   const tabs = [
-    { key: 'general' as const, label: 'General', icon: PieChart },
-    { key: 'combates' as const, label: 'Combates', icon: BarChart3 },
+    { key: 'general' as const, label: 'General', icon: ChartPie },
+    { key: 'combates' as const, label: 'Combates', icon: ChartColumn },
     { key: 'financiero' as const, label: 'Finanzas', icon: Wallet },
   ];
 
@@ -268,9 +268,9 @@ export default function AnalyticsScreen() {
                     ]} />
                     <View style={styles.histInfo}>
                       <Text style={styles.histDate}>
-                        {new Date(combate.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                        {combate.fecha ? new Date(combate.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : 'Sin fecha'}
                       </Text>
-                      <Text style={styles.histPlace}>{combate.lugar}</Text>
+                      <Text style={styles.histPlace}>{combate.ubicacion}</Text>
                     </View>
                     <View style={[
                       styles.histBadge,
@@ -351,9 +351,9 @@ export default function AnalyticsScreen() {
                         <DollarSign size={16} color={neto >= 0 ? COLORS.success : COLORS.error} />
                       </View>
                       <View style={styles.txInfo}>
-                        <Text style={styles.txPlace}>{combate.lugar}</Text>
+                        <Text style={styles.txPlace}>{combate.ubicacion}</Text>
                         <Text style={styles.txDate}>
-                          {new Date(combate.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                          {combate.fecha ? new Date(combate.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) : 'Sin fecha'}
                         </Text>
                       </View>
                       <Text style={[styles.txAmount, { color: neto >= 0 ? COLORS.success : COLORS.error }]}>

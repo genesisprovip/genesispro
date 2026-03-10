@@ -28,7 +28,7 @@ import {
 import { useAves } from '@/context/AvesContext';
 import { useSalud } from '@/context/SaludContext';
 import { COLORS } from '@/constants/colors';
-import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS } from '@/constants/theme';
 
 type TipoRegistro = 'vacuna' | 'tratamiento' | 'enfermedad' | 'revision' | 'desparasitacion';
 
@@ -209,7 +209,7 @@ export default function NuevoRegistroSaludScreen() {
               </View>
               <TextInput
                 style={styles.input}
-                placeholder={`Nombre de la ${tipo}`}
+                placeholder={`Nombre ${tipo === 'vacuna' || tipo === 'enfermedad' || tipo === 'desparasitacion' || tipo === 'revision' ? 'de la' : 'del'} ${TIPOS.find(t => t.key === tipo)?.label?.toLowerCase() || tipo}`}
                 placeholderTextColor={COLORS.textSecondary}
                 value={nombre}
                 onChangeText={setNombre}

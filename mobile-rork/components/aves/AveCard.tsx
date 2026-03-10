@@ -26,7 +26,9 @@ export default function AveCard({ ave, onPress }: AveCardProps) {
   const estado = estadoConfig[ave.estado] || estadoConfig.activo;
 
   const edad = () => {
+    if (!ave.fecha_nacimiento) return 'Sin fecha';
     const nacimiento = new Date(ave.fecha_nacimiento);
+    if (isNaN(nacimiento.getTime())) return 'Sin fecha';
     const hoy = new Date();
     const meses = (hoy.getFullYear() - nacimiento.getFullYear()) * 12 + (hoy.getMonth() - nacimiento.getMonth());
     if (meses < 1) return 'Recién nacido';

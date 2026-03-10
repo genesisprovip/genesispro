@@ -22,9 +22,9 @@ import {
   Phone,
   Calendar,
   Shield,
-  Camera,
 } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
+import api from '@/services/api';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 
@@ -51,10 +51,17 @@ export default function ProfileScreen() {
 
     setIsLoading(true);
     try {
-      // Update local user state
+      // Persist to API first
+      const response = await api.updateProfile({
+        nombre: nombre.trim(),
+        telefono: telefono.trim() || undefined,
+      });
+
+      // Update local state with API response or form values
       if (user) {
         updateUser({
           ...user,
+          ...(response.data?.user || {}),
           nombre: nombre.trim(),
           apellido: apellido.trim(),
           telefono: telefono.trim() || undefined,
@@ -64,7 +71,20 @@ export default function ProfileScreen() {
         { text: 'OK', onPress: () => router.back() }
       ]);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'No se pudo actualizar');
+      // Fallback: update local state even if API fails
+      if (user) {
+        updateUser({
+          ...user,
+          nombre: nombre.trim(),
+          apellido: apellido.trim(),
+          telefono: telefono.trim() || undefined,
+        });
+      }
+      Alert.alert(
+        'Guardado localmente',
+        'No se pudo sincronizar con el servidor. Los cambios se guardaron localmente.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
     } finally {
       setIsLoading(false);
     }
@@ -102,9 +122,6 @@ export default function ProfileScreen() {
               style={styles.avatarImage}
               contentFit="contain"
             />
-            <TouchableOpacity style={styles.cameraButton}>
-              <Camera size={16} color={COLORS.textLight} />
-            </TouchableOpacity>
           </View>
           <Text style={styles.avatarName}>
             {user?.nombre} {user?.apellido}
@@ -273,19 +290,6 @@ const styles = StyleSheet.create({
   avatarImage: {
     width: 88,
     height: 88,
-  },
-  cameraButton: {
-    position: 'absolute',
-    bottom: 0,
-    right: -4,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: COLORS.backgroundDark,
   },
   avatarName: {
     fontSize: 22,

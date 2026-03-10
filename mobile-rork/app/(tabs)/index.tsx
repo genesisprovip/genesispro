@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  Animated,
   Alert,
   TextInput,
 } from 'react-native';
@@ -35,7 +34,7 @@ import { useCombates } from '@/context/CombatesContext';
 import { useSalud } from '@/context/SaludContext';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
-import { api } from '@/services/api';
+import api from '@/services/api';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -419,13 +418,13 @@ export default function HomeScreen() {
                 }
               ]} />
               <View style={styles.combateBody}>
-                <Text style={styles.combatePlace}>{combate.lugar}</Text>
+                <Text style={styles.combatePlace}>{combate.ubicacion}</Text>
                 <Text style={styles.combateDate}>
-                  {new Date(combate.fecha).toLocaleDateString('es-ES', {
+                  {combate.fecha ? new Date(combate.fecha).toLocaleDateString('es-ES', {
                     day: 'numeric',
                     month: 'short',
                     year: 'numeric'
-                  })}
+                  }) : 'Sin fecha'}
                 </Text>
               </View>
               <View style={[
@@ -485,7 +484,7 @@ function KPICard({ title, value, subtitle, icon, color }: {
 function QuickAction({ icon, label, colors, onPress }: {
   icon: React.ReactNode;
   label: string;
-  colors: string[];
+  colors: [string, string, ...string[]];
   onPress: () => void;
 }) {
   return (

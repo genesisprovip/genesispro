@@ -138,6 +138,9 @@ export default function LiveEventScreen() {
     hlsUrl: string;
     calidad: string;
     viewersCount: number;
+    previewMinutos?: number;
+    webrtcSignaling?: string;
+    streamName?: string;
   } | null>(null);
 
   // Keep screen awake during live event
@@ -240,7 +243,7 @@ export default function LiveEventScreen() {
     if (!params.code && !eventoId) return;
     setIsLoading(true);
     try {
-      let id = eventoId;
+      let id: string = eventoId || '';
       // Always try to load evento data by code if available
       if (params.code) {
         const res = await api.getEventoPorCodigo(params.code);
@@ -306,11 +309,15 @@ export default function LiveEventScreen() {
     try {
       const streamRes = await api.getStreamInfo(id);
       if (streamRes.success && streamRes.data?.isLive) {
+        const d = streamRes.data as any;
         setStreamInfo({
           isLive: true,
-          hlsUrl: streamRes.data.hlsUrl,
-          calidad: streamRes.data.calidad,
-          viewersCount: streamRes.data.viewersCount || 0,
+          hlsUrl: d.hlsUrl || '',
+          calidad: d.calidad || 'auto',
+          viewersCount: d.viewersCount || 0,
+          previewMinutos: d.previewMinutos,
+          webrtcSignaling: d.webrtcSignaling,
+          streamName: d.streamName,
         });
       } else {
         setStreamInfo(null);
@@ -555,7 +562,7 @@ export default function LiveEventScreen() {
             <Text style={styles.liveEventName} numberOfLines={1}>{evento.nombre}</Text>
             <View style={styles.liveMetaRow}>
               <Text style={styles.liveMeta}>
-                {new Date(evento.fecha).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })}
+                {evento.fecha ? new Date(evento.fecha).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : ''}
               </Text>
               {evento.lugar && <Text style={styles.liveMeta}> | {evento.lugar}</Text>}
             </View>

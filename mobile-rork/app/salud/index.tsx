@@ -26,9 +26,9 @@ import {
 import { useSalud, RegistroSalud } from '@/context/SaludContext';
 import { useAves } from '@/context/AvesContext';
 import { COLORS } from '@/constants/colors';
-import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
+import { SPACING, BORDER_RADIUS } from '@/constants/theme';
 
-type FilterType = 'todos' | 'vacuna' | 'tratamiento' | 'enfermedad' | 'revision';
+type FilterType = 'todos' | 'vacuna' | 'tratamiento' | 'enfermedad' | 'desparasitacion' | 'revision';
 
 const TIPO_CONFIG = {
   vacuna: { icon: Syringe, color: '#4CAF50', label: 'Vacuna' },
@@ -65,6 +65,7 @@ export default function SaludScreen() {
     { key: 'vacuna', label: 'Vacunas' },
     { key: 'tratamiento', label: 'Tratamientos' },
     { key: 'enfermedad', label: 'Enfermedades' },
+    { key: 'desparasitacion', label: 'Desparasitaciones' },
     { key: 'revision', label: 'Revisiones' },
   ];
 
@@ -96,14 +97,14 @@ export default function SaludScreen() {
             <View style={styles.metaItem}>
               <Calendar size={12} color={COLORS.textSecondary} />
               <Text style={styles.metaText}>
-                {new Date(item.fecha).toLocaleDateString('es-ES')}
+                {item.fecha ? new Date(item.fecha).toLocaleDateString('es-ES') : 'Sin fecha'}
               </Text>
             </View>
             {item.fecha_proxima && (
               <View style={styles.metaItem}>
                 <AlertCircle size={12} color={COLORS.warning} />
                 <Text style={[styles.metaText, { color: COLORS.warning }]}>
-                  Próxima: {new Date(item.fecha_proxima).toLocaleDateString('es-ES')}
+                  Próxima: {item.fecha_proxima ? new Date(item.fecha_proxima).toLocaleDateString('es-ES') : '-'}
                 </Text>
               </View>
             )}
