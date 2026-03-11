@@ -15,6 +15,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Location from 'expo-location';
 import {
   ChevronLeft,
   Trophy,
@@ -24,6 +25,7 @@ import {
   FileText,
   Globe,
   ChevronDown,
+  Navigation,
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
@@ -53,8 +55,29 @@ export default function NuevoPalenqueScreen() {
   const [reglas, setReglas] = useState('');
   const [esPublico, setEsPublico] = useState(true);
   const [totalPeleas, setTotalPeleas] = useState('');
+  const [latitud, setLatitud] = useState<number | null>(null);
+  const [longitud, setLongitud] = useState<number | null>(null);
+  const [gpsLoading, setGpsLoading] = useState(false);
 
   const selectedTipoLabel = TIPOS_DERBY.find(t => t.key === tipoDerby)?.label || '';
+
+  const captureGPS = async () => {
+    setGpsLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permiso denegado', 'Necesitamos acceso a tu ubicacion para registrar las coordenadas del evento.');
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      setLatitud(loc.coords.latitude);
+      setLongitud(loc.coords.longitude);
+    } catch {
+      Alert.alert('Error', 'No se pudo obtener la ubicacion. Verifica que el GPS este activado.');
+    } finally {
+      setGpsLoading(false);
+    }
+  };
 
   // TODO: Replace with API call to POST /api/v1/palenque/eventos
   const handleSubmit = async () => {
@@ -78,7 +101,7 @@ export default function NuevoPalenqueScreen() {
     setIsLoading(true);
 
     try {
-      const eventoData = {
+      const eventoData: any = {
         nombre: nombre.trim(),
         fecha,
         hora_inicio: horaInicio,
@@ -88,6 +111,10 @@ export default function NuevoPalenqueScreen() {
         es_publico: esPublico,
         total_peleas: totalPeleas ? parseInt(totalPeleas) : undefined,
       };
+      if (latitud && longitud) {
+        eventoData.latitud = latitud;
+        eventoData.longitud = longitud;
+      }
 
       const res = await api.crearEvento(eventoData);
       if (res.success) {
@@ -194,6 +221,20 @@ export default function NuevoPalenqueScreen() {
                 onChangeText={setLugar}
               />
             </View>
+            <TouchableOpacity
+              style={[styles.gpsButton, latitud ? styles.gpsButtonActive : null]}
+              onPress={captureGPS}
+              disabled={gpsLoading}
+            >
+              {gpsLoading ? (
+                <ActivityIndicator size="small" color={COLORS.primary} />
+              ) : (
+                <Navigation size={16} color={latitud ? COLORS.primary : COLORS.textSecondary} />
+              )}
+              <Text style={[styles.gpsButtonText, latitud ? styles.gpsButtonTextActive : null]}>
+                {latitud ? `Ubicacion registrada` : 'Usar mi ubicacion GPS'}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Derby Type Picker */}
@@ -396,6 +437,30 @@ const styles = StyleSheet.create({
   },
   halfInput: {
     flex: 1,
+  },
+  gpsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderRadius: BORDER_RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderStyle: 'dashed',
+  },
+  gpsButtonActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary + '10',
+    borderStyle: 'solid',
+  },
+  gpsButtonText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  gpsButtonTextActive: {
+    color: COLORS.primary,
+    fontWeight: '600',
   },
   textArea: {
     backgroundColor: COLORS.card,

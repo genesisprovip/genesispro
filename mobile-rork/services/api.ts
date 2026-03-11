@@ -1,4 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import { syncQueue } from './syncQueue';
 
 const API_URL = 'https://api.genesispro.vip/api/v1';
@@ -137,6 +139,30 @@ class ApiService {
   }
 
   // Auth
+  /**
+   * Auto-register push token after login/register.
+   * Fails silently — never blocks auth flow.
+   */
+  private async autoRegisterPushToken() {
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== 'granted') return;
+
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: 'genesispro',
+      });
+      await this.registerPushToken(tokenData.data, Platform.OS);
+      console.log('Push token auto-registered:', tokenData.data.slice(0, 20) + '...');
+    } catch (e) {
+      console.log('Auto push token registration skipped:', (e as Error).message);
+    }
+  }
+
   async login(email: string, password: string) {
     const response = await this.request<{
       success: boolean;
@@ -148,6 +174,8 @@ class ApiService {
 
     if (response.success) {
       await this.setTokens(response.data.tokens);
+      // Auto-register push token (non-blocking)
+      this.autoRegisterPushToken();
     }
     return response;
   }
@@ -163,6 +191,8 @@ class ApiService {
 
     if (response.success) {
       await this.setTokens(response.data.tokens);
+      // Auto-register push token (non-blocking)
+      this.autoRegisterPushToken();
     }
     return response;
   }
@@ -422,13 +452,13 @@ class ApiService {
     }>('/subscriptions/plans');
   }
 
-  async createCheckoutSession(priceId: string) {
+  async createCheckoutSession(plan: string, interval: string = 'mensual') {
     return this.request<{
       success: boolean;
       data: { url: string; sessionId: string };
     }>('/subscriptions/checkout', {
       method: 'POST',
-      body: JSON.stringify({ priceId }),
+      body: JSON.stringify({ plan, interval }),
     });
   }
 

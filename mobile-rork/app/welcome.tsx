@@ -200,7 +200,11 @@ export default function WelcomeScreen() {
           ))}
         </View>
 
-        <Text style={styles.version}>v1.8.2 · genesispro.vip</Text>
+        <View style={styles.madeInRow}>
+          <Text style={styles.madeInFlag}>🇲🇽</Text>
+          <Text style={styles.madeInText}>Hecho en Jalisco, Mexico</Text>
+        </View>
+        <Text style={styles.version}>v1.8.4 · genesispro.vip</Text>
       </ScrollView>
     </LinearGradient>
   );
@@ -368,6 +372,23 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
+  madeInRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.xs,
+  },
+  madeInFlag: {
+    fontSize: 16,
+  },
+  madeInText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.4)',
+    fontWeight: '500',
+    letterSpacing: 0.5,
+  },
   version: {
     textAlign: 'center',
     fontSize: 11,

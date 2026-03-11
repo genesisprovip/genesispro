@@ -13,6 +13,7 @@ export interface User {
   trial_fin?: string;
   trial_dias_restantes?: number;
   fecha_registro: string;
+  has_subscription?: boolean;
   plan_empresario?: 'empresario_basico' | 'empresario_pro' | 'empresario_premium' | null;
 }
 

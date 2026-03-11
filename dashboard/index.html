@@ -110,6 +110,13 @@
     .btn-next { background: var(--secondary); color: var(--text-dark); padding: 20px 48px; font-size: 18px; border-radius: 14px; }
     .btn-next:hover { filter: brightness(1.1); }
 
+    /* Fight timer */
+    .fight-timer { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 16px 0; }
+    .fight-timer-display { font-size: 36px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); min-width: 100px; text-align: center; }
+    .fight-timer-btn { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--border); background: transparent; color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all 0.2s; }
+    .fight-timer-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .fight-timer-btn.active { border-color: var(--secondary); color: var(--secondary); background: rgba(245,158,11,0.1); }
+
     /* Cotejo table */
     .cotejo-section { background: var(--bg-alt); border-radius: var(--radius); padding: 24px; margin-bottom: 24px; }
     .cotejo-table { width: 100%; border-collapse: collapse; }
@@ -684,6 +691,40 @@
   </div>
 </div>
 
+<!-- CORREGIR RESULTADO MODAL -->
+<div class="modal-overlay" id="corregir-modal">
+  <div class="modal">
+    <h2>Corregir Resultado</h2>
+    <p id="corregir-fight-info" style="color: var(--text-secondary); margin-bottom: 8px;"></p>
+    <p id="corregir-resultado-actual" style="color: var(--secondary); font-weight: 700; margin-bottom: 16px;"></p>
+    <div class="result-options">
+      <div class="result-option" onclick="selectCorreccion('rojo')" id="corr-rojo">
+        <div style="font-size: 32px;">🔴</div>
+        <div class="label" style="color: var(--rojo);">Gana Rojo</div>
+      </div>
+      <div class="result-option" onclick="selectCorreccion('verde')" id="corr-verde">
+        <div style="font-size: 32px;">🟢</div>
+        <div class="label" style="color: var(--verde);">Gana Verde</div>
+      </div>
+      <div class="result-option" onclick="selectCorreccion('tabla')" id="corr-tabla">
+        <div style="font-size: 32px;">⚖️</div>
+        <div class="label">Tablas</div>
+      </div>
+    </div>
+    <div class="form-group" style="margin-top: 16px;">
+      <label>Motivo de la corrección (obligatorio)</label>
+      <textarea id="corregir-motivo" placeholder="Ej: Error al presionar el botón, el juez determinó que gana verde..." rows="3" style="font-size: 14px;"></textarea>
+    </div>
+    <div style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 8px; padding: 10px; margin-top: 12px; font-size: 12px; color: #FCA5A5;">
+      Esta acción queda registrada en el log de auditoría con tu nombre, fecha/hora y el motivo indicado.
+    </div>
+    <div style="display: flex; gap: 12px; margin-top: 16px;">
+      <button class="btn btn-outline" onclick="closeModal('corregir-modal')" style="flex:1;">Cancelar</button>
+      <button class="btn btn-danger" onclick="submitCorreccion()" style="flex:1;">Corregir Resultado</button>
+    </div>
+  </div>
+</div>
+
 <!-- CARTEL MODAL -->
 <div class="modal-overlay" id="cartel-modal">
   <div class="modal" style="max-width: 900px; max-height: 95vh; overflow-y: auto;">
@@ -1017,6 +1058,7 @@ function renderEventsList() {
 
 async function showEventsList() {
   stopAutoRefresh();
+  genesisWidget.hide();
   document.getElementById('events-list').style.display = 'block';
   document.getElementById('event-detail').style.display = 'none';
   currentEventId = null;
@@ -1043,15 +1085,79 @@ function updateTimestamp() {
   if (el) el.textContent = 'Actualizado: ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
+let lastRefreshData = null;
+let lastFinanzasData = null;
+
 function startAutoRefresh(id) {
   stopAutoRefresh();
-  autoRefreshInterval = setInterval(() => {
-    if (currentEventId === id && document.getElementById('event-detail').style.display !== 'none') {
-      showEventDetail(id);
-    } else {
+  autoRefreshInterval = setInterval(async () => {
+    if (currentEventId !== id || document.getElementById('event-detail').style.display === 'none') {
       stopAutoRefresh();
+      return;
     }
-  }, 10000);
+    try {
+      // Fetch event + peleas data
+      const [evRes, peleasRes] = await Promise.all([
+        api(`/eventos/${id}`),
+        api(`/peleas/evento/${id}`),
+      ]);
+      const ev = evRes.data;
+      const peleas = peleasRes.data;
+      const fingerprint = `${ev.estado}|${ev.pelea_actual}|${peleas.length}|${peleas.filter(p => p.estado === 'finalizada').length}|${peleas.map(p => `${p.resultado||''}:${p.estado}`).join(',')}`;
+
+      if (fingerprint !== lastRefreshData) {
+        // Data actually changed — do a full rebuild but preserve scroll
+        lastRefreshData = fingerprint;
+        const winScrollY = window.scrollY;
+        const cotejoEl = document.querySelector('.cotejo-scroll');
+        const cotejoScrollTop = cotejoEl ? cotejoEl.scrollTop : 0;
+        // Preserve open/close state of details elements
+        const detailStates = {};
+        document.querySelectorAll('#detail-content details').forEach((d, i) => {
+          detailStates[i] = d.open;
+        });
+
+        await showEventDetail(id);
+
+        window.scrollTo(0, winScrollY);
+        const newCotejoEl = document.querySelector('.cotejo-scroll');
+        if (newCotejoEl) newCotejoEl.scrollTop = cotejoScrollTop;
+        // Restore details states
+        document.querySelectorAll('#detail-content details').forEach((d, i) => {
+          if (detailStates[i] !== undefined) d.open = detailStates[i];
+        });
+      } else {
+        // Fingerprint same — only silently refresh finanzas values (no flicker)
+        softRefreshFinanzas(id);
+      }
+      updateTimestamp();
+    } catch (err) {
+      console.error('Auto-refresh error:', err);
+    }
+  }, 5000);
+}
+
+// Soft-update finanzas values without rebuilding DOM
+async function softRefreshFinanzas(eventoId) {
+  try {
+    const finRes = await api(`/finanzas-evento/${eventoId}`).catch(() => null);
+    if (!finRes || !finRes.data?.resumen) return;
+    const r = finRes.data.resumen;
+    const fp = `${r.total_recaudado}|${r.total_pendiente}|${r.total_gastos}|${r.balance_neto}`;
+    if (fp === lastFinanzasData) return; // No change
+    lastFinanzasData = fp;
+
+    // Update only the stat numbers in finanzas section
+    const statNumbers = document.querySelectorAll('#finanzas-section .finanzas-stat .stat-number');
+    if (statNumbers.length >= 4) {
+      statNumbers[0].textContent = '$' + Number(r.total_recaudado || 0).toLocaleString();
+      statNumbers[1].textContent = '$' + Number(r.total_pendiente || 0).toLocaleString();
+      statNumbers[2].textContent = '$' + Number(r.total_gastos || 0).toLocaleString();
+      const neto = Number(r.balance_neto || 0);
+      statNumbers[3].textContent = '$' + neto.toLocaleString();
+      statNumbers[3].style.color = neto >= 0 ? 'var(--primary)' : 'var(--error)';
+    }
+  } catch (e) { /* silent */ }
 }
 
 async function showEventDetail(id) {
@@ -1075,6 +1181,7 @@ async function showEventDetail(id) {
     const ev = evRes.data;
     currentEvent = ev;
     editingEvent = ev;
+    genesisWidget.show(ev.id);
     const peleas = peleasRes.data;
     const participantes = partRes.data || [];
     const derbyPartidos = derbyPartRes.data || [];
@@ -1147,6 +1254,14 @@ async function showEventDetail(id) {
                 ${currentFight.placa_verde ? `<div style="font-size:12px; color:var(--text-secondary);">${currentFight.placa_verde}</div>` : ''}
               </div>
             </div>
+          ` : ''}
+
+          ${currentFight && !todasFinalizadas ? `
+          <div class="fight-timer" id="dashboard-fight-timer">
+            <button class="fight-timer-btn" onclick="toggleFightTimer()" id="fight-timer-toggle" title="Iniciar/Pausar">▶</button>
+            <div class="fight-timer-display" id="fight-timer-display">00:00</div>
+            <button class="fight-timer-btn" onclick="resetFightTimer()" title="Reiniciar">↺</button>
+          </div>
           ` : ''}
 
           <div class="control-buttons">
@@ -1329,6 +1444,7 @@ async function showEventDetail(id) {
                           <td style="white-space:nowrap;">
                             ${p.estado === 'programada' && (isCurrent || ev.modo === 'manual') ? `<button class="btn btn-primary btn-sm" onclick="startFight('${p.id}')" style="padding:4px 10px; font-size:11px;">Iniciar</button>` : ''}
                             ${p.estado === 'en_curso' ? `<button class="btn btn-secondary btn-sm" onclick="showResultModal('${p.id}', ${p.numero_pelea})" style="padding:4px 10px; font-size:11px;">Result</button>` : ''}
+                            ${p.estado === 'finalizada' && p.resultado ? `<button class="btn btn-outline btn-sm" onclick="showCorregirModal('${p.id}', ${p.numero_pelea}, '${p.resultado}')" style="padding:4px 8px; font-size:11px;" title="Corregir resultado">↩</button>` : ''}
                             ${p.estado === 'programada' && (ev.estado === 'programado' || ev.modo === 'manual') ? `<button class="btn btn-danger btn-sm" onclick="deleteFight('${p.id}')" style="padding:4px 8px; font-size:11px;">✕</button>` : ''}
                             ${ev.modo === 'manual' ? `<button class="btn btn-outline btn-sm" onclick="showEditPelea('${p.id}', ${p.numero_pelea}, '${(p.anillo_rojo||'').replace(/'/g,"\\'")}', ${p.peso_rojo||'null'}, '${(p.anillo_verde||'').replace(/'/g,"\\'")}', ${p.peso_verde||'null'}, '${(p.placa_rojo||'').replace(/'/g,"\\'")}', '${(p.placa_verde||'').replace(/'/g,"\\'")}')}" style="padding:4px 8px; font-size:11px;">✏️</button>` : ''}
                           </td>
@@ -1387,6 +1503,9 @@ async function showEventDetail(id) {
     renderApuestasSection(ev, apuestas, balance, peleas);
     renderFinanzasSection(ev);
     updateTimestamp();
+
+    // Set fingerprint so auto-refresh knows current state
+    lastRefreshData = `${ev.estado}|${ev.pelea_actual}|${peleas.length}|${peleas.filter(p => p.estado === 'finalizada').length}|${peleas.map(p => `${p.resultado||''}:${p.estado}`).join(',')}`;
 
     // Auto-refresh when event is live
     if (ev.estado === 'en_curso' || ev.estado === 'pausado') {
@@ -1922,8 +2041,44 @@ async function startEvent(id) {
 async function nextFight(id) {
   try {
     await api(`/eventos/${id}/siguiente-pelea`, 'POST');
+    resetFightTimer();
     showEventDetail(id);
   } catch (e) { toast(e.message, true); }
+}
+
+// ─── FIGHT TIMER ───
+let fightTimerSeconds = 0;
+let fightTimerInterval = null;
+
+function toggleFightTimer() {
+  const btn = document.getElementById('fight-timer-toggle');
+  if (fightTimerInterval) {
+    clearInterval(fightTimerInterval);
+    fightTimerInterval = null;
+    if (btn) { btn.textContent = '▶'; btn.classList.remove('active'); }
+  } else {
+    fightTimerInterval = setInterval(() => {
+      fightTimerSeconds++;
+      const el = document.getElementById('fight-timer-display');
+      if (el) el.textContent = formatFightTimerDisplay(fightTimerSeconds);
+    }, 1000);
+    if (btn) { btn.textContent = '⏸'; btn.classList.add('active'); }
+  }
+}
+
+function resetFightTimer() {
+  if (fightTimerInterval) { clearInterval(fightTimerInterval); fightTimerInterval = null; }
+  fightTimerSeconds = 0;
+  const el = document.getElementById('fight-timer-display');
+  if (el) el.textContent = '00:00';
+  const btn = document.getElementById('fight-timer-toggle');
+  if (btn) { btn.textContent = '▶'; btn.classList.remove('active'); }
+}
+
+function formatFightTimerDisplay(secs) {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 async function togglePause(id, estado) {
@@ -2049,6 +2204,8 @@ async function deleteFight(id) {
 async function startFight(id) {
   try {
     await api(`/peleas/${id}/iniciar`, 'POST');
+    resetFightTimer();
+    toggleFightTimer(); // Auto-start timer on fight start
     toast('¡Pelea iniciada!');
     showEventDetail(currentEventId);
   } catch (e) { toast(e.message, true); }
@@ -2077,14 +2234,58 @@ function selectResult(result) {
 async function submitResult() {
   if (!selectedResult) { toast('Selecciona un resultado', true); return; }
   try {
+    // Auto-fill duration from fight timer if not manually entered
+    let duracionMin = parseInt(document.getElementById('result-duracion').value) || null;
+    if (!duracionMin && fightTimerSeconds > 0) {
+      duracionMin = Math.ceil(fightTimerSeconds / 60);
+    }
     await api(`/peleas/${currentPeleaId}/resultado`, 'POST', {
       resultado: selectedResult,
-      duracion_minutos: parseInt(document.getElementById('result-duracion').value) || null,
+      duracion_minutos: duracionMin,
+      duracion_segundos: fightTimerSeconds > 0 ? fightTimerSeconds : null,
       tipo_victoria: document.getElementById('result-tipo').value || null
     });
     closeModal('result-modal');
+    resetFightTimer();
     const resultNames = {rojo:'Gana Rojo',verde:'Gana Verde',tabla:'Tablas'};
     toast(`Resultado registrado: ${resultNames[selectedResult] || selectedResult}`);
+    showEventDetail(currentEventId);
+  } catch (e) { toast(e.message, true); }
+}
+
+// ─── CORREGIR RESULTADO ───
+let correccionPeleaId = null;
+let correccionResultado = null;
+
+function showCorregirModal(peleaId, numero, resultadoActual) {
+  correccionPeleaId = peleaId;
+  correccionResultado = null;
+  document.querySelectorAll('#corregir-modal .result-option').forEach(el => el.classList.remove('selected'));
+  document.getElementById('corregir-fight-info').textContent = `Pelea #${numero}`;
+  const nombres = { rojo: 'GANA ROJO', verde: 'GANA VERDE', tabla: 'TABLAS' };
+  document.getElementById('corregir-resultado-actual').textContent = `Resultado actual: ${nombres[resultadoActual] || resultadoActual}`;
+  document.getElementById('corregir-motivo').value = '';
+  document.getElementById('corregir-modal').classList.add('active');
+}
+
+function selectCorreccion(result) {
+  correccionResultado = result;
+  document.querySelectorAll('#corregir-modal .result-option').forEach(el => el.classList.remove('selected'));
+  document.getElementById('corr-' + result).classList.add('selected');
+}
+
+async function submitCorreccion() {
+  if (!correccionResultado) { toast('Selecciona el resultado correcto', true); return; }
+  const motivo = document.getElementById('corregir-motivo').value.trim();
+  if (!motivo || motivo.length < 5) { toast('Escribe el motivo de la corrección (mín. 5 caracteres)', true); return; }
+  if (!confirm(`¿Confirmas la corrección a ${correccionResultado.toUpperCase()}?\n\nMotivo: ${motivo}\n\nEsta acción queda registrada en el log de auditoría.`)) return;
+  try {
+    await api(`/peleas/${correccionPeleaId}/corregir-resultado`, 'POST', {
+      resultado: correccionResultado,
+      motivo: motivo
+    });
+    closeModal('corregir-modal');
+    toast('Resultado corregido correctamente');
     showEventDetail(currentEventId);
   } catch (e) { toast(e.message, true); }
 }
@@ -3478,6 +3679,304 @@ async function exportarResultadosPDF() {
     toast('Error: ' + e.message, true);
   }
 }
+
+// ─── GENESIS AI WIDGET ───
+const genesisWidget = (() => {
+  // Only show for admin users
+  let isAdmin = false;
+  let currentEventoId = null;
+  let isDragging = false;
+  let dragOffset = { x: 0, y: 0 };
+  let chatHistory = [];
+
+  function init() {
+    // Inject styles
+    const style = document.createElement('style');
+    style.textContent = `
+      #genesis-fab {
+        position: fixed; bottom: 80px; right: 24px; width: 56px; height: 56px;
+        border-radius: 50%; background: linear-gradient(135deg, #6366F1, #8B5CF6);
+        border: none; cursor: grab; z-index: 9999; display: none;
+        box-shadow: 0 4px 20px rgba(99,102,241,0.5); transition: transform 0.2s, box-shadow 0.2s;
+        align-items: center; justify-content: center; color: white; font-size: 24px;
+        touch-action: none;
+      }
+      #genesis-fab:hover { transform: scale(1.1); box-shadow: 0 6px 28px rgba(99,102,241,0.7); }
+      #genesis-fab.dragging { cursor: grabbing; transition: none; }
+      #genesis-fab .fab-pulse {
+        position: absolute; inset: -4px; border-radius: 50%;
+        border: 2px solid rgba(99,102,241,0.6); animation: genesis-pulse 2s infinite;
+      }
+      @keyframes genesis-pulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.3); opacity: 0; } }
+
+      #genesis-chat {
+        position: fixed; bottom: 146px; right: 24px; width: 380px; max-height: 500px;
+        background: #1E293B; border-radius: 16px; border: 1px solid #475569;
+        box-shadow: 0 8px 40px rgba(0,0,0,0.5); z-index: 9998; display: none;
+        flex-direction: column; overflow: hidden;
+      }
+      @media (max-width: 420px) {
+        #genesis-chat { width: calc(100vw - 24px); right: 12px; left: 12px; max-height: 60vh; }
+      }
+      #genesis-chat.visible { display: flex; }
+      .genesis-header {
+        padding: 14px 16px; background: linear-gradient(135deg, #6366F1, #8B5CF6);
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .genesis-header h3 { font-size: 15px; font-weight: 700; color: white; display: flex; align-items: center; gap: 8px; }
+      .genesis-header .genesis-dot { width: 8px; height: 8px; border-radius: 50%; background: #10B981; }
+      .genesis-header button { background: none; border: none; color: rgba(255,255,255,0.7); cursor: pointer; font-size: 18px; padding: 4px; }
+      .genesis-header button:hover { color: white; }
+
+      .genesis-messages {
+        flex: 1; overflow-y: auto; padding: 12px; max-height: 340px;
+        display: flex; flex-direction: column; gap: 8px;
+      }
+      .genesis-msg {
+        padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.5;
+        max-width: 90%; word-wrap: break-word;
+      }
+      .genesis-msg.user { background: #334155; color: #F8FAFC; align-self: flex-end; border-bottom-right-radius: 4px; }
+      .genesis-msg.ai { background: rgba(99,102,241,0.15); color: #E0E7FF; align-self: flex-start; border-bottom-left-radius: 4px; border-left: 3px solid #6366F1; }
+      .genesis-msg.system { background: rgba(245,158,11,0.15); color: #FCD34D; align-self: center; font-size: 12px; text-align: center; border-left: none; }
+      .genesis-msg.ai .typing { display: inline-block; }
+      .genesis-msg.ai .typing::after { content: '...'; animation: dots 1.5s steps(4, end) infinite; }
+      @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+
+      .genesis-input-row {
+        padding: 12px; border-top: 1px solid #334155; display: flex; gap: 8px;
+      }
+      .genesis-input-row input {
+        flex: 1; padding: 10px 14px; background: #0F172A; border: 1px solid #475569;
+        border-radius: 10px; color: #F8FAFC; font-size: 13px; outline: none;
+      }
+      .genesis-input-row input:focus { border-color: #6366F1; }
+      .genesis-input-row button {
+        padding: 10px 14px; background: #6366F1; border: none; border-radius: 10px;
+        color: white; font-weight: 700; cursor: pointer; font-size: 13px; white-space: nowrap;
+      }
+      .genesis-input-row button:hover { background: #4F46E5; }
+      .genesis-input-row button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+      .genesis-quick-actions {
+        padding: 8px 12px; display: flex; gap: 6px; flex-wrap: wrap; border-top: 1px solid #334155;
+      }
+      .genesis-quick-btn {
+        padding: 6px 12px; background: #334155; border: 1px solid #475569; border-radius: 8px;
+        color: #94A3B8; font-size: 11px; cursor: pointer; transition: all 0.2s;
+      }
+      .genesis-quick-btn:hover { background: #475569; color: #F8FAFC; border-color: #6366F1; }
+    `;
+    document.head.appendChild(style);
+
+    // FAB button
+    const fab = document.createElement('button');
+    fab.id = 'genesis-fab';
+    fab.innerHTML = '<div class="fab-pulse"></div>⚡';
+    fab.title = 'Genesis AI';
+    document.body.appendChild(fab);
+
+    // Chat panel
+    const chat = document.createElement('div');
+    chat.id = 'genesis-chat';
+    chat.innerHTML = `
+      <div class="genesis-header">
+        <h3><span class="genesis-dot"></span> Genesis AI</h3>
+        <div style="display:flex; gap:4px;">
+          <button onclick="genesisWidget.observe()" title="Auto-análisis">👁</button>
+          <button onclick="genesisWidget.toggle()" title="Cerrar">✕</button>
+        </div>
+      </div>
+      <div class="genesis-messages" id="genesis-messages">
+        <div class="genesis-msg system">Genesis observa tu evento en tiempo real</div>
+      </div>
+      <div class="genesis-quick-actions">
+        <button class="genesis-quick-btn" onclick="genesisWidget.ask('¿Cómo va el evento?')">Estado</button>
+        <button class="genesis-quick-btn" onclick="genesisWidget.ask('¿Cómo van las finanzas?')">Finanzas</button>
+        <button class="genesis-quick-btn" onclick="genesisWidget.ask('¿Hay alguna anomalía?')">Anomalías</button>
+        <button class="genesis-quick-btn" onclick="genesisWidget.ask('Resumen de partidos')">Partidos</button>
+      </div>
+      <div class="genesis-input-row">
+        <input id="genesis-input" placeholder="Pregunta a Genesis..." onkeydown="if(event.key==='Enter')genesisWidget.send()">
+        <button id="genesis-send-btn" onclick="genesisWidget.send()">Enviar</button>
+      </div>
+    `;
+    document.body.appendChild(chat);
+
+    // Drag handling
+    fab.addEventListener('mousedown', startDrag);
+    fab.addEventListener('touchstart', startDrag, { passive: false });
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('touchmove', onDrag, { passive: false });
+    document.addEventListener('mouseup', endDrag);
+    document.addEventListener('touchend', endDrag);
+
+    fab.addEventListener('click', (e) => {
+      if (!isDragging) toggle();
+    });
+  }
+
+  function startDrag(e) {
+    const fab = document.getElementById('genesis-fab');
+    const touch = e.touches ? e.touches[0] : e;
+    const rect = fab.getBoundingClientRect();
+    dragOffset = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+    isDragging = false;
+    fab._dragStart = { x: touch.clientX, y: touch.clientY };
+    fab.classList.add('dragging');
+  }
+
+  function onDrag(e) {
+    const fab = document.getElementById('genesis-fab');
+    if (!fab.classList.contains('dragging')) return;
+    const touch = e.touches ? e.touches[0] : e;
+    const dx = touch.clientX - fab._dragStart.x;
+    const dy = touch.clientY - fab._dragStart.y;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) isDragging = true;
+    if (!isDragging) return;
+    e.preventDefault();
+    const safeBottom = 48; // safe area for Android nav bar
+    const x = Math.max(8, Math.min(window.innerWidth - 64, touch.clientX - dragOffset.x));
+    const y = Math.max(8, Math.min(window.innerHeight - 56 - safeBottom, touch.clientY - dragOffset.y));
+    fab.style.left = x + 'px';
+    fab.style.top = y + 'px';
+    fab.style.right = 'auto';
+    fab.style.bottom = 'auto';
+    repositionChat(x, y);
+  }
+
+  function repositionChat(fabX, fabY) {
+    const chatEl = document.getElementById('genesis-chat');
+    const chatW = Math.min(380, window.innerWidth - 24);
+    const chatH = chatEl.offsetHeight || 400;
+    const spaceAbove = fabY;
+    const spaceBelow = window.innerHeight - fabY - 56;
+
+    // Horizontal: try to align right edge with fab, but keep on screen
+    let chatLeft = Math.min(fabX + 56 - chatW, window.innerWidth - chatW - 12);
+    chatLeft = Math.max(12, chatLeft);
+    chatEl.style.left = chatLeft + 'px';
+    chatEl.style.right = 'auto';
+
+    // Vertical: prefer above fab, fall back to below
+    if (spaceAbove > chatH + 10) {
+      chatEl.style.bottom = (window.innerHeight - fabY + 10) + 'px';
+      chatEl.style.top = 'auto';
+    } else {
+      chatEl.style.top = (fabY + 66) + 'px';
+      chatEl.style.bottom = 'auto';
+      chatEl.style.maxHeight = Math.max(200, spaceBelow - 60) + 'px';
+    }
+  }
+
+  function endDrag() {
+    const fab = document.getElementById('genesis-fab');
+    fab.classList.remove('dragging');
+    setTimeout(() => { isDragging = false; }, 10);
+  }
+
+  function show(eventoId) {
+    currentEventoId = eventoId;
+    const fab = document.getElementById('genesis-fab');
+    fab.style.display = 'flex';
+  }
+
+  function hide() {
+    document.getElementById('genesis-fab').style.display = 'none';
+    document.getElementById('genesis-chat').classList.remove('visible');
+    currentEventoId = null;
+  }
+
+  function toggle() {
+    const chat = document.getElementById('genesis-chat');
+    chat.classList.toggle('visible');
+    if (chat.classList.contains('visible')) {
+      // Reposition chat relative to current FAB position
+      const fab = document.getElementById('genesis-fab');
+      const rect = fab.getBoundingClientRect();
+      repositionChat(rect.left, rect.top);
+      document.getElementById('genesis-input').focus();
+    }
+  }
+
+  function addMessage(text, type = 'ai') {
+    const container = document.getElementById('genesis-messages');
+    const msg = document.createElement('div');
+    msg.className = `genesis-msg ${type}`;
+    msg.textContent = text;
+    container.appendChild(msg);
+    container.scrollTop = container.scrollHeight;
+    return msg;
+  }
+
+  function removeMessage(el) {
+    el?.remove();
+  }
+
+  async function ask(mensaje, tipo = 'pregunta') {
+    if (!currentEventoId) return;
+    addMessage(mensaje, 'user');
+    const loading = addMessage('', 'ai');
+    loading.innerHTML = '<span class="typing">Analizando</span>';
+
+    const sendBtn = document.getElementById('genesis-send-btn');
+    sendBtn.disabled = true;
+
+    try {
+      const resp = await fetch(`${API}/genesis/consultar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ eventoId: currentEventoId, mensaje, tipo })
+      });
+      const data = await resp.json();
+      removeMessage(loading);
+      if (data.success) {
+        addMessage(data.data.respuesta, 'ai');
+      } else {
+        addMessage('Error: ' + (data.error?.message || 'Sin respuesta'), 'system');
+      }
+    } catch (err) {
+      removeMessage(loading);
+      addMessage('Error de conexión con Genesis', 'system');
+    }
+    sendBtn.disabled = false;
+  }
+
+  function send() {
+    const input = document.getElementById('genesis-input');
+    const msg = input.value.trim();
+    if (!msg) return;
+    input.value = '';
+    ask(msg);
+  }
+
+  async function observe() {
+    if (!currentEventoId) return;
+    const loading = addMessage('', 'ai');
+    loading.innerHTML = '<span class="typing">Observando evento</span>';
+
+    try {
+      const resp = await fetch(`${API}/genesis/observar/${currentEventoId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await resp.json();
+      removeMessage(loading);
+      if (data.success) {
+        addMessage('👁 ' + data.data.respuesta, 'ai');
+      } else {
+        addMessage('No pude observar: ' + (data.error?.message || ''), 'system');
+      }
+    } catch (err) {
+      removeMessage(loading);
+      addMessage('Error conectando con Genesis', 'system');
+    }
+  }
+
+  return { init, show, hide, toggle, ask, send, observe };
+})();
+
+// Initialize Genesis widget
+genesisWidget.init();
 
 // ─── INIT ───
 if (token) {

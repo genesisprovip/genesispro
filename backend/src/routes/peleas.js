@@ -78,56 +78,42 @@ async function notifyUpcomingFighters(eventoId, currentPeleaNum, eventoNombre) {
   for (const offset of alertAt) {
     const upcomingNum = currentPeleaNum + offset;
 
-    // Find the upcoming pelea and its partidos
+    // Find the upcoming pelea using partido_derby IDs
     const { rows } = await db.query(`
       SELECT p.numero_pelea, p.anillo_rojo, p.anillo_verde,
-        p.partido_rojo_id, p.partido_verde_id,
-        ad_r.partido_id AS partido_derby_rojo_id,
-        ad_v.partido_id AS partido_derby_verde_id
+        p.partido_derby_rojo_id, p.partido_derby_verde_id
       FROM peleas p
-      LEFT JOIN aves_derby ad_r ON ad_r.id = p.ave_roja_derby_id
-      LEFT JOIN aves_derby ad_v ON ad_v.id = p.ave_verde_derby_id
       WHERE p.evento_id = $1 AND p.numero_pelea = $2 AND p.estado = 'programada'
     `, [eventoId, upcomingNum]);
 
     if (rows.length === 0) continue;
 
     const pelea = rows[0];
-    const msgPrefix = offset === 3 ? 'PREPARA TU GALLO' : 'Tu pelea se acerca';
+    const msgPrefix = offset === 3 ? '🐓 PREPARA TU GALLO' : '⚔️ Tu pelea se acerca';
     const bodyText = `Pelea #${pelea.numero_pelea} - Faltan ${offset} peleas para tu turno`;
 
-    // Collect user IDs to notify (partido_rojo_id and partido_verde_id if they are users)
-    const userIds = [];
-    if (pelea.partido_rojo_id) userIds.push(pelea.partido_rojo_id);
-    if (pelea.partido_verde_id) userIds.push(pelea.partido_verde_id);
+    // Collect user IDs from both partido_derby entries + participantes_evento
+    const partidoIds = [];
+    if (pelea.partido_derby_rojo_id) partidoIds.push(pelea.partido_derby_rojo_id);
+    if (pelea.partido_derby_verde_id) partidoIds.push(pelea.partido_derby_verde_id);
 
-    // Also try to find partido owners via aves_derby -> partidos_derby
-    if (pelea.partido_derby_rojo_id) {
-      const { rows: pdRows } = await db.query(
-        `SELECT usuario_id FROM partidos_derby WHERE id = $1 AND usuario_id IS NOT NULL`,
-        [pelea.partido_derby_rojo_id]
-      );
-      if (pdRows.length > 0 && !userIds.includes(pdRows[0].usuario_id)) {
-        userIds.push(pdRows[0].usuario_id);
-      }
-    }
-    if (pelea.partido_derby_verde_id) {
-      const { rows: pdRows } = await db.query(
-        `SELECT usuario_id FROM partidos_derby WHERE id = $1 AND usuario_id IS NOT NULL`,
-        [pelea.partido_derby_verde_id]
-      );
-      if (pdRows.length > 0 && !userIds.includes(pdRows[0].usuario_id)) {
-        userIds.push(pdRows[0].usuario_id);
-      }
-    }
+    if (partidoIds.length === 0) continue;
 
-    if (userIds.length === 0) continue;
-
-    // Get push tokens for these users
+    // Find users linked to these partidos:
+    // 1. Direct partido owner (partidos_derby.usuario_id)
+    // 2. Users who joined the event with this partido's codigo_acceso
     const { rows: tokenRows } = await db.query(`
-      SELECT DISTINCT token FROM push_tokens
-      WHERE usuario_id = ANY($1) AND activo = true
-    `, [userIds]);
+      SELECT DISTINCT pt.token FROM push_tokens pt
+      WHERE pt.activo = true AND pt.usuario_id IN (
+        -- Partido owners
+        SELECT pd.usuario_id FROM partidos_derby pd
+        WHERE pd.id = ANY($1) AND pd.usuario_id IS NOT NULL
+        UNION
+        -- Users who joined event as participantes
+        SELECT pe.usuario_id FROM participantes_evento pe
+        WHERE pe.evento_id = $2
+      )
+    `, [partidoIds, eventoId]);
 
     const tokens = tokenRows.map(r => r.token);
     if (tokens.length > 0) {
@@ -617,6 +603,26 @@ router.post('/:id/iniciar',
       throw Errors.badRequest('La pelea ya fue iniciada o finalizada');
     }
 
+    // Enforce sequence: no fight can start if a previous one is still en_curso
+    const { rows: activeFights } = await db.query(
+      `SELECT numero_pelea FROM peleas
+       WHERE evento_id = $1 AND estado = 'en_curso' AND id != $2`,
+      [pelea.evento_id, id]
+    );
+    if (activeFights.length > 0) {
+      throw Errors.badRequest(`No se puede iniciar: la pelea ${activeFights[0].numero_pelea} aún está en curso`);
+    }
+
+    // Enforce sequence: all previous fights must be finalizada or cancelada
+    const { rows: pendingPrevious } = await db.query(
+      `SELECT numero_pelea FROM peleas
+       WHERE evento_id = $1 AND numero_pelea < $2 AND estado = 'programada'`,
+      [pelea.evento_id, pelea.numero_pelea]
+    );
+    if (pendingPrevious.length > 0) {
+      throw Errors.badRequest(`No se puede iniciar: la pelea ${pendingPrevious[0].numero_pelea} aún no se ha realizado`);
+    }
+
     const result = await db.transaction(async (client) => {
       // Update fight status and start time
       const { rows: updated } = await client.query(
@@ -681,6 +687,10 @@ router.post('/:id/resultado',
       throw Errors.badRequest('La pelea ya tiene resultado');
     }
 
+    if (pelea.estado !== 'en_curso') {
+      throw Errors.badRequest('La pelea debe estar en curso para registrar resultado');
+    }
+
     const result = await db.transaction(async (client) => {
       const { rows: updated } = await client.query(
         `UPDATE peleas SET
@@ -737,8 +747,8 @@ router.post('/:id/resultado',
             );
             const existingConcepts = new Set(existingCharges.map(e => e.concepto));
 
-            const ganadorId = resultado === 'rojo' ? pelea.partido_rojo_id : pelea.partido_verde_id;
-            const perdedorId = resultado === 'rojo' ? pelea.partido_verde_id : pelea.partido_rojo_id;
+            const ganadorId = resultado === 'rojo' ? pelea.partido_derby_rojo_id : pelea.partido_derby_verde_id;
+            const perdedorId = resultado === 'rojo' ? pelea.partido_derby_verde_id : pelea.partido_derby_rojo_id;
 
             // Get partido names
             const ganadorNombre = resultado === 'rojo'
@@ -772,6 +782,24 @@ router.post('/:id/resultado',
           logger.error('Error auto-generating fight charges:', finError);
           // Don't fail the result registration if charges fail
         }
+      }
+
+      // Update puntos for winning partido_derby
+      if (resultado === 'rojo' || resultado === 'verde') {
+        const winningPartidoId = resultado === 'rojo'
+          ? updated[0].partido_derby_rojo_id
+          : updated[0].partido_derby_verde_id;
+
+        if (winningPartidoId) {
+          await client.query(
+            `UPDATE partidos_derby SET puntos = COALESCE(puntos, 0) + 1 WHERE id = $1`,
+            [winningPartidoId]
+          );
+          logger.info(`Updated puntos +1 for partido_derby ${winningPartidoId}`);
+        }
+      } else if (resultado === 'empate' || resultado === 'tabla') {
+        // Tablas: both get 0.5 points (or 0 depending on rules - using 0 for now)
+        logger.info(`Tablas result for pelea ${pelea.numero_pelea}, no puntos awarded`);
       }
 
       return updated[0];
@@ -817,6 +845,166 @@ router.post('/:id/resultado',
     } catch (notifError) {
       logger.error('Error preparing fight result notification:', notifError);
     }
+
+    res.json({ success: true, data: result });
+  })
+);
+
+// ============================================
+// POST /:id/corregir-resultado - Correct a fight result with audit trail
+// ============================================
+
+/**
+ * @route   POST /api/v1/peleas/:id/corregir-resultado
+ * @desc    Correct a finalized fight result. Reverts puntos/finanzas and applies new ones.
+ *          Requires mandatory 'motivo' field for audit trail.
+ * @access  Private (organizador only)
+ */
+router.post('/:id/corregir-resultado',
+  uuidParam('id'),
+  validate,
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { resultado: nuevoResultado, motivo } = req.body;
+
+    if (!nuevoResultado || !['rojo', 'verde', 'tabla'].includes(nuevoResultado)) {
+      throw Errors.badRequest('Resultado debe ser: rojo, verde o tabla');
+    }
+    if (!motivo || motivo.trim().length < 5) {
+      throw Errors.badRequest('Motivo de corrección es obligatorio (mínimo 5 caracteres)');
+    }
+
+    // Get the fight
+    const { rows: existing } = await db.query(
+      `SELECT * FROM peleas WHERE id = $1 AND estado != 'cancelada'`,
+      [id]
+    );
+    if (existing.length === 0) throw Errors.notFound('Pelea');
+
+    const pelea = existing[0];
+    await verifyOrganizador(pelea.evento_id, req.userId);
+
+    if (pelea.estado !== 'finalizada') {
+      throw Errors.badRequest('Solo se pueden corregir peleas finalizadas');
+    }
+
+    const resultadoAnterior = pelea.resultado;
+    if (resultadoAnterior === nuevoResultado) {
+      throw Errors.badRequest('El nuevo resultado es igual al actual');
+    }
+
+    // Get user name for audit
+    const { rows: [user] } = await db.query(
+      'SELECT nombre FROM usuarios WHERE id = $1', [req.userId]
+    );
+
+    const result = await db.transaction(async (client) => {
+      // 1. Revert old puntos
+      if (resultadoAnterior === 'rojo' || resultadoAnterior === 'verde') {
+        const oldWinnerId = resultadoAnterior === 'rojo'
+          ? pelea.partido_derby_rojo_id
+          : pelea.partido_derby_verde_id;
+        if (oldWinnerId) {
+          await client.query(
+            `UPDATE partidos_derby SET puntos = GREATEST(0, COALESCE(puntos, 0) - 1) WHERE id = $1`,
+            [oldWinnerId]
+          );
+          logger.info(`[Correccion] Reverted -1 punto from partido_derby ${oldWinnerId}`);
+        }
+      }
+
+      // 2. Apply new puntos
+      if (nuevoResultado === 'rojo' || nuevoResultado === 'verde') {
+        const newWinnerId = nuevoResultado === 'rojo'
+          ? pelea.partido_derby_rojo_id
+          : pelea.partido_derby_verde_id;
+        if (newWinnerId) {
+          await client.query(
+            `UPDATE partidos_derby SET puntos = COALESCE(puntos, 0) + 1 WHERE id = $1`,
+            [newWinnerId]
+          );
+          logger.info(`[Correccion] Applied +1 punto to partido_derby ${newWinnerId}`);
+        }
+      }
+
+      // 3. Revert old finanzas charges for this fight
+      await client.query(
+        `DELETE FROM pagos_evento WHERE pelea_id = $1 AND concepto IN ('pelea_ganada', 'pelea_perdida')`,
+        [id]
+      );
+
+      // 4. Apply new finanzas charges if applicable
+      if (nuevoResultado === 'rojo' || nuevoResultado === 'verde') {
+        const { rows: [ev] } = await client.query(
+          `SELECT costo_por_pelea FROM eventos_palenque WHERE id = $1`,
+          [pelea.evento_id]
+        );
+        const costoPelea = ev && parseFloat(ev.costo_por_pelea) > 0 ? parseFloat(ev.costo_por_pelea) : 0;
+
+        if (costoPelea > 0) {
+          const ganadorId = nuevoResultado === 'rojo' ? pelea.partido_derby_rojo_id : pelea.partido_derby_verde_id;
+          const perdedorId = nuevoResultado === 'rojo' ? pelea.partido_derby_verde_id : pelea.partido_derby_rojo_id;
+          const ganadorNombre = nuevoResultado === 'rojo'
+            ? (pelea.placa_rojo || pelea.anillo_rojo || 'Rojo')
+            : (pelea.placa_verde || pelea.anillo_verde || 'Verde');
+          const perdedorNombre = nuevoResultado === 'rojo'
+            ? (pelea.placa_verde || pelea.anillo_verde || 'Verde')
+            : (pelea.placa_rojo || pelea.anillo_rojo || 'Rojo');
+
+          await client.query(
+            `INSERT INTO pagos_evento (evento_id, partido_id, partido_nombre, concepto, tipo, monto, estado, pelea_id, notas)
+             VALUES ($1, $2, $3, 'pelea_ganada', 'egreso', $4, 'pendiente', $5, $6)`,
+            [pelea.evento_id, ganadorId, ganadorNombre, costoPelea, id, `Pelea ${pelea.numero_pelea} - Ganador (corregido)`]
+          );
+          await client.query(
+            `INSERT INTO pagos_evento (evento_id, partido_id, partido_nombre, concepto, tipo, monto, estado, pelea_id, notas)
+             VALUES ($1, $2, $3, 'pelea_perdida', 'ingreso', $4, 'pendiente', $5, $6)`,
+            [pelea.evento_id, perdedorId, perdedorNombre, costoPelea, id, `Pelea ${pelea.numero_pelea} - Perdedor (corregido)`]
+          );
+        }
+      }
+
+      // 5. Update the fight result
+      const { rows: updated } = await client.query(
+        `UPDATE peleas SET resultado = $1, notas = COALESCE(notas, '') || $2, updated_at = NOW()
+         WHERE id = $3 RETURNING *`,
+        [nuevoResultado, ` [Corregido: ${resultadoAnterior}→${nuevoResultado} - ${motivo.trim()}]`, id]
+      );
+
+      // 6. Update apuestas
+      if (nuevoResultado === 'rojo' || nuevoResultado === 'verde') {
+        await client.query(
+          `UPDATE apuestas SET
+            estado = CASE WHEN a_favor_de = $1 THEN 'ganada' ELSE 'perdida' END,
+            updated_at = NOW()
+          WHERE pelea_id = $2 AND estado IN ('pendiente', 'ganada', 'perdida')`,
+          [nuevoResultado, id]
+        );
+      } else {
+        await client.query(
+          `UPDATE apuestas SET estado = 'cancelada', updated_at = NOW()
+           WHERE pelea_id = $1 AND estado IN ('pendiente', 'ganada', 'perdida')`,
+          [id]
+        );
+      }
+
+      // 7. Write audit log
+      await client.query(
+        `INSERT INTO audit_log (evento_id, usuario_id, usuario_nombre, accion, entidad, entidad_id, datos_anteriores, datos_nuevos, motivo)
+         VALUES ($1, $2, $3, 'corregir_resultado', 'pelea', $4, $5, $6, $7)`,
+        [
+          pelea.evento_id, req.userId, user?.nombre || 'Desconocido',
+          id,
+          JSON.stringify({ resultado: resultadoAnterior, numero_pelea: pelea.numero_pelea }),
+          JSON.stringify({ resultado: nuevoResultado, numero_pelea: pelea.numero_pelea }),
+          motivo.trim()
+        ]
+      );
+
+      return updated[0];
+    });
+
+    logger.info(`[Correccion] Pelea ${pelea.numero_pelea}: ${resultadoAnterior} → ${nuevoResultado} by user ${req.userId}. Motivo: ${motivo}`);
 
     res.json({ success: true, data: result });
   })

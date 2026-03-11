@@ -85,9 +85,39 @@ export default function BroadcastScreen() {
   const resultOpacity = useRef(new Animated.Value(0)).current;
   const [cameraFullscreen, setCameraFullscreen] = useState(false);
 
+  const [resolvedEventoId, setResolvedEventoId] = useState(eventoId || '');
+  const [resolvedEventoNombre, setResolvedEventoNombre] = useState(eventoNombre || '');
+  const [eventoModo, setEventoModo] = useState<'genesispro' | 'manual'>('genesispro');
+
   const isLive = broadcastStatus === 'live' || broadcastStatus === 'reconnecting';
+  const isManual = eventoModo === 'manual';
   const currentPelea = peleas.length > 0 ? peleas[currentPeleaIndex] : null;
   const hasMoreFights = currentPeleaIndex < peleas.length - 1;
+
+  // If no eventoId passed, find the active event automatically
+  useEffect(() => {
+    if (eventoId) {
+      setResolvedEventoId(eventoId);
+      // Fetch modo
+      api.getEvento(eventoId).then(res => {
+        if (res.success && res.data?.modo) setEventoModo(res.data.modo);
+      }).catch(() => {});
+      return;
+    }
+    (async () => {
+      try {
+        const res = await api.getEventos();
+        if (res.success && res.data?.length > 0) {
+          const active = res.data.find((e: any) => e.estado === 'en_curso') || res.data[0];
+          if (active) {
+            setResolvedEventoId(active.id);
+            setResolvedEventoNombre(active.nombre || '');
+            setEventoModo(active.modo || 'genesispro');
+          }
+        }
+      } catch { /* ignore */ }
+    })();
+  }, [eventoId]);
 
   // Stream elapsed timer
   useEffect(() => {
@@ -117,23 +147,23 @@ export default function BroadcastScreen() {
 
   // Poll viewer count every 10s while live
   useEffect(() => {
-    if (!isLive || !eventoId) return;
+    if (!isLive || !resolvedEventoId) return;
     const poll = setInterval(async () => {
       try {
-        const res = await api.getStreamInfo(eventoId);
+        const res = await api.getStreamInfo(resolvedEventoId);
         if (res.success && res.data?.viewersCount !== undefined) {
           setViewersCount(res.data.viewersCount);
         }
       } catch { /* ignore */ }
     }, 10000);
     return () => clearInterval(poll);
-  }, [isLive, eventoId]);
+  }, [isLive, resolvedEventoId]);
 
   // Load fights
   const loadPeleas = useCallback(async () => {
-    if (!eventoId) return;
+    if (!resolvedEventoId) return;
     try {
-      const res = await api.getPeleasEvento(eventoId);
+      const res = await api.getPeleasEvento(resolvedEventoId);
       if (res.success && res.data) {
         setPeleas(res.data);
         const idx = res.data.findIndex(
@@ -144,12 +174,45 @@ export default function BroadcastScreen() {
     } catch (error) {
       console.error('Error loading peleas:', error);
     }
-  }, [eventoId]);
+  }, [resolvedEventoId]);
 
   // Load peleas as soon as we have a streamKey (don't wait for live status)
   useEffect(() => {
     if (streamKey) loadPeleas();
   }, [streamKey, loadPeleas]);
+
+  // Poll peleas + event every 5s to stay in sync with dashboard
+  // The phone IS the remote control — dashboard must mirror phone actions instantly
+  useEffect(() => {
+    if (!resolvedEventoId || (!isLive && !streamKey)) return;
+    const poll = setInterval(async () => {
+      try {
+        const [peleasRes, eventoRes] = await Promise.all([
+          api.getPeleasEvento(resolvedEventoId),
+          api.getEvento(resolvedEventoId).catch(() => null),
+        ]);
+        if (peleasRes.success && peleasRes.data) {
+          const newPeleas = peleasRes.data as Pelea[];
+          setPeleas(prev => {
+            const prevFP = prev.map(p => `${p.id}:${p.estado}:${p.resultado}`).join(',');
+            const newFP = newPeleas.map(p => `${p.id}:${p.estado}:${p.resultado}`).join(',');
+            if (prevFP === newFP) return prev;
+            return newPeleas;
+          });
+
+          // Sync currentPeleaIndex with event's pelea_actual from dashboard
+          if (eventoRes?.success && eventoRes.data?.pelea_actual) {
+            const peleaActual = eventoRes.data.pelea_actual;
+            const syncIdx = newPeleas.findIndex((p: Pelea) => p.numero_pelea === peleaActual);
+            if (syncIdx >= 0) {
+              setCurrentPeleaIndex(prev => prev !== syncIdx ? syncIdx : prev);
+            }
+          }
+        }
+      } catch { /* ignore */ }
+    }, 5000);
+    return () => clearInterval(poll);
+  }, [isLive, streamKey, resolvedEventoId]);
 
   useEffect(() => {
     if (currentPelea) {
@@ -217,7 +280,6 @@ export default function BroadcastScreen() {
     if (!currentPelea) return;
     try {
       await api.iniciarPelea(currentPelea.id);
-      // Update local state
       setPeleas(prev => prev.map(p =>
         p.id === currentPelea.id ? { ...p, estado: 'en_curso' } : p
       ));
@@ -228,14 +290,27 @@ export default function BroadcastScreen() {
     }
   };
 
-  const handleSiguientePelea = () => {
+  const handleSiguientePelea = async () => {
     if (hasMoreFights) {
-      setCurrentPeleaIndex(prev => prev + 1);
-      setFightTimerSeconds(0);
-      setFightTimerRunning(false);
+      try {
+        await api.siguientePelea(resolvedEventoId);
+        setCurrentPeleaIndex(prev => prev + 1);
+        setFightTimerSeconds(0);
+        setFightTimerRunning(false);
+      } catch (error: any) {
+        // If API rejects (fight not finished, etc) show error and don't advance
+        Alert.alert('Error', error.message || 'No se pudo avanzar a la siguiente pelea');
+      }
     } else {
       loadPeleas();
     }
+  };
+
+  // Manual mode: jump to any fight
+  const handleJumpToFight = (idx: number) => {
+    setCurrentPeleaIndex(idx);
+    setFightTimerSeconds(0);
+    setFightTimerRunning(false);
   };
 
   const requestCameraPermissions = async (): Promise<boolean> => {
@@ -258,7 +333,7 @@ export default function BroadcastScreen() {
   };
 
   const handleStartStream = async () => {
-    if (!eventoId) return;
+    if (!resolvedEventoId) return;
 
     // Request Android permissions BEFORE loading WebView
     const hasPermission = await requestCameraPermissions();
@@ -266,7 +341,7 @@ export default function BroadcastScreen() {
 
     setIsStarting(true);
     try {
-      const res = await api.startStream(eventoId);
+      const res = await api.startStream(resolvedEventoId);
       if (res.success && res.data) {
         setStreamKey(res.data.streamKey);
         setBroadcastStatus('connecting');
@@ -288,7 +363,7 @@ export default function BroadcastScreen() {
           // Tell WebView to stop
           webViewRef.current?.injectJavaScript('stopStream(); true;');
           try {
-            if (eventoId) await api.stopStream(eventoId);
+            if (resolvedEventoId) await api.stopStream(resolvedEventoId);
           } catch { /* ignore */ }
           setBroadcastStatus('stopped');
           setStreamKey(null);
@@ -339,7 +414,7 @@ export default function BroadcastScreen() {
 
         <Video size={64} color={COLORS.secondary} />
         <Text style={styles.preTitle}>Transmision en Vivo</Text>
-        <Text style={styles.preSubtitle}>{eventoNombre || 'Evento'}</Text>
+        <Text style={styles.preSubtitle}>{resolvedEventoNombre || 'Evento'}</Text>
 
         <Text style={styles.preDescription}>
           Se activara tu camara y comenzara a transmitir en vivo a todos los espectadores del evento.
@@ -370,7 +445,7 @@ export default function BroadcastScreen() {
       <WebView
         ref={webViewRef}
         source={{
-          uri: `https://api.genesispro.vip/palenque/broadcast.html?key=${streamKey}&evento=${encodeURIComponent(eventoNombre || '')}&embedded=1`,
+          uri: `https://api.genesispro.vip/palenque/broadcast.html?key=${streamKey}&evento=${encodeURIComponent(resolvedEventoNombre || '')}&embedded=1`,
         }}
         style={styles.cameraWebView}
         allowsInlineMediaPlayback
@@ -445,12 +520,38 @@ export default function BroadcastScreen() {
       style={isLandscape && !cameraFullscreen ? styles.controlsScrollLandscape : styles.controlsScroll}
       contentContainerStyle={styles.controlsContent}
     >
+      {/* Mode indicator + manual fight selector */}
+      {peleas.length > 0 && isManual && (
+        <View style={styles.modeBar}>
+          <Text style={styles.modeLabel}>MANUAL</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+            {peleas.map((p, idx) => (
+              <TouchableOpacity
+                key={p.id}
+                onPress={() => handleJumpToFight(idx)}
+                style={[
+                  styles.fightTab,
+                  idx === currentPeleaIndex && styles.fightTabActive,
+                  p.estado === 'finalizada' && { opacity: 0.5 },
+                ]}
+              >
+                <Text style={[
+                  styles.fightTabText,
+                  idx === currentPeleaIndex && styles.fightTabTextActive,
+                ]}>#{p.numero_pelea}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       {currentPelea && (
         <View style={styles.fightPanel}>
           <View style={styles.fightInfoRow}>
             <Text style={styles.fightNumber}>
               Pelea {currentPelea.numero_pelea} de {peleas.length}
               {currentPelea.numero_ronda ? `  ·  Ronda ${currentPelea.numero_ronda}` : ''}
+              {isManual ? '  ·  Manual' : ''}
             </Text>
             <View style={styles.fightMatchup}>
               <View style={styles.fightCornerBox}>
@@ -500,6 +601,21 @@ export default function BroadcastScreen() {
               <Play size={18} color={COLORS.textLight} />
               <Text style={styles.iniciarPeleaBtnText}>INICIAR PELEA</Text>
             </TouchableOpacity>
+          )}
+
+          {/* Manual mode: show result buttons for programada too (auto-starts) */}
+          {isManual && currentPelea.estado === 'programada' && (
+            <View style={styles.resultBtnRow}>
+              <TouchableOpacity style={[styles.resultBtn, styles.resultBtnRojo]} onPress={() => handleRegisterResult('rojo')} disabled={isSubmittingResult} activeOpacity={0.7}>
+                <Text style={styles.resultBtnText}>ROJO</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.resultBtn, styles.resultBtnTablas]} onPress={() => handleRegisterResult('tabla')} disabled={isSubmittingResult} activeOpacity={0.7}>
+                <Text style={styles.resultBtnText}>TABLAS</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.resultBtn, styles.resultBtnVerde]} onPress={() => handleRegisterResult('verde')} disabled={isSubmittingResult} activeOpacity={0.7}>
+                <Text style={styles.resultBtnText}>VERDE</Text>
+              </TouchableOpacity>
+            </View>
           )}
 
           {currentPelea.estado === 'en_curso' && (
@@ -710,6 +826,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#6366F1', paddingVertical: 14, borderRadius: BORDER_RADIUS.md,
   },
   siguientePeleaBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800', letterSpacing: 0.5 },
+
+  // Manual mode
+  modeBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: SPACING.sm, paddingVertical: 6,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)', borderRadius: BORDER_RADIUS.sm,
+    marginBottom: 4,
+  },
+  modeLabel: {
+    color: '#F59E0B', fontSize: 11, fontWeight: '800', letterSpacing: 1,
+    backgroundColor: 'rgba(245, 158, 11, 0.2)', paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 4,
+  },
+  fightTab: {
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'transparent',
+  },
+  fightTabActive: {
+    backgroundColor: 'rgba(99, 102, 241, 0.3)', borderColor: '#6366F1',
+  },
+  fightTabText: { color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: '700' },
+  fightTabTextActive: { color: '#FFFFFF' },
 
   // Result Animation
   resultAnimOverlay: {

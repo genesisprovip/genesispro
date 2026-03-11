@@ -84,6 +84,8 @@ const eventoValidation = [
   body('contacto_organizador').optional().isLength({ max: 300 }).withMessage('Contacto muy largo'),
   body('hora_peleas').optional().matches(/^\d{2}:\d{2}(:\d{2})?$/).withMessage('Hora de peleas inválida (HH:MM)'),
   body('ubicacion').optional().isLength({ max: 500 }).withMessage('Ubicación muy larga'),
+  body('latitud').optional().isFloat({ min: -90, max: 90 }).withMessage('Latitud inválida'),
+  body('longitud').optional().isFloat({ min: -180, max: 180 }).withMessage('Longitud inválida'),
   body('modo').optional().isIn(['genesispro', 'manual']).withMessage('Modo debe ser genesispro o manual')
 ];
 
@@ -112,6 +114,8 @@ const updateEventoValidation = [
   body('contacto_organizador').optional().isLength({ max: 300 }).withMessage('Contacto muy largo'),
   body('hora_peleas').optional().matches(/^\d{2}:\d{2}(:\d{2})?$/).withMessage('Hora de peleas inválida (HH:MM)'),
   body('ubicacion').optional().isLength({ max: 500 }).withMessage('Ubicación muy larga'),
+  body('latitud').optional().isFloat({ min: -90, max: 90 }).withMessage('Latitud inválida'),
+  body('longitud').optional().isFloat({ min: -180, max: 180 }).withMessage('Longitud inválida'),
   body('modo').optional().isIn(['genesispro', 'manual']).withMessage('Modo debe ser genesispro o manual')
 ];
 
@@ -398,7 +402,8 @@ router.post('/',
       tipo_derby, formato_derby, reglas, total_peleas, es_publico, entrada_costo, imagen_url,
       pesaje_abre, pesaje_cierra, programa,
       costo_inscripcion, costo_por_pelea, premio_campeon, costos_extra,
-      aves_por_partido, reglas_navaja, contacto_organizador, hora_peleas
+      aves_por_partido, reglas_navaja, contacto_organizador, hora_peleas,
+      latitud, longitud
     } = req.body;
 
     // Generate access code
@@ -412,9 +417,10 @@ router.post('/',
         tipo_derby, formato_derby, reglas, total_peleas, es_publico, entrada_costo, imagen_url,
         pesaje_abre, pesaje_cierra, codigo_acceso, estado,
         costo_inscripcion, costo_por_pelea, premio_campeon, costos_extra,
-        aves_por_partido, reglas_navaja, contacto_organizador, hora_peleas
+        aves_por_partido, reglas_navaja, contacto_organizador, hora_peleas,
+        latitud, longitud
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'programado',
-        $18, $19, $20, $21, $22, $23, $24, $25)
+        $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
       RETURNING *`,
       [
         req.userId, nombre, descripcion || null, fecha, hora_inicio || null,
@@ -424,7 +430,8 @@ router.post('/',
         imagen_url || null, pesaje_abre || null, pesaje_cierra || null, codigo_acceso,
         costo_inscripcion || 0, costo_por_pelea || 0, premio_campeon || 0,
         costos_extra ? JSON.stringify(costos_extra) : '[]',
-        aves_por_partido || 3, reglas_navaja || null, contacto_organizador || null, hora_peleas || null
+        aves_por_partido || 3, reglas_navaja || null, contacto_organizador || null, hora_peleas || null,
+        latitud || null, longitud || null
       ]
     );
 
@@ -473,7 +480,8 @@ router.put('/:id',
       'tipo_derby', 'reglas', 'total_peleas', 'es_publico', 'entrada_costo', 'imagen_url',
       'pesaje_abre', 'pesaje_cierra', 'programa', 'formato_derby',
       'costo_inscripcion', 'costo_por_pelea', 'premio_campeon', 'costos_extra',
-      'aves_por_partido', 'reglas_navaja', 'contacto_organizador', 'hora_peleas', 'ubicacion', 'modo'
+      'aves_por_partido', 'reglas_navaja', 'contacto_organizador', 'hora_peleas', 'ubicacion', 'modo',
+      'latitud', 'longitud'
     ];
 
     const updates = [];

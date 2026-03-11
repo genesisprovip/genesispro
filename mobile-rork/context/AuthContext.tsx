@@ -47,6 +47,8 @@ export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {
     return {
       ...userData,
       plan: userData.plan_actual || userData.plan || 'basico',
+      has_subscription: userData.has_subscription || false,
+      estado_cuenta: userData.estado_cuenta || 'trial',
     };
   };
 

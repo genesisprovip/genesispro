@@ -33,6 +33,7 @@ const path = require('path');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const logger = require('./config/logger');
 const { startDataRetentionCron } = require('./cron/dataRetention');
+const { startHealthRemindersCron } = require('./cron/healthReminders');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -54,6 +55,9 @@ const chatRoutes = require('./routes/chat');
 const finanzasEventoRoutes = require('./routes/finanzasEvento');
 const alimentacionRoutes = require('./routes/alimentacion');
 const adminRoutes = require('./routes/admin');
+const genesisRoutes = require('./routes/genesis');
+const formulasRoutes = require('./routes/formulas');
+const observacionesRoutes = require('./routes/observaciones');
 
 const app = express();
 
@@ -374,6 +378,17 @@ app.get('/resultado/:eventoCode/:numeroPelea', async (req, res) => {
   }
 });
 
+// Legal pages
+app.get('/terminos', (req, res) => {
+  res.sendFile(path.join(__dirname, 'pages', 'terminos.html'));
+});
+app.get('/privacidad', (req, res) => {
+  res.sendFile(path.join(__dirname, 'pages', 'privacidad.html'));
+});
+app.get('/ayuda', (req, res) => {
+  res.sendFile(path.join(__dirname, 'pages', 'ayuda.html'));
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({
@@ -406,6 +421,9 @@ app.use('/api/v1/chat', chatRoutes);
 app.use('/api/v1/finanzas-evento', finanzasEventoRoutes);
 app.use('/api/v1/alimentacion', alimentacionRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/genesis', genesisRoutes);
+app.use('/api/v1/formulas', formulasRoutes);
+app.use('/api/v1/observaciones', observacionesRoutes);
 
 // API info
 app.get('/api/v1', (req, res) => {
@@ -455,6 +473,7 @@ if (process.env.NODE_ENV !== 'test') {
     logger.info(`GenesisPro API running on port ${PORT}`);
     logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
     startDataRetentionCron();
+    startHealthRemindersCron();
   });
 }
 

@@ -131,6 +131,88 @@
             border-top: 1px solid #1E293B;
             font-family: monospace;
         }
+
+        /* Zoom slider */
+        .zoom-control {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            z-index: 10;
+        }
+        .zoom-control.hidden { display: none; }
+        .zoom-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #fff;
+            background: rgba(0,0,0,0.6);
+            padding: 2px 8px;
+            border-radius: 10px;
+            min-width: 36px;
+            text-align: center;
+        }
+        .zoom-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 120px;
+            height: 4px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 2px;
+            outline: none;
+            transform: rotate(-90deg);
+            transform-origin: center;
+        }
+        .zoom-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #10B981;
+            border: 2px solid #fff;
+            cursor: pointer;
+        }
+
+        /* Tap-to-focus indicator */
+        .focus-ring {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border: 2px solid #F59E0B;
+            border-radius: 4px;
+            pointer-events: none;
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(1.5);
+            transition: opacity 0.15s, transform 0.15s;
+            z-index: 10;
+        }
+        .focus-ring.active {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        .focus-ring.locked {
+            border-color: #10B981;
+        }
+
+        /* Warning banner */
+        .stream-warning {
+            position: absolute;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            color: #F59E0B;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 4px 12px;
+            border-radius: 10px;
+            white-space: nowrap;
+            z-index: 10;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -146,12 +228,18 @@
             <p id="eventName">Transmision en Vivo</p>
         </div>
 
-        <div class="video-container">
+        <div class="video-container" id="videoContainer">
             <video id="localVideo" autoplay muted playsinline></video>
             <div class="video-overlay">
                 <span id="statusBadge" class="badge badge-ready">LISTO</span>
                 <span id="timerBadge" class="timer" style="display:none;">00:00</span>
             </div>
+            <div class="zoom-control hidden" id="zoomControl">
+                <span class="zoom-label" id="zoomLabel">1.0x</span>
+                <input type="range" class="zoom-slider" id="zoomSlider" min="1" max="5" step="0.1" value="1">
+            </div>
+            <div class="focus-ring" id="focusRing"></div>
+            <div class="stream-warning" id="streamWarning" style="display:none;">No salgas de la app durante la transmision</div>
         </div>
 
         <div class="controls">
@@ -185,6 +273,12 @@
         let omeSessionId = null;
         let omePeerId = null;
         let wakeLock = null;
+        let currentZoom = 1;
+        let zoomMin = 1;
+        let zoomMax = 1;
+        let supportsZoom = false;
+        let pinchStartDist = 0;
+        let pinchStartZoom = 1;
 
         // Send message to React Native WebView (when embedded)
         function sendToApp(type, data) {
@@ -230,9 +324,9 @@
                 localStream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: facingMode,
-                        width: { ideal: 640 },
-                        height: { ideal: 480 },
-                        frameRate: { ideal: 24 }
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                        frameRate: { ideal: 30 }
                     },
                     audio: {
                         echoCancellation: true,
@@ -246,6 +340,11 @@
                 const bs = document.getElementById('broadcastScreen');
                 bs.style.display = 'flex';
                 document.getElementById('eventName').textContent = eventoNombre;
+
+                // Setup zoom, focus, and warning
+                setupZoomControl();
+                setupTapToFocus();
+                document.getElementById('streamWarning').style.display = 'block';
                 log('Camara iniciada OK');
 
                 // In embedded mode, auto-start streaming
@@ -547,9 +646,9 @@
                 localStream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         facingMode: facingMode,
-                        width: { ideal: 640 },
-                        height: { ideal: 480 },
-                        frameRate: { ideal: 24 }
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                        frameRate: { ideal: 30 }
                     },
                     audio: {
                         echoCancellation: true,
@@ -581,12 +680,184 @@
             }
         }
 
+        // ─── ZOOM CONTROL ───
+        function setupZoomControl() {
+            const videoTrack = localStream ? localStream.getVideoTracks()[0] : null;
+            if (!videoTrack) return;
+
+            // Check if camera supports zoom
+            const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
+            if (capabilities.zoom) {
+                supportsZoom = true;
+                zoomMin = capabilities.zoom.min || 1;
+                zoomMax = capabilities.zoom.max || 1;
+                currentZoom = videoTrack.getSettings().zoom || 1;
+
+                const slider = document.getElementById('zoomSlider');
+                const label = document.getElementById('zoomLabel');
+                const control = document.getElementById('zoomControl');
+
+                slider.min = zoomMin;
+                slider.max = zoomMax;
+                slider.step = (zoomMax - zoomMin) / 50 || 0.1;
+                slider.value = currentZoom;
+                label.textContent = currentZoom.toFixed(1) + 'x';
+                control.classList.remove('hidden');
+
+                slider.addEventListener('input', (e) => {
+                    applyZoom(parseFloat(e.target.value));
+                    // Auto-focus center when using slider
+                    applyFocusPoint(0.5, 0.5);
+                });
+
+                log('Zoom disponible: ' + zoomMin.toFixed(1) + 'x - ' + zoomMax.toFixed(1) + 'x');
+            } else {
+                log('Zoom no soportado por esta camara');
+            }
+
+            // Pinch-to-zoom on video container
+            const container = document.getElementById('videoContainer');
+            container.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2 && supportsZoom) {
+                    e.preventDefault();
+                    pinchStartDist = getPinchDist(e.touches);
+                    pinchStartZoom = currentZoom;
+                }
+            }, { passive: false });
+
+            container.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2 && supportsZoom) {
+                    e.preventDefault();
+                    const dist = getPinchDist(e.touches);
+                    const scale = dist / pinchStartDist;
+                    const newZoom = Math.min(zoomMax, Math.max(zoomMin, pinchStartZoom * scale));
+                    applyZoom(newZoom);
+                }
+            }, { passive: false });
+        }
+
+        function getPinchDist(touches) {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function applyZoom(value) {
+            const videoTrack = localStream ? localStream.getVideoTracks()[0] : null;
+            if (!videoTrack || !supportsZoom) return;
+            currentZoom = Math.min(zoomMax, Math.max(zoomMin, value));
+            videoTrack.applyConstraints({ advanced: [{ zoom: currentZoom }] }).catch(() => {});
+            document.getElementById('zoomSlider').value = currentZoom;
+            document.getElementById('zoomLabel').textContent = currentZoom.toFixed(1) + 'x';
+        }
+
+        // ─── TAP TO FOCUS + ZOOM ───
+        // Tap = focus on that point + zoom in smoothly
+        // Double-tap = reset zoom to 1x
+        function setupTapToFocus() {
+            const container = document.getElementById('videoContainer');
+            const focusRing = document.getElementById('focusRing');
+            let focusTimeout = null;
+            let lastTapTime = 0;
+
+            container.addEventListener('click', async (e) => {
+                if (e.target.closest('.zoom-control')) return;
+
+                const now = Date.now();
+                const rect = container.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const normX = x / rect.width;
+                const normY = y / rect.height;
+
+                // Double-tap: reset zoom
+                if (now - lastTapTime < 300) {
+                    lastTapTime = 0;
+                    animateZoomTo(zoomMin);
+                    showFocusRing(x, y);
+                    applyFocusPoint(normX, normY);
+                    log('Zoom reset to 1x');
+                    return;
+                }
+                lastTapTime = now;
+
+                // Single tap: focus on point + zoom in a step
+                showFocusRing(x, y);
+                applyFocusPoint(normX, normY);
+
+                // Zoom in toward tapped area (step +0.5x per tap, max zoomMax)
+                if (supportsZoom && currentZoom < zoomMax) {
+                    const step = (zoomMax - zoomMin) / 6;
+                    animateZoomTo(Math.min(zoomMax, currentZoom + step));
+                }
+            });
+
+            function showFocusRing(x, y) {
+                focusRing.style.left = x + 'px';
+                focusRing.style.top = y + 'px';
+                focusRing.classList.remove('active', 'locked');
+                void focusRing.offsetWidth;
+                focusRing.classList.add('active');
+
+                if (focusTimeout) clearTimeout(focusTimeout);
+                focusTimeout = setTimeout(() => {
+                    focusRing.classList.add('locked');
+                    setTimeout(() => focusRing.classList.remove('active', 'locked'), 800);
+                }, 400);
+            }
+        }
+
+        async function applyFocusPoint(normX, normY) {
+            const videoTrack = localStream ? localStream.getVideoTracks()[0] : null;
+            if (!videoTrack) return;
+
+            const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
+            try {
+                // Try pointsOfInterest first (best support on Android)
+                if (capabilities.pointsOfInterest) {
+                    await videoTrack.applyConstraints({
+                        advanced: [{ pointsOfInterest: [{ x: normX, y: normY }] }]
+                    });
+                    log('Focus: ' + normX.toFixed(2) + ',' + normY.toFixed(2));
+                } else if (capabilities.focusMode) {
+                    // Force re-focus by toggling focus mode
+                    await videoTrack.applyConstraints({ advanced: [{ focusMode: 'manual' }] });
+                    setTimeout(async () => {
+                        await videoTrack.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+                    }, 300);
+                }
+            } catch { /* not supported, visual feedback only */ }
+        }
+
+        // Smooth animated zoom transition
+        function animateZoomTo(target) {
+            if (!supportsZoom) return;
+            const start = currentZoom;
+            const diff = target - start;
+            const duration = 200;
+            const startTime = performance.now();
+
+            function step(now) {
+                const progress = Math.min(1, (now - startTime) / duration);
+                const eased = progress * (2 - progress); // ease-out
+                applyZoom(start + diff * eased);
+                if (progress < 1) requestAnimationFrame(step);
+            }
+            requestAnimationFrame(step);
+        }
+
+        // Expose zoom to React Native WebView
+        function setZoom(value) {
+            applyZoom(parseFloat(value));
+        }
+
         // Listen for commands from React Native WebView
         window.addEventListener('message', function(e) {
             try {
                 var cmd = JSON.parse(e.data);
                 if (cmd.action === 'stop') stopStreaming();
                 if (cmd.action === 'switchCamera') switchCamera();
+                if (cmd.action === 'zoom' && cmd.value) setZoom(cmd.value);
             } catch(ex) {}
         });
         // Also for Android
@@ -595,6 +866,7 @@
                 var cmd = JSON.parse(e.data);
                 if (cmd.action === 'stop') stopStreaming();
                 if (cmd.action === 'switchCamera') switchCamera();
+                if (cmd.action === 'zoom' && cmd.value) setZoom(cmd.value);
             } catch(ex) {}
         });
 

@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
-const { stripe, PLAN_CONFIG, getPlanFromPriceId, getBillingInterval } = require('../config/stripe');
+const { stripe, PLAN_CONFIG, PRICE_IDS, getPlanFromPriceId, getBillingInterval } = require('../config/stripe');
 const { authenticateJWT } = require('../middleware/auth');
 const { Errors, asyncHandler } = require('../middleware/errorHandler');
 const logger = require('../config/logger');
@@ -17,11 +17,21 @@ const {
 
 // ─── POST /checkout - Create Stripe Checkout Session ───
 router.post('/checkout', authenticateJWT, asyncHandler(async (req, res) => {
-  const { priceId } = req.body;
+  let { priceId, plan, interval } = req.body;
   const userId = req.userId;
 
+  // Allow passing plan+interval instead of priceId
+  if (!priceId && plan) {
+    const int = interval || 'mensual';
+    const key = `${plan}_${int === 'anual' ? 'yearly' : 'monthly'}`;
+    priceId = PRICE_IDS[key];
+    if (!priceId) {
+      throw Errors.badRequest(`Plan o intervalo inválido: ${plan}/${int}`);
+    }
+  }
+
   if (!priceId) {
-    throw Errors.badRequest('priceId es requerido');
+    throw Errors.badRequest('priceId o plan es requerido');
   }
 
   // Get user
@@ -65,8 +75,8 @@ router.post('/checkout', authenticateJWT, asyncHandler(async (req, res) => {
     mode: 'subscription',
     payment_method_types: ['card'],
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${process.env.APP_BASE_URL || 'genesispro://'}subscription/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.APP_BASE_URL || 'genesispro://'}subscription/cancelled`,
+    success_url: `https://api.genesispro.vip/pago/exitoso?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `https://api.genesispro.vip/pago/cancelado`,
     metadata: { userId },
     subscription_data: {
       metadata: { userId },
@@ -94,7 +104,7 @@ router.post('/portal', authenticateJWT, asyncHandler(async (req, res) => {
 
   const session = await stripe.billingPortal.sessions.create({
     customer: user.stripe_customer_id,
-    return_url: `${process.env.APP_BASE_URL || 'genesispro://'}subscription/portal-return`,
+    return_url: `https://api.genesispro.vip/pago/exitoso`,
   });
 
   res.json({
@@ -278,6 +288,21 @@ router.get('/plans', asyncHandler(async (req, res) => {
   res.json({ success: true, data: { plans } });
 }));
 
+// ─── GET /price-ids - Get Stripe Price IDs for checkout ───
+router.get('/price-ids', authenticateJWT, asyncHandler(async (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      basico_monthly: PRICE_IDS.basico_monthly,
+      pro_monthly: PRICE_IDS.pro_monthly,
+      premium_monthly: PRICE_IDS.premium_monthly,
+      basico_yearly: PRICE_IDS.basico_yearly,
+      pro_yearly: PRICE_IDS.pro_yearly,
+      premium_yearly: PRICE_IDS.premium_yearly,
+    },
+  });
+}));
+
 // ─── POST /webhook - Stripe Webhook Handler ───
 router.post('/webhook', async (req, res) => {
   const sig = req.headers['stripe-signature'];
@@ -370,13 +395,13 @@ async function handleCheckoutCompleted(session) {
     ]
   );
 
-  // Update user plan
+  // Update user plan and activate account
   await db.query(
-    `UPDATE usuarios SET plan_actual = $1, suscripcion_activa_id = $2 WHERE id = $3`,
+    `UPDATE usuarios SET plan_actual = $1, plan_elegido = $1, suscripcion_activa_id = $2, estado_cuenta = 'activo', updated_at = NOW() WHERE id = $3`,
     [plan, sub.id, userId]
   );
 
-  logger.info(`[Stripe] User ${userId} upgraded to ${plan}`);
+  logger.info(`[Stripe] User ${userId} upgraded to ${plan} (account activated)`);
 }
 
 async function handleSubscriptionUpdated(subscription) {

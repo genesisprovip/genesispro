@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,14 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Linking,
+  AppState,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Crown, Star, Zap, Check, ChevronLeft } from 'lucide-react-native';
+import { Crown, Star, Zap, Check, ChevronLeft, ExternalLink } from 'lucide-react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
@@ -89,6 +92,18 @@ export default function SubscriptionScreen() {
   const { user, refreshProfile } = useAuth();
   const [loading, setLoading] = useState(false);
 
+  // Auto-refresh profile when returning from Stripe checkout
+  const appState = useRef(AppState.currentState);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+        refreshProfile();
+      }
+      appState.current = nextState;
+    });
+    return () => sub.remove();
+  }, []);
+
   const currentPlan = user?.plan || 'basico';
   const estadoCuenta = user?.estado_cuenta || 'trial';
   const trialDays = user?.trial_dias_restantes ?? 0;
@@ -111,30 +126,65 @@ export default function SubscriptionScreen() {
   const handleSelectPlan = (plan: PlanInfo) => {
     if (plan.id === currentPlan && estadoCuenta !== 'vencido') return;
 
-    const isUpgrade = PLAN_ORDER[plan.id] > PLAN_ORDER[currentPlan];
-    const action = isUpgrade ? 'mejorara' : 'cambiara';
+    // If user has active paid subscription, use change-plan (Stripe handles proration)
+    const hasActiveSub = user?.has_subscription && estadoCuenta === 'activo';
 
+    if (hasActiveSub) {
+      Alert.alert(
+        `Cambiar a ${plan.name}`,
+        `Tu plan cambiara a ${plan.name}. El cambio se aplicara al final del periodo actual.`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Confirmar', onPress: () => changePlanOnly(plan) },
+        ]
+      );
+      return;
+    }
+
+    // New subscription or expired - go through Stripe Checkout
     Alert.alert(
-      `Cambiar a ${plan.name}`,
-      `Tu plan se ${action} a ${plan.name} al finalizar tu periodo actual. Se te cobrara $${plan.price} MXN/mes.`,
+      `Suscribirse a ${plan.name}`,
+      `Se te cobrara $${plan.price} MXN/mes. Seras redirigido a la pagina de pago seguro.`,
       [
         { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Confirmar',
-          onPress: () => confirmPlanChange(plan),
-        },
+        { text: 'Continuar al Pago', onPress: () => startCheckout(plan) },
       ]
     );
   };
 
-  const confirmPlanChange = async (plan: PlanInfo) => {
+  const startCheckout = async (plan: PlanInfo) => {
+    setLoading(true);
+    try {
+      const res = await api.createCheckoutSession(plan.id, 'mensual');
+      if (res.data?.url) {
+        const result = await WebBrowser.openAuthSessionAsync(
+          res.data.url,
+          'genesispro://subscription'
+        );
+        if (result.type === 'success' || result.type === 'dismiss') {
+          await refreshProfile();
+        }
+      } else {
+        throw new Error('No se recibio URL de pago');
+      }
+    } catch (error: any) {
+      Alert.alert(
+        'Error',
+        error.message || 'No se pudo iniciar el proceso de pago. Intenta de nuevo.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const changePlanOnly = async (plan: PlanInfo) => {
     setLoading(true);
     try {
       await api.changePlan(plan.id);
       await refreshProfile();
       Alert.alert(
         'Plan actualizado',
-        `Tu plan ha sido cambiado a ${plan.name} exitosamente.`
+        `Tu plan cambiara a ${plan.name} al finalizar el periodo actual.`
       );
     } catch (error: any) {
       Alert.alert(
@@ -146,9 +196,28 @@ export default function SubscriptionScreen() {
     }
   };
 
+  const openBillingPortal = async () => {
+    setLoading(true);
+    try {
+      const res = await api.createBillingPortalSession();
+      if (res.data?.url) {
+        await WebBrowser.openAuthSessionAsync(
+          res.data.url,
+          'genesispro://subscription'
+        );
+        await refreshProfile();
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'No se pudo abrir el portal de facturacion.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getButtonLabel = (planId: string) => {
     if (planId === currentPlan && estadoCuenta !== 'vencido') return 'Plan Actual';
-    if (estadoCuenta === 'vencido') return 'Seleccionar';
+    const hasActiveSub = user?.has_subscription && estadoCuenta === 'activo';
+    if (estadoCuenta === 'vencido' || estadoCuenta === 'trial' || !hasActiveSub) return 'Suscribirse';
     return PLAN_ORDER[planId] > PLAN_ORDER[currentPlan]
       ? 'Mejorar Plan'
       : 'Cambiar Plan';
@@ -273,10 +342,21 @@ export default function SubscriptionScreen() {
           );
         })}
 
+        {user?.has_subscription && estadoCuenta === 'activo' && (
+          <TouchableOpacity
+            style={styles.portalButton}
+            onPress={openBillingPortal}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            <ExternalLink size={18} color={COLORS.primary} />
+            <Text style={styles.portalButtonText}>Gestionar Suscripcion</Text>
+          </TouchableOpacity>
+        )}
+
         <View style={styles.footer}>
           <Text style={styles.footerText}>
-            Los cargos se realizan de forma mensual. Puedes cancelar en cualquier
-            momento.
+            Los cargos se realizan de forma mensual a traves de Stripe (pago seguro). Puedes cancelar en cualquier momento.
           </Text>
         </View>
       </ScrollView>
@@ -463,6 +543,23 @@ const styles = StyleSheet.create({
   planButtonTextCurrent: {
     color: COLORS.textSecondary,
     fontWeight: '600',
+  },
+  portalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 48,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary + '10',
+    marginBottom: SPACING.md,
+  },
+  portalButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
   footer: {
     alignItems: 'center',

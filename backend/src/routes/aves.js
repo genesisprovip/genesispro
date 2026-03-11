@@ -49,7 +49,43 @@ const createAveValidation = [
     .isFloat({ min: 0 }),
   body('notas')
     .optional()
+    .trim(),
+  body('composicion_genetica')
+    .optional()
+    .isArray()
+    .withMessage('Composición genética debe ser un arreglo'),
+  body('composicion_genetica.*.linea')
+    .optional()
+    .isLength({ min: 1, max: 100 }),
+  body('composicion_genetica.*.fraccion')
+    .optional()
+    .isLength({ min: 1, max: 10 }),
+  body('composicion_genetica.*.decimal')
+    .optional()
+    .isFloat({ min: 0, max: 1 }),
+  body('es_puro')
+    .optional()
+    .isBoolean(),
+  body('criadero_origen')
+    .optional()
     .trim()
+    .isLength({ max: 200 }),
+  body('criador_nombre')
+    .optional()
+    .trim()
+    .isLength({ max: 200 }),
+  body('fecha_adquisicion')
+    .optional()
+    .isISO8601(),
+  body('tipo_adquisicion')
+    .optional()
+    .isIn(['cria_propia', 'compra', 'regalo', 'intercambio']),
+  body('notas_origen')
+    .optional()
+    .trim(),
+  body('zona').optional().trim(),
+  body('sub_zona').optional().trim(),
+  body('lote').optional().trim()
 ];
 
 const updateAveValidation = [
@@ -90,7 +126,33 @@ const updateAveValidation = [
     .isBoolean(),
   body('notas')
     .optional()
+    .trim(),
+  body('composicion_genetica')
+    .optional()
+    .isArray(),
+  body('es_puro')
+    .optional()
+    .isBoolean(),
+  body('criadero_origen')
+    .optional()
     .trim()
+    .isLength({ max: 200 }),
+  body('criador_nombre')
+    .optional()
+    .trim()
+    .isLength({ max: 200 }),
+  body('fecha_adquisicion')
+    .optional({ nullable: true })
+    .isISO8601(),
+  body('tipo_adquisicion')
+    .optional()
+    .isIn(['cria_propia', 'compra', 'regalo', 'intercambio']),
+  body('notas_origen')
+    .optional()
+    .trim(),
+  body('zona').optional().trim(),
+  body('sub_zona').optional().trim(),
+  body('lote').optional().trim()
 ];
 
 const searchValidation = [
@@ -197,6 +259,13 @@ router.get('/:id/qr',
   uuidValidation,
   validateRequest,
   avesController.getQRCode
+);
+
+// Pedigree PDF
+router.get('/:id/pedigree',
+  uuidValidation,
+  validateRequest,
+  avesController.getPedigree
 );
 
 module.exports = router;

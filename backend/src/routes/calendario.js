@@ -111,6 +111,57 @@ router.get('/', asyncHandler(async (req, res) => {
     });
   });
 
+  // Aves - fecha de nacimiento
+  const { rows: aves } = await db.query(`
+    SELECT id, codigo_identidad, fecha_nacimiento, linea_genetica, sexo
+    FROM aves
+    WHERE usuario_id = $1
+      AND deleted_at IS NULL
+      AND fecha_nacimiento BETWEEN $2 AND $3
+    ORDER BY fecha_nacimiento
+  `, [req.userId, startDate, endDate]);
+
+  aves.forEach(a => {
+    events.push({
+      id: `ave-${a.id}`,
+      tipo: 'ave',
+      fecha: a.fecha_nacimiento,
+      titulo: `Nac: ${a.codigo_identidad}`,
+      subtitulo: `${a.linea_genetica || ''} ${a.sexo === 'M' ? 'Macho' : 'Hembra'}`.trim(),
+      ave_codigo: a.codigo_identidad,
+      color: '#6366F1',
+    });
+  });
+
+  // Eventos de palenque
+  const { rows: eventosP } = await db.query(`
+    SELECT id, nombre, fecha, lugar, estado, tipo_derby
+    FROM eventos_palenque
+    WHERE organizador_id = $1
+      AND deleted_at IS NULL
+      AND fecha BETWEEN $2 AND $3
+    UNION
+    SELECT ep.id, ep.nombre, ep.fecha, ep.lugar, ep.estado, ep.tipo_derby
+    FROM eventos_palenque ep
+    JOIN participantes_evento pe ON pe.evento_id = ep.id
+    WHERE pe.usuario_id = $1
+      AND ep.deleted_at IS NULL
+      AND ep.fecha BETWEEN $2 AND $3
+    ORDER BY fecha
+  `, [req.userId, startDate, endDate]);
+
+  eventosP.forEach(e => {
+    events.push({
+      id: `evento-${e.id}`,
+      tipo: 'evento',
+      fecha: e.fecha,
+      titulo: e.nombre,
+      subtitulo: e.lugar || e.tipo_derby || '',
+      estado: e.estado,
+      color: '#EAB308',
+    });
+  });
+
   events.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
 
   res.json({ success: true, data: events });

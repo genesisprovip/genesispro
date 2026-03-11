@@ -8,6 +8,8 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Linking,
+  Share,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,6 +31,8 @@ import {
   Eye,
   Copy,
   ChevronRight,
+  Navigation,
+  Share2,
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
@@ -247,6 +251,15 @@ export default function PalenqueDetalleScreen() {
             <View style={styles.headerMeta}>
               <MapPin size={12} color="rgba(255,255,255,0.6)" />
               <Text style={styles.headerSubtitle} numberOfLines={1}>{evento.lugar}</Text>
+              {evento.latitud && evento.longitud && (
+                <TouchableOpacity
+                  onPress={() => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${evento.latitud},${evento.longitud}`)}
+                  style={styles.navButton}
+                >
+                  <Navigation size={12} color={COLORS.secondary} />
+                  <Text style={styles.navButtonText}>Ir</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
           <View style={[styles.statusBadgeHeader, { backgroundColor: estadoColor + '30' }]}>
@@ -276,6 +289,39 @@ export default function PalenqueDetalleScreen() {
             <Trophy size={14} color={COLORS.secondary} />
             <Text style={styles.headerDetailText}>{evento.tipo_derby}</Text>
           </View>
+        </View>
+
+        {/* Share + Navigate buttons */}
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerActionBtn}
+            onPress={async () => {
+              const url = evento.codigo_acceso
+                ? `https://api.genesispro.vip/evento/${evento.codigo_acceso}`
+                : `https://api.genesispro.vip/palenque/`;
+              const fechaStr = evento.fecha
+                ? new Date(evento.fecha).toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })
+                : '';
+              try {
+                await Share.share({
+                  message: `${evento.nombre}${fechaStr ? ` - ${fechaStr}` : ''}${evento.lugar ? ` en ${evento.lugar}` : ''}${evento.codigo_acceso ? `\n\nCodigo de acceso: ${evento.codigo_acceso}` : ''}\n\n${url}`,
+                });
+              } catch {}
+            }}
+          >
+            <Share2 size={14} color={COLORS.secondary} />
+            <Text style={styles.headerActionText}>Compartir</Text>
+          </TouchableOpacity>
+
+          {evento.latitud && evento.longitud && (
+            <TouchableOpacity
+              style={styles.headerActionBtn}
+              onPress={() => Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${evento.latitud},${evento.longitud}`)}
+            >
+              <Navigation size={14} color={COLORS.secondary} />
+              <Text style={styles.headerActionText}>Como llegar</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </LinearGradient>
 
@@ -572,6 +618,41 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: 'rgba(255,255,255,0.6)',
     flex: 1,
+  },
+  navButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  navButtonText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.secondary,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  headerActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  headerActionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.secondary,
   },
   statusBadgeHeader: {
     flexDirection: 'row',
