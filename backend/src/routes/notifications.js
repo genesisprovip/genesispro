@@ -78,12 +78,15 @@ router.put('/preferences', authenticateJWT, asyncHandler(async (req, res) => {
 async function sendPushNotification(tokens, title, body, data = {}) {
   if (!tokens || tokens.length === 0) return;
 
+  const isFightAlert = data?.tipo === 'pelea_proxima';
   const messages = tokens.map(token => ({
     to: token,
     sound: 'default',
     title,
     body,
     data,
+    priority: isFightAlert ? 'high' : 'default',
+    channelId: isFightAlert ? 'fight-alerts' : 'default',
   }));
 
   try {

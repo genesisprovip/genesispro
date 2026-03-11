@@ -59,18 +59,37 @@ export default function LiveStreamViewer({
     setPlayerStatus('playing');
   }, []);
 
+  const handleWebRTCAudioState = useCallback((muted: boolean) => {
+    setIsMuted(muted);
+  }, []);
+
   const handleWebRTCError = useCallback(() => {
     console.log('[Stream] WebRTC failed, falling back to HLS');
     setUseWebRTC(false);
     setWebrtcReady(false);
   }, []);
 
+  // Force fallback to HLS if WebRTC doesn't connect within 10 seconds
+  useEffect(() => {
+    if (!useWebRTC || webrtcReady) return;
+    const fallbackTimer = setTimeout(() => {
+      if (!webrtcReady) {
+        console.log('[Stream] WebRTC timeout, forcing HLS fallback');
+        setUseWebRTC(false);
+        setWebrtcReady(false);
+      }
+    }, 10000);
+    return () => clearTimeout(fallbackTimer);
+  }, [useWebRTC, webrtcReady]);
+
   // Native video player via expo-video (ExoPlayer on Android, AVPlayer on iOS)
   // Use source object with buffering hints for low latency
+  const safeHlsUrl = hlsUrl || 'about:blank';
   const player = useVideoPlayer({
-    uri: hlsUrl,
+    uri: safeHlsUrl,
     headers: {},
   }, (p) => {
+    if (!hlsUrl) return;
     p.loop = false;
     p.muted = false;
     // Minimize buffer for lower latency on live streams
@@ -211,6 +230,8 @@ export default function LiveStreamViewer({
           streamName={streamName!}
           onReady={handleWebRTCReady}
           onError={handleWebRTCError}
+          onAudioState={handleWebRTCAudioState}
+          muted={isMuted}
           style={styles.video}
         />
       ) : (

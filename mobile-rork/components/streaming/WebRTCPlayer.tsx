@@ -3,7 +3,7 @@
  * Works in Expo Go without native modules.
  * Provides sub-second latency vs 6-15s with HLS.
  */
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { WebView } from 'react-native-webview';
 
@@ -12,6 +12,8 @@ interface WebRTCPlayerProps {
   streamName: string;
   onReady?: () => void;
   onError?: () => void;
+  onAudioState?: (muted: boolean) => void;
+  muted?: boolean;
   style?: object;
 }
 
@@ -20,6 +22,8 @@ export default function WebRTCPlayer({
   streamName,
   onReady,
   onError,
+  onAudioState,
+  muted,
   style,
 }: WebRTCPlayerProps) {
   const webViewRef = useRef<WebView>(null);
@@ -29,8 +33,16 @@ export default function WebRTCPlayer({
       const data = JSON.parse(event.nativeEvent.data);
       if (data.type === 'ready') onReady?.();
       if (data.type === 'error') onError?.();
+      if (data.type === 'audioState') onAudioState?.(data.muted);
     } catch {}
-  }, [onReady, onError]);
+  }, [onReady, onError, onAudioState]);
+
+  // Forward mute state changes from parent to WebView
+  useEffect(() => {
+    if (muted !== undefined && webViewRef.current) {
+      webViewRef.current.postMessage(JSON.stringify({ command: 'setMuted', muted }));
+    }
+  }, [muted]);
 
   // Inline HTML that connects via WebRTC to OME
   const html = `
@@ -44,16 +56,40 @@ export default function WebRTCPlayer({
     video { width: 100%; height: 100%; object-fit: contain; background: #000; }
     .connecting { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
       color: #fff; font-family: sans-serif; font-size: 14px; }
+    #unmute-overlay {
+      display: none;
+      position: absolute;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.75);
+      color: #fff;
+      font-family: sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 20px;
+      border-radius: 24px;
+      cursor: pointer;
+      z-index: 10;
+      border: 1px solid rgba(255,255,255,0.3);
+      animation: pulse-unmute 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse-unmute {
+      0%, 100% { opacity: 0.85; }
+      50% { opacity: 1; }
+    }
   </style>
 </head>
 <body>
   <video id="player" autoplay playsinline></video>
   <div class="connecting" id="status">Conectando WebRTC...</div>
+  <div id="unmute-overlay">🔊 Toca para activar sonido</div>
   <script>
     const SIGNALING_URL = '${signalingUrl}';
     const STREAM_NAME = '${streamName}';
     const video = document.getElementById('player');
     const status = document.getElementById('status');
+    const unmuteOverlay = document.getElementById('unmute-overlay');
 
     let pc = null;
     let ws = null;
@@ -66,11 +102,24 @@ export default function WebRTCPlayer({
 
     function connect() {
       try {
-        // WebSocket to OME signaling
-        const wsUrl = SIGNALING_URL.replace('wss://', 'wss://').replace('ws://', 'ws://');
+        // WebSocket to OME signaling — append stream path
+        let wsUrl = SIGNALING_URL;
+        // Ensure URL includes the app/stream path for OME
+        if (!wsUrl.includes('/live/')) {
+          wsUrl = wsUrl.replace(/\\/$/, '') + '/live/' + STREAM_NAME;
+        }
         ws = new WebSocket(wsUrl);
 
+        // Timeout: if WebSocket doesn't connect in 8 seconds, fall back
+        const wsTimeout = setTimeout(() => {
+          if (!ws || ws.readyState !== WebSocket.OPEN) {
+            sendToApp('error', { message: 'WebSocket timeout' });
+            cleanup();
+          }
+        }, 8000);
+
         ws.onopen = () => {
+          clearTimeout(wsTimeout);
           // Request offer from OME for this stream
           ws.send(JSON.stringify({
             command: 'request_offer',
@@ -99,12 +148,15 @@ export default function WebRTCPlayer({
                 video.srcObject = e.streams[0];
                 video.muted = false;
                 video.play().then(() => {
-                  // Unmuted playback started
+                  // Unmuted playback started successfully
+                  unmuteOverlay.style.display = 'none';
+                  sendToApp('audioState', { muted: false });
                 }).catch(() => {
-                  // Autoplay policy blocked unmuted, try muted first then unmute
+                  // Autoplay policy blocked unmuted — play muted and show unmute overlay
                   video.muted = true;
                   video.play().then(() => {
-                    setTimeout(() => { video.muted = false; }, 500);
+                    unmuteOverlay.style.display = 'block';
+                    sendToApp('audioState', { muted: true });
                   }).catch(() => {});
                 });
                 status.style.display = 'none';
@@ -187,10 +239,32 @@ export default function WebRTCPlayer({
       }
     }
 
-    // Unmute on first touch
-    document.addEventListener('touchstart', () => {
+    // Unmute overlay tap handler — satisfies autoplay policy via user gesture
+    unmuteOverlay.addEventListener('touchstart', function() {
       video.muted = false;
+      unmuteOverlay.style.display = 'none';
+      sendToApp('audioState', { muted: false });
     }, { once: true });
+
+    // Also try unmuting on any touch on the video area
+    document.addEventListener('touchstart', function() {
+      if (video.muted) {
+        video.muted = false;
+        unmuteOverlay.style.display = 'none';
+        sendToApp('audioState', { muted: false });
+      }
+    }, { once: true });
+
+    // Listen for mute/unmute commands from React Native
+    window.addEventListener('message', function(event) {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.command === 'setMuted') {
+          video.muted = msg.muted;
+          unmuteOverlay.style.display = msg.muted ? 'block' : 'none';
+        }
+      } catch {}
+    });
 
     connect();
   </script>

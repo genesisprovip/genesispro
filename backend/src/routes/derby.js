@@ -49,29 +49,24 @@ router.get('/:eventoId/partido-por-codigo/:codigo',
       return res.status(404).json({ success: false, error: 'Codigo de partido no valido para este evento' });
     }
 
-    // Get this partido's fights
+    // Get this partido's fights (use partido_derby_rojo_id/verde_id directly)
     const partido = rows[0];
     const { rows: peleas } = await db.query(
       `SELECT p.id, p.numero_pelea, p.estado, p.resultado,
         p.anillo_rojo, p.peso_rojo, p.placa_rojo,
         p.anillo_verde, p.peso_verde, p.placa_verde,
-        p.ave_roja_derby_id, p.ave_verde_derby_id,
-        p.duracion_minutos, p.tipo_victoria
+        p.partido_derby_rojo_id, p.partido_derby_verde_id,
+        p.duracion_minutos, p.tipo_victoria,
+        pdr.nombre AS partido_rojo_nombre,
+        pdv.nombre AS partido_verde_nombre
        FROM peleas p
-       LEFT JOIN aves_derby ar ON ar.id = p.ave_roja_derby_id
-       LEFT JOIN aves_derby av ON av.id = p.ave_verde_derby_id
+       LEFT JOIN partidos_derby pdr ON pdr.id = p.partido_derby_rojo_id
+       LEFT JOIN partidos_derby pdv ON pdv.id = p.partido_derby_verde_id
        WHERE p.evento_id = $1
-         AND (ar.partido_id = $2 OR av.partido_id = $2)
+         AND (p.partido_derby_rojo_id = $2 OR p.partido_derby_verde_id = $2)
        ORDER BY p.numero_pelea ASC`,
       [eventoId, partido.id]
     );
-
-    // Enrich each fight with partido perspective (which corner am I?)
-    const misPeleas = peleas.map(pelea => {
-      // Check if this partido's ave is on rojo or verde side
-      // We need to query aves_derby to know
-      return pelea;
-    });
 
     // Get aves for this partido
     const { rows: misAves } = await db.query(
@@ -81,16 +76,15 @@ router.get('/:eventoId/partido-por-codigo/:codigo',
     );
 
     // Determine which corner for each fight
-    for (const pelea of misPeleas) {
-      const aveRojaEsMia = misAves.some(a => a.id === pelea.ave_roja_derby_id);
-      const aveVerdeEsMia = misAves.some(a => a.id === pelea.ave_verde_derby_id);
-      pelea.mi_esquina = aveRojaEsMia ? 'rojo' : aveVerdeEsMia ? 'verde' : null;
-      pelea.mi_anillo = aveRojaEsMia ? pelea.anillo_rojo : pelea.anillo_verde;
-      pelea.mi_peso = aveRojaEsMia ? pelea.peso_rojo : pelea.peso_verde;
-      pelea.oponente_nombre = aveRojaEsMia ? pelea.placa_verde : pelea.placa_rojo;
-      pelea.oponente_anillo = aveRojaEsMia ? pelea.anillo_verde : pelea.anillo_rojo;
-      pelea.oponente_peso = aveRojaEsMia ? pelea.peso_verde : pelea.peso_rojo;
-    }
+    const misPeleas = peleas.map(pelea => ({
+      ...pelea,
+      mi_esquina: pelea.partido_derby_rojo_id === partido.id ? 'rojo' : 'verde',
+      mi_anillo: pelea.partido_derby_rojo_id === partido.id ? pelea.anillo_rojo : pelea.anillo_verde,
+      mi_peso: pelea.partido_derby_rojo_id === partido.id ? pelea.peso_rojo : pelea.peso_verde,
+      oponente_nombre: pelea.partido_derby_rojo_id === partido.id ? pelea.partido_verde_nombre : pelea.partido_rojo_nombre,
+      oponente_anillo: pelea.partido_derby_rojo_id === partido.id ? pelea.anillo_verde : pelea.anillo_rojo,
+      oponente_peso: pelea.partido_derby_rojo_id === partido.id ? pelea.peso_verde : pelea.peso_rojo,
+    }));
 
     res.json({
       success: true,

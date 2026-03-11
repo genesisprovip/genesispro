@@ -9,8 +9,10 @@ import {
   ActivityIndicator,
   Animated,
   ScrollView,
+  TextInput,
   useWindowDimensions,
   Vibration,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { Platform, PermissionsAndroid } from 'react-native';
@@ -27,6 +29,8 @@ import {
   Video,
   CameraIcon,
   Maximize2,
+  Search,
+  AlertCircle,
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS } from '@/constants/theme';
@@ -88,36 +92,66 @@ export default function BroadcastScreen() {
   const [resolvedEventoId, setResolvedEventoId] = useState(eventoId || '');
   const [resolvedEventoNombre, setResolvedEventoNombre] = useState(eventoNombre || '');
   const [eventoModo, setEventoModo] = useState<'genesispro' | 'manual'>('genesispro');
+  const [codigoInput, setCodigoInput] = useState('');
+  const [searchingEvento, setSearchingEvento] = useState(false);
+  const [eventoError, setEventoError] = useState('');
+  const [needsEventSelection, setNeedsEventSelection] = useState(!eventoId);
 
   const isLive = broadcastStatus === 'live' || broadcastStatus === 'reconnecting';
   const isManual = eventoModo === 'manual';
   const currentPelea = peleas.length > 0 ? peleas[currentPeleaIndex] : null;
   const hasMoreFights = currentPeleaIndex < peleas.length - 1;
 
-  // If no eventoId passed, find the active event automatically
+  // If eventoId was passed directly, resolve it
   useEffect(() => {
     if (eventoId) {
       setResolvedEventoId(eventoId);
-      // Fetch modo
+      setNeedsEventSelection(false);
       api.getEvento(eventoId).then(res => {
-        if (res.success && res.data?.modo) setEventoModo(res.data.modo);
-      }).catch(() => {});
-      return;
-    }
-    (async () => {
-      try {
-        const res = await api.getEventos();
-        if (res.success && res.data?.length > 0) {
-          const active = res.data.find((e: any) => e.estado === 'en_curso') || res.data[0];
-          if (active) {
-            setResolvedEventoId(active.id);
-            setResolvedEventoNombre(active.nombre || '');
-            setEventoModo(active.modo || 'genesispro');
+        if (res.success && res.data) {
+          if (res.data.modo) setEventoModo(res.data.modo);
+          if (res.data.nombre) setResolvedEventoNombre(res.data.nombre);
+          // Block if event is finalized
+          if (res.data.estado === 'finalizado' || res.data.estado === 'cancelado') {
+            setEventoError(`Este evento ya esta ${res.data.estado}. No se puede transmitir.`);
+            setNeedsEventSelection(true);
+            setResolvedEventoId('');
           }
         }
-      } catch { /* ignore */ }
-    })();
+      }).catch(() => {});
+    }
   }, [eventoId]);
+
+  // Search event by codigo_acceso
+  const handleSearchEvento = async () => {
+    const code = codigoInput.trim().toUpperCase();
+    if (!code) return;
+    setSearchingEvento(true);
+    setEventoError('');
+    try {
+      const res = await api.getEventos();
+      if (res.success && res.data?.length > 0) {
+        const found = res.data.find((e: any) => e.codigo_acceso?.toUpperCase() === code);
+        if (!found) {
+          setEventoError('No se encontro ningun evento con ese codigo');
+        } else if (found.estado === 'finalizado' || found.estado === 'cancelado') {
+          setEventoError(`El evento "${found.nombre}" ya esta ${found.estado}. No se puede transmitir.`);
+        } else {
+          setResolvedEventoId(found.id);
+          setResolvedEventoNombre(found.nombre || '');
+          setEventoModo(found.modo || 'genesispro');
+          setNeedsEventSelection(false);
+          setEventoError('');
+        }
+      } else {
+        setEventoError('No tienes eventos registrados');
+      }
+    } catch (error: any) {
+      setEventoError(error.message || 'Error buscando evento');
+    } finally {
+      setSearchingEvento(false);
+    }
+  };
 
   // Stream elapsed timer
   useEffect(() => {
@@ -404,7 +438,67 @@ export default function BroadcastScreen() {
     webViewRef.current?.injectJavaScript('switchCamera(); true;');
   };
 
-  // Pre-streaming screen (no streamKey yet)
+  // Event code input screen — user must enter the event code to link the stream
+  if (needsEventSelection || !resolvedEventoId) {
+    return (
+      <KeyboardAvoidingView
+        style={[styles.container, { paddingTop: insets.top }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={[styles.container, styles.center]}>
+          <TouchableOpacity style={styles.closeBtnAbs} onPress={() => router.back()}>
+            <X size={24} color={COLORS.textLight} />
+          </TouchableOpacity>
+
+          <Radio size={48} color={COLORS.secondary} />
+          <Text style={styles.preTitle}>Transmitir En Vivo</Text>
+          <Text style={styles.preDescription}>
+            Ingresa el codigo del evento al que deseas conectar la transmision.
+          </Text>
+
+          <View style={styles.codeInputContainer}>
+            <TextInput
+              style={styles.codeInput}
+              placeholder="Codigo del evento"
+              placeholderTextColor={COLORS.textSecondary}
+              value={codigoInput}
+              onChangeText={(text) => { setCodigoInput(text.toUpperCase()); setEventoError(''); }}
+              autoCapitalize="characters"
+              maxLength={10}
+              onSubmitEditing={handleSearchEvento}
+              returnKeyType="search"
+              editable={!searchingEvento}
+            />
+            <TouchableOpacity
+              style={styles.codeSearchBtn}
+              onPress={handleSearchEvento}
+              disabled={searchingEvento || !codigoInput.trim()}
+              activeOpacity={0.7}
+            >
+              {searchingEvento ? (
+                <ActivityIndicator size="small" color={COLORS.textLight} />
+              ) : (
+                <Search size={20} color={COLORS.textLight} />
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {eventoError ? (
+            <View style={styles.errorRow}>
+              <AlertCircle size={16} color={COLORS.error} />
+              <Text style={styles.errorText}>{eventoError}</Text>
+            </View>
+          ) : null}
+
+          <Text style={styles.codeHint}>
+            El codigo aparece en el detalle del evento (ej: ABC123)
+          </Text>
+        </View>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // Pre-streaming screen — event is selected, ready to start
   if (!streamKey) {
     return (
       <View style={[styles.container, styles.center, { paddingTop: insets.top }]}>
@@ -434,6 +528,14 @@ export default function BroadcastScreen() {
               <Text style={styles.startBtnText}>Iniciar Transmision</Text>
             </>
           )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.changeEventBtn}
+          onPress={() => { setNeedsEventSelection(true); setResolvedEventoId(''); setCodigoInput(''); setEventoError(''); }}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.changeEventText}>Cambiar evento</Text>
         </TouchableOpacity>
       </View>
     );
@@ -726,6 +828,35 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.round, marginTop: SPACING.xl,
   },
   startBtnText: { color: COLORS.textLight, fontSize: 18, fontWeight: '700' },
+  changeEventBtn: {
+    marginTop: SPACING.lg, paddingVertical: SPACING.sm, paddingHorizontal: SPACING.lg,
+  },
+  changeEventText: { color: COLORS.textSecondary, fontSize: 14, textDecorationLine: 'underline' },
+  codeInputContainer: {
+    flexDirection: 'row', alignItems: 'center',
+    marginTop: SPACING.xl, width: '80%', maxWidth: 320,
+  },
+  codeInput: {
+    flex: 1, backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: BORDER_RADIUS.md, paddingHorizontal: SPACING.md,
+    paddingVertical: 14, fontSize: 20, fontWeight: '700',
+    color: COLORS.textLight, textAlign: 'center', letterSpacing: 3,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+    borderTopRightRadius: 0, borderBottomRightRadius: 0,
+  },
+  codeSearchBtn: {
+    backgroundColor: COLORS.secondary, width: 52, height: 52,
+    borderTopRightRadius: BORDER_RADIUS.md, borderBottomRightRadius: BORDER_RADIUS.md,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  errorRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginTop: SPACING.md, paddingHorizontal: SPACING.md,
+  },
+  errorText: { color: COLORS.error, fontSize: 13, fontWeight: '500', flexShrink: 1 },
+  codeHint: {
+    color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: SPACING.md, textAlign: 'center',
+  },
 
   // Layout modes
   portraitColumn: { flex: 1, flexDirection: 'column' },

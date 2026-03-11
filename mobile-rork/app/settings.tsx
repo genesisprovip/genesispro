@@ -241,7 +241,7 @@ export default function SettingsScreen() {
 
         {/* App Info */}
         <View style={styles.appInfo}>
-          <Text style={styles.appInfoText}>GenesisPro v1.8.2</Text>
+          <Text style={styles.appInfoText}>GenesisPro v1.8.4</Text>
           <Text style={styles.appInfoSub}>Gestion avicola profesional</Text>
         </View>
       </ScrollView>

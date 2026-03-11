@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Centro de Ayuda - GenesisPro</title>
+  <meta name="description" content="Centro de ayuda de GenesisPro. Encuentra respuestas a tus preguntas sobre gestion de aves de combate.">
+  <meta property="og:title" content="Centro de Ayuda - GenesisPro">
+  <meta property="og:description" content="Resuelve tus dudas sobre GenesisPro">
+  <meta property="og:type" content="website">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #0F172A;
+      --bg-alt: #1E293B;
+      --card: #1E293B;
+      --card-hover: #263548;
+      --primary: #10B981;
+      --secondary: #F59E0B;
+      --accent: #6366F1;
+      --text: #F8FAFC;
+      --text-sec: #94A3B8;
+      --border: #334155;
+      --success: #10B981;
+      --error: #EF4444;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .header {
+      background: linear-gradient(135deg, var(--bg) 0%, var(--bg-alt) 100%);
+      padding: 2rem 1.5rem 3rem;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo { font-size: 1.8rem; font-weight: 800; margin-bottom: 0.25rem; }
+    .logo span { color: var(--primary); }
+    .header p { color: var(--text-sec); font-size: 0.95rem; }
+
+    .search-box {
+      max-width: 500px;
+      margin: 1.5rem auto 0;
+      position: relative;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 0.85rem 1rem 0.85rem 2.8rem;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .search-box input:focus { border-color: var(--primary); }
+    .search-box input::placeholder { color: var(--text-sec); }
+
+    .search-box svg {
+      position: absolute;
+      left: 0.9rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-sec);
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    /* Quick Actions */
+    .quick-actions {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .quick-action {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.2rem 1rem;
+      text-align: center;
+      text-decoration: none;
+      color: var(--text);
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .quick-action:hover { background: var(--card-hover); transform: translateY(-2px); }
+    .quick-action .qa-icon { font-size: 1.6rem; margin-bottom: 0.4rem; }
+    .quick-action .qa-label { font-size: 0.8rem; font-weight: 600; }
+
+    /* Section */
+    .section { margin-bottom: 2rem; }
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .section-title .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      display: inline-block;
+    }
+
+    /* FAQ Accordion */
+    .faq-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 0.5rem;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+
+    .faq-item.active { border-color: var(--primary); }
+
+    .faq-question {
+      padding: 1rem 1.2rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+      font-size: 0.95rem;
+      user-select: none;
+    }
+
+    .faq-question:hover { background: var(--card-hover); }
+
+    .faq-arrow {
+      transition: transform 0.3s;
+      color: var(--text-sec);
+      font-size: 1.2rem;
+      flex-shrink: 0;
+      margin-left: 0.5rem;
+    }
+
+    .faq-item.active .faq-arrow { transform: rotate(180deg); color: var(--primary); }
+
+    .faq-answer {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease, padding 0.3s ease;
+    }
+
+    .faq-item.active .faq-answer {
+      max-height: 600px;
+      padding: 0 1.2rem 1rem;
+    }
+
+    .faq-answer p { color: var(--text-sec); font-size: 0.9rem; line-height: 1.7; }
+    .faq-answer ul { color: var(--text-sec); font-size: 0.9rem; padding-left: 1.2rem; margin-top: 0.5rem; }
+    .faq-answer li { margin-bottom: 0.3rem; }
+    .faq-answer strong { color: var(--text); }
+
+    /* Chat Bot */
+    .chat-section {
+      background: linear-gradient(135deg, rgba(16,185,129,0.1), rgba(99,102,241,0.1));
+      border: 1px solid var(--primary);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .chat-section h3 {
+      font-size: 1rem;
+      margin-bottom: 0.3rem;
+    }
+
+    .chat-section p { color: var(--text-sec); font-size: 0.85rem; margin-bottom: 1rem; }
+
+    .chat-messages {
+      background: var(--bg);
+      border-radius: 12px;
+      padding: 1rem;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-bottom: 0.75rem;
+      min-height: 120px;
+    }
+
+    .chat-msg {
+      margin-bottom: 0.75rem;
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .chat-msg.bot { justify-content: flex-start; }
+    .chat-msg.user { justify-content: flex-end; }
+
+    .chat-bubble {
+      max-width: 80%;
+      padding: 0.6rem 0.9rem;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    .chat-msg.bot .chat-bubble {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .chat-msg.user .chat-bubble {
+      background: var(--primary);
+      color: white;
+    }
+
+    .chat-input-row {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .chat-input-row input {
+      flex: 1;
+      padding: 0.7rem 1rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    .chat-input-row input:focus { border-color: var(--primary); }
+
+    .chat-input-row button {
+      padding: 0.7rem 1.2rem;
+      border-radius: 10px;
+      border: none;
+      background: var(--primary);
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: opacity 0.2s;
+    }
+
+    .chat-input-row button:hover { opacity: 0.9; }
+
+    .chat-suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.5rem;
+    }
+
+    .chat-suggestion {
+      padding: 0.35rem 0.7rem;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-sec);
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .chat-suggestion:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    /* Contact */
+    .contact-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .contact-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.2rem;
+      text-decoration: none;
+      color: var(--text);
+      transition: all 0.2s;
+      display: block;
+    }
+
+    .contact-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+    .contact-card .cc-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .contact-card h4 { font-size: 0.9rem; margin-bottom: 0.2rem; }
+    .contact-card p { font-size: 0.8rem; color: var(--text-sec); }
+
+    .footer {
+      text-align: center;
+      padding: 2rem 1rem;
+      color: var(--text-sec);
+      font-size: 0.8rem;
+      border-top: 1px solid var(--border);
+      margin-top: 2rem;
+    }
+
+    .footer a { color: var(--primary); text-decoration: none; }
+
+    @media (max-width: 480px) {
+      .quick-actions { grid-template-columns: repeat(2, 1fr); }
+      .contact-cards { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="logo"><span>Genesis</span>Pro</div>
+    <p>Centro de Ayuda</p>
+    <div class="search-box">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="searchInput" placeholder="Buscar en la ayuda..." oninput="filterFAQ(this.value)">
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+      <a class="quick-action" onclick="scrollToSection('registro')">
+        <div class="qa-icon">&#x1F413;</div>
+        <div class="qa-label">Registro de Aves</div>
+      </a>
+      <a class="quick-action" onclick="scrollToSection('salud')">
+        <div class="qa-icon">&#x1F48A;</div>
+        <div class="qa-label">Salud</div>
+      </a>
+      <a class="quick-action" onclick="scrollToSection('combates')">
+        <div class="qa-icon">&#x2694;&#xFE0F;</div>
+        <div class="qa-label">Combates</div>
+      </a>
+      <a class="quick-action" onclick="scrollToSection('palenque')">
+        <div class="qa-icon">&#x1F3C6;</div>
+        <div class="qa-label">Palenque</div>
+      </a>
+      <a class="quick-action" onclick="scrollToSection('cuenta')">
+        <div class="qa-icon">&#x1F464;</div>
+        <div class="qa-label">Mi Cuenta</div>
+      </a>
+      <a class="quick-action" onclick="scrollToSection('planes')">
+        <div class="qa-icon">&#x1F451;</div>
+        <div class="qa-label">Planes</div>
+      </a>
+    </div>
+
+    <!-- Chat Bot -->
+    <div class="chat-section">
+      <h3>Asistente GenesisPro</h3>
+      <p>Preguntame lo que necesites. Respondo al instante sobre todas las funciones de la app.</p>
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-msg bot">
+          <div class="chat-bubble">Hola, soy el asistente de GenesisPro. ¿En que puedo ayudarte hoy?</div>
+        </div>
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="Escribe tu pregunta..." onkeydown="if(event.key==='Enter')sendChat()">
+        <button onclick="sendChat()">Enviar</button>
+      </div>
+      <div class="chat-suggestions">
+        <button class="chat-suggestion" onclick="askSuggestion(this)">Como registro un ave?</button>
+        <button class="chat-suggestion" onclick="askSuggestion(this)">Como unirme a un evento?</button>
+        <button class="chat-suggestion" onclick="askSuggestion(this)">Diferencia entre planes</button>
+        <button class="chat-suggestion" onclick="askSuggestion(this)">Como ver un stream en vivo?</button>
+        <button class="chat-suggestion" onclick="askSuggestion(this)">Que es la genealogia?</button>
+      </div>
+    </div>
+
+    <!-- FAQ: Registro de Aves -->
+    <div class="section" id="registro">
+      <div class="section-title"><span class="dot" style="background:#10B981"></span> Registro de Aves</div>
+
+      <div class="faq-item" data-keywords="registrar ave nueva agregar">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Como registro una nueva ave?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>Desde la pantalla principal (tab <strong>Aves</strong>), presiona el boton <strong>+</strong> en la esquina superior derecha. Llena los campos:</p>
+          <ul>
+            <li><strong>Codigo de identidad</strong> - El identificador unico de tu ave (anillo, placa, etc.)</li>
+            <li><strong>Linea genetica</strong> - La raza o linea (Kelso, Hatch, Sweater, etc.)</li>
+            <li><strong>Sexo</strong> - Macho o Hembra</li>
+            <li><strong>Peso</strong> - Peso actual en kg o lb</li>
+            <li><strong>Composicion genetica</strong> - Porcentajes de cada linea (opcional)</li>
+            <li><strong>Origen</strong> - Si es cria propia, compra, regalo o intercambio</li>
+          </ul>
+          <p>Presiona <strong>Guardar</strong> y listo. Tu ave aparecera en el listado principal.</p>
+        </div>
+      </div>
+
+      <div class="faq-item" data-keywords="composicion genetica puro fraccion porcentaje linea">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Que es la composicion genetica?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>La composicion genetica te permite registrar las <strong>fracciones de sangre</strong> de tu ave. Por ejemplo, un ave puede ser 1/2 Kelso, 1/4 Hatch y 1/4 Sweater.</p>
+          <p>Si tu ave es <strong>pura</strong> (100% una linea), activa el toggle "Puro" y selecciona la linea. Si es cruzada, agrega multiples lineas con sus fracciones (1/8, 1/4, 3/8, 1/2, 5/8, 3/4, 7/8).</p>
+          <p>La barra de colores en el detalle del ave muestra visualmente la proporcion de cada linea.</p>
+        </div>
+      </div>
+
+      <div class="faq-item" data-keywords="genealogia pedigree arbol padre madre">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Como funciona la genealogia?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>Al registrar un ave, puedes asignar <strong>padre y madre</strong> seleccionandolos de tus aves existentes. Esto construye automaticamente el arbol genealogico.</p>
+          <p>En el detalle del ave veras el arbol visual y puedes descargar un <strong>certificado de pedigree en PDF</strong> con toda la informacion genealogica.</p>
+        </div>
+      </div>
+
+      <div class="faq-item" data-keywords="eliminar borrar ave quitar">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Puedo eliminar un ave?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>Si. En el detalle del ave, desliza hacia abajo y encontraras la opcion de eliminar. La eliminacion es <strong>logica</strong> (soft delete), lo que significa que el ave se marca como inactiva pero su historial de combates y salud se mantiene.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAQ: Salud -->
+    <div class="section" id="salud">
+      <div class="section-title"><span class="dot" style="background:#EF4444"></span> Salud y Tratamientos</div>
+
+      <div class="faq-item" data-keywords="vacuna tratamiento registrar salud">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Como registro vacunas y tratamientos?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>Ve a <strong>Mas > Salud</strong> y presiona <strong>+</strong>. Puedes registrar:</p>
+          <ul>
+            <li><strong>Vacunas</strong> - Con fecha de proxima dosis</li>
+            <li><strong>Tratamientos</strong> - Medicamentos, dosis y duracion</li>
+            <li><strong>Desparasitaciones</strong> - Producto y fecha</li>
+            <li><strong>Revisiones veterinarias</strong> - Motivo y observaciones</li>
+          </ul>
+          <p>Puedes asignar cada registro a un ave especifica o registrarlo de forma general.</p>
+        </div>
+      </div>
+
+      <div class="faq-item" data-keywords="recordatorio vacuna proxima pendiente">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Me notifica cuando toca una vacuna?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>Si registras la <strong>fecha proxima</strong> al crear una vacuna, el sistema la muestra en la seccion de "Proximas vacunas" dentro del modulo de Salud. Tambien aparece en el <strong>Calendario</strong>.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAQ: Alimentacion -->
+    <div class="section" id="alimentacion">
+      <div class="section-title"><span class="dot" style="background:#F59E0B"></span> Alimentacion</div>
+
+      <div class="faq-item" data-keywords="alimentacion inventario alimento dieta">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Como funciona el modulo de alimentacion?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>El modulo tiene 3 secciones:</p>
+          <ul>
+            <li><strong>Inventario</strong> - Registra tus productos (concentrado, suplementos, vitaminas). Controla stock y te alerta cuando esta bajo.</li>
+            <li><strong>Registros</strong> - Anota que comio cada ave, cuando y cuanto. Al registrar, el inventario se descuenta automaticamente.</li>
+            <li><strong>Dietas</strong> - Crea planes de alimentacion con multiples alimentos, cantidades y frecuencias.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAQ: Combates -->
+    <div class="section" id="combates">
+      <div class="section-title"><span class="dot" style="background:#6366F1"></span> Combates</div>
+
+      <div class="faq-item" data-keywords="combate registrar pelea resultado">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Como registro un combate?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>Desde el tab <strong>Combates</strong>, presiona <strong>+</strong>. Selecciona tu ave, ingresa la ubicacion, peso de combate, oponente y el resultado (victoria, derrota o empate).</p>
+          <p>Los combates se reflejan automaticamente en las <strong>estadisticas</strong> del ave (victorias, derrotas, racha, etc.).</p>
+        </div>
+      </div>
+
+      <div class="faq-item" data-keywords="estadisticas analytics record">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Donde veo las estadisticas de mis aves?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>En el tab <strong>Analytics</strong> encontraras un resumen general: total de aves, victorias/derrotas, aves top y graficas de rendimiento. Tambien puedes ver las estadisticas individuales en el <strong>detalle de cada ave</strong>.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAQ: Palenque -->
+    <div class="section" id="palenque">
+      <div class="section-title"><span class="dot" style="background:#F59E0B"></span> Eventos y Palenque</div>
+
+      <div class="faq-item" data-keywords="evento unirse codigo acceso palenque">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Como me uno a un evento en vivo?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>Hay dos formas:</p>
+          <ul>
+            <li><strong>Desde la pantalla de bienvenida</strong> - Ingresa el codigo de acceso de 6 caracteres que te compartio el organizador.</li>
+            <li><strong>Desde un link compartido</strong> - Si te enviaron un link de WhatsApp o redes, al abrirlo te lleva directo al evento.</li>
+          </ul>
+          <p>Una vez dentro, puedes ver las peleas en tiempo real, el cartel, resultados y (si hay streaming) la transmision en vivo.</p>
+        </div>
+      </div>
+
+      <div class="faq-item" data-keywords="stream transmision en vivo ver video">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Como veo una transmision en vivo?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>Si el organizador tiene plan <strong>Empresario</strong> y esta transmitiendo, veras automaticamente el video en la pantalla del evento. El stream usa tecnologia <strong>WebRTC</strong> (casi instantaneo) con respaldo LLHLS.</p>
+          <p><strong>Nota:</strong> Los usuarios sin plan tienen una vista previa de 15 minutos. Para ver el evento completo necesitas al menos el plan Basico.</p>
+        </div>
+      </div>
+
+      <div class="faq-item" data-keywords="empresario organizar crear evento transmitir">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Como organizo mis propios eventos?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>Necesitas un <strong>plan Empresario</strong> (desde $799 MXN/mes). Con el plan puedes:</p>
+          <ul>
+            <li>Crear eventos con cartel, partidos y peleas</li>
+            <li>Generar codigos de acceso para asistentes</li>
+            <li>Controlar peleas en tiempo real desde el dashboard</li>
+            <li>Transmitir en vivo (plan Pro y Premium)</li>
+            <li>Gestionar finanzas del evento</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAQ: Cuenta -->
+    <div class="section" id="cuenta">
+      <div class="section-title"><span class="dot" style="background:#3B82F6"></span> Mi Cuenta</div>
+
+      <div class="faq-item" data-keywords="cuenta crear registrar necesito">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Necesito una cuenta para usar la app?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p><strong>No es obligatorio.</strong> Puedes usar GenesisPro sin cuenta: todas las funciones estan disponibles y tus datos se guardan localmente en tu telefono.</p>
+          <p>La ventaja de crear cuenta es que tus datos se <strong>respaldan en la nube</strong> y puedes acceder desde cualquier dispositivo.</p>
+        </div>
+      </div>
+
+      <div class="faq-item" data-keywords="datos perder telefono respaldo nube">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Que pasa si pierdo mi telefono?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>Si <strong>tienes cuenta</strong>, tus datos estan respaldados. Solo instala la app en tu nuevo telefono, inicia sesion y todo estara ahi.</p>
+          <p>Si <strong>no tienes cuenta</strong>, los datos se guardan solo en el telefono y se perderian. Por eso recomendamos crear una cuenta gratuita.</p>
+        </div>
+      </div>
+
+      <div class="faq-item" data-keywords="contrasena password recuperar olvide">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Olvide mi contrasena
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>En la pantalla de inicio de sesion, presiona <strong>"Olvide mi contrasena"</strong>. Ingresa tu email y te enviaremos un codigo de recuperacion. El codigo es valido por 1 hora.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAQ: Planes -->
+    <div class="section" id="planes">
+      <div class="section-title"><span class="dot" style="background:#F59E0B"></span> Planes y Suscripciones</div>
+
+      <div class="faq-item" data-keywords="plan precio costo gratis basico pro premium">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Cuales son los planes disponibles?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p><strong>Planes para Galleros:</strong></p>
+          <ul>
+            <li><strong>Gratuito</strong> - Hasta 5 aves, funciones basicas</li>
+            <li><strong>Basico ($299/mes)</strong> - 25 aves, salud, alimentacion, combates</li>
+            <li><strong>Pro ($599/mes)</strong> - Aves ilimitadas, analytics avanzados, pedigree PDF</li>
+            <li><strong>Premium ($999/mes)</strong> - Todo incluido, soporte prioritario</li>
+          </ul>
+          <p><strong>Planes Empresario</strong> (para organizadores de eventos):</p>
+          <ul>
+            <li><strong>Basico ($799/mes)</strong> - 4 eventos/mes, dashboard</li>
+            <li><strong>Pro ($1,999/mes)</strong> - Eventos ilimitados, streaming en vivo</li>
+            <li><strong>Premium ($2,999/mes)</strong> - Todo + comisiones, multiples streams</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="faq-item" data-keywords="pagar metodo pago tarjeta stripe cancelar">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Como pago y como cancelo?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>Los pagos se procesan con <strong>Stripe</strong> (plataforma segura internacional). Aceptamos tarjetas de debito y credito Visa, Mastercard y American Express.</p>
+          <p>Para cancelar, ve a <strong>Mas > Mi Suscripcion</strong> y presiona "Cancelar". La suscripcion se mantiene activa hasta el final del periodo pagado. <strong>No hay penalizaciones por cancelar.</strong></p>
+        </div>
+      </div>
+
+      <div class="faq-item" data-keywords="trial prueba gratis dias">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Hay periodo de prueba?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>Si. Al registrarte obtienes un <strong>trial de 7 dias</strong> con acceso a todas las funciones Premium. Al terminar el trial, tu cuenta pasa al plan gratuito y puedes elegir un plan de pago cuando quieras.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contact -->
+    <div class="section" id="contacto">
+      <div class="section-title"><span class="dot" style="background:#10B981"></span> Contacto</div>
+
+      <div class="contact-cards">
+        <a class="contact-card" href="mailto:soporte@genesispro.vip">
+          <div class="cc-icon">&#x2709;&#xFE0F;</div>
+          <h4>Email</h4>
+          <p>soporte@genesispro.vip</p>
+        </a>
+        <a class="contact-card" href="https://genesispro.vip" target="_blank">
+          <div class="cc-icon">&#x1F310;</div>
+          <h4>Sitio Web</h4>
+          <p>genesispro.vip</p>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>GenesisPro v1.8.0 &middot; <a href="/terminos">Terminos</a> &middot; <a href="/privacidad">Privacidad</a></p>
+    <p style="margin-top:0.3rem;">&copy; 2026 GenesisPro. Todos los derechos reservados.</p>
+  </div>
+
+  <script>
+    // FAQ Accordion
+    function toggleFAQ(el) {
+      const item = el.parentElement;
+      const wasActive = item.classList.contains('active');
+      // Close all in same section
+      item.parentElement.querySelectorAll('.faq-item').forEach(i => i.classList.remove('active'));
+      if (!wasActive) item.classList.add('active');
+    }
+
+    // Search/Filter
+    function filterFAQ(query) {
+      const q = query.toLowerCase().trim();
+      document.querySelectorAll('.faq-item').forEach(item => {
+        const text = item.textContent.toLowerCase();
+        const keywords = (item.dataset.keywords || '').toLowerCase();
+        const match = !q || text.includes(q) || keywords.includes(q);
+        item.style.display = match ? '' : 'none';
+      });
+      // Show/hide sections with no visible items
+      document.querySelectorAll('.section').forEach(section => {
+        const visible = section.querySelectorAll('.faq-item:not([style*="display: none"])');
+        const hasFaq = section.querySelectorAll('.faq-item').length > 0;
+        if (hasFaq) {
+          section.style.display = visible.length > 0 ? '' : 'none';
+        }
+      });
+    }
+
+    function scrollToSection(id) {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // Chat Bot Knowledge Base
+    const KB = [
+      {
+        keywords: ['registrar', 'nueva ave', 'agregar ave', 'como registro', 'registr'],
+        answer: 'Para registrar un ave, ve al tab "Aves" y presiona el boton + en la esquina superior derecha. Llena el codigo de identidad, linea genetica, sexo y peso. Opcionalmente puedes agregar la composicion genetica y origen.'
+      },
+      {
+        keywords: ['unirme', 'evento', 'codigo', 'acceso', 'unirse'],
+        answer: 'Para unirte a un evento, necesitas el codigo de acceso de 6 caracteres que te da el organizador. Puedes ingresarlo en la pantalla de bienvenida o desde un link compartido por WhatsApp.'
+      },
+      {
+        keywords: ['plan', 'planes', 'precio', 'costo', 'cuanto', 'diferencia'],
+        answer: 'Tenemos planes desde $299 MXN/mes (Basico) hasta $999/mes (Premium) para galleros. Para organizadores de eventos, los planes Empresario van de $799 a $2,999/mes. Todos incluyen 7 dias de prueba gratis.'
+      },
+      {
+        keywords: ['stream', 'transmision', 'vivo', 'ver video', 'live'],
+        answer: 'Si el organizador esta transmitiendo, veras el video automaticamente al entrar al evento. Usamos WebRTC para latencia minima. Los usuarios sin plan tienen 15 min de preview.'
+      },
+      {
+        keywords: ['genealogia', 'pedigree', 'arbol', 'padre', 'madre', 'pdf'],
+        answer: 'Puedes asignar padre y madre al registrar un ave. El sistema construye el arbol genealogico automaticamente. En el detalle del ave puedes descargar un certificado de pedigree en PDF.'
+      },
+      {
+        keywords: ['composicion', 'genetica', 'fraccion', 'puro', 'porcentaje', 'sangre'],
+        answer: 'La composicion genetica registra las fracciones de sangre de tu ave (ej: 1/2 Kelso, 1/4 Hatch). Si es pura, activa el toggle "Puro". La barra de colores en el detalle muestra la proporcion visualmente.'
+      },
+      {
+        keywords: ['vacuna', 'tratamiento', 'salud', 'veterinario', 'desparasit'],
+        answer: 'En Mas > Salud puedes registrar vacunas, tratamientos, desparasitaciones y revisiones. Cada registro puede asignarse a un ave especifica. Las proximas vacunas aparecen en el calendario.'
+      },
+      {
+        keywords: ['alimentacion', 'dieta', 'inventario', 'comida', 'alimento'],
+        answer: 'El modulo de Alimentacion (Mas > Alimentacion) tiene 3 secciones: Inventario (productos y stock), Registros (que comio cada ave) y Dietas (planes de alimentacion). El stock se descuenta automaticamente.'
+      },
+      {
+        keywords: ['combate', 'pelea', 'resultado', 'victoria', 'derrota'],
+        answer: 'Registra combates desde el tab Combates presionando +. Ingresa tu ave, ubicacion, peso de combate y resultado. Las estadisticas se actualizan automaticamente (record, racha, etc.).'
+      },
+      {
+        keywords: ['contrasena', 'password', 'olvide', 'recuperar', 'cambiar'],
+        answer: 'En la pantalla de login, presiona "Olvide mi contrasena". Ingresa tu email y te enviaremos un codigo de recuperacion valido por 1 hora.'
+      },
+      {
+        keywords: ['cancelar', 'suscripcion', 'baja'],
+        answer: 'Para cancelar tu suscripcion, ve a Mas > Mi Suscripcion y presiona "Cancelar". Se mantiene activa hasta el final del periodo pagado. No hay penalizaciones.'
+      },
+      {
+        keywords: ['pagar', 'tarjeta', 'metodo', 'stripe', 'pago'],
+        answer: 'Los pagos se procesan con Stripe. Aceptamos Visa, Mastercard y American Express (debito y credito). GenesisPro nunca almacena los datos de tu tarjeta.'
+      },
+      {
+        keywords: ['cuenta', 'necesito', 'obligatorio', 'sin cuenta', 'explorar'],
+        answer: 'No necesitas cuenta para usar la app. Puedes explorar sin cuenta y tus datos se guardan en el telefono. La cuenta es para respaldar en la nube y acceder desde multiples dispositivos.'
+      },
+      {
+        keywords: ['perder', 'telefono', 'respaldo', 'backup', 'datos'],
+        answer: 'Si tienes cuenta, tus datos estan respaldados en la nube. Solo instala la app en tu nuevo telefono e inicia sesion. Sin cuenta, los datos solo estan en el telefono.'
+      },
+      {
+        keywords: ['empresario', 'organizar', 'crear evento', 'transmitir', 'dashboard'],
+        answer: 'Para organizar eventos necesitas un plan Empresario (desde $799/mes). Incluye crear eventos, generar codigos, controlar peleas en vivo y gestionar finanzas. El streaming esta disponible desde el plan Pro.'
+      },
+      {
+        keywords: ['calendario', 'recordatorio', 'proxim'],
+        answer: 'El Calendario (Mas > Calendario) muestra tus proximas vacunas, eventos programados y recordatorios. Se sincroniza automaticamente con tus registros de salud y eventos.'
+      },
+      {
+        keywords: ['analytics', 'estadisticas', 'grafic', 'rendimiento'],
+        answer: 'El tab Analytics muestra un resumen general: total de aves, record de combates, aves top por victorias, y graficas de rendimiento. Tambien hay estadisticas financieras si tienes transacciones.'
+      },
+      {
+        keywords: ['trial', 'prueba', 'gratis', '7 dias'],
+        answer: 'Al registrarte obtienes 7 dias de prueba con todas las funciones Premium. Al terminar, pasas al plan gratuito y puedes elegir un plan de pago cuando quieras.'
+      },
+    ];
+
+    function findAnswer(question) {
+      const q = question.toLowerCase();
+      let bestMatch = null;
+      let bestScore = 0;
+
+      for (const entry of KB) {
+        let score = 0;
+        for (const kw of entry.keywords) {
+          if (q.includes(kw)) score += 2;
+          // Partial match
+          else if (kw.length > 3 && q.split(' ').some(w => w.startsWith(kw.slice(0, 4)))) score += 1;
+        }
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = entry;
+        }
+      }
+
+      if (bestMatch && bestScore >= 2) return bestMatch.answer;
+
+      return 'No encontre una respuesta exacta para eso. Te sugiero revisar las preguntas frecuentes arriba o contactarnos por email a soporte@genesispro.vip.';
+    }
+
+    function addMessage(text, isUser) {
+      const container = document.getElementById('chatMessages');
+      const div = document.createElement('div');
+      div.className = 'chat-msg ' + (isUser ? 'user' : 'bot');
+      div.innerHTML = '<div class="chat-bubble">' + text + '</div>';
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function sendChat() {
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      addMessage(text, true);
+      input.value = '';
+
+      // Simulate typing delay
+      setTimeout(() => {
+        const answer = findAnswer(text);
+        addMessage(answer, false);
+      }, 400);
+    }
+
+    function askSuggestion(btn) {
+      document.getElementById('chatInput').value = btn.textContent;
+      sendChat();
+    }
+  </script>
+
+</body>
+</html>

@@ -2,7 +2,7 @@
   "expo": {
     "name": "GenesisPro",
     "slug": "genesispro",
-    "version": "1.8.2",
+    "version": "1.8.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "genesispro",
@@ -65,7 +65,8 @@
           }
         }
       ],
-      "expo-video"
+      "expo-video",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true

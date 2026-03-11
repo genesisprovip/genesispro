@@ -14,7 +14,7 @@ const logger = require('../config/logger');
 
 const RTMP_URL = process.env.RTMP_URL || 'rtmp://live.genesispro.vip/live';
 const HLS_BASE_URL = process.env.HLS_BASE_URL || 'https://live.genesispro.vip/live';
-const WEBRTC_SIGNALING_URL = process.env.WEBRTC_SIGNALING_URL || 'wss://live.genesispro.vip:3334';
+const WEBRTC_SIGNALING_URL = process.env.WEBRTC_SIGNALING_URL || 'wss://live.genesispro.vip/ws';
 
 // Quality tiers based on app subscription plan
 const QUALITY_TIERS = {
@@ -51,6 +51,11 @@ router.post('/start', authenticateJWT, asyncHandler(async (req, res) => {
   );
 
   if (!evento) throw Errors.notFound('Evento no encontrado o no eres el organizador');
+
+  // Block streaming for finalized/cancelled events
+  if (evento.estado === 'finalizado' || evento.estado === 'cancelado') {
+    throw Errors.badRequest(`No se puede transmitir un evento ${evento.estado}. El evento debe estar en curso o programado.`);
+  }
 
   // Check if there's already an active stream for this event
   const { rows: [existingStream] } = await db.query(

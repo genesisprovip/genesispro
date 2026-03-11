@@ -306,6 +306,11 @@ export default function AveDetailScreen() {
               <View key={i} style={styles.composicionRow}>
                 <View style={[styles.composicionDot, { backgroundColor: GENETIC_COLORS[i % GENETIC_COLORS.length] }]} />
                 <Text style={styles.composicionLinea}>{comp.linea}</Text>
+                {comp.via && (
+                  <Text style={{ fontSize: 9, color: COLORS.textSecondary, fontWeight: '600', marginRight: 4 }}>
+                    {comp.via === 'padre+madre' ? 'P+M' : comp.via === 'padre' ? 'P' : comp.via === 'madre' ? 'M' : comp.via === 'puro' ? '' : ''}
+                  </Text>
+                )}
                 <Text style={styles.composicionFraccion}>{comp.fraccion}</Text>
                 <Text style={styles.composicionPct}>{Math.round(comp.decimal * 100)}%</Text>
               </View>

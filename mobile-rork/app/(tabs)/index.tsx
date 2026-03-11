@@ -56,7 +56,7 @@ export default function HomeScreen() {
     if (api.isAuthenticated()) {
       api.getEventos({ estado: 'en_curso' })
         .then(res => {
-          if (res.success && res.data.length > 0) setEventoActivo(res.data[0]);
+          if (res.success && res.data?.length > 0) setEventoActivo(res.data[0]);
         })
         .catch(() => {});
     }

@@ -134,7 +134,12 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
             const mapped = dietasRes.data.map((d: any) => ({
               ...d,
               id: String(d.id),
-              alimentos: typeof d.alimentos === 'string' ? JSON.parse(d.alimentos) : d.alimentos || [],
+              alimentos: (() => {
+                if (typeof d.alimentos === 'string') {
+                  try { return JSON.parse(d.alimentos); } catch { return []; }
+                }
+                return d.alimentos || [];
+              })(),
             }));
             setDietas(mapped);
             await AsyncStorage.setItem(STORAGE_KEYS.dietas, JSON.stringify(mapped));
@@ -353,7 +358,12 @@ export const [AlimentacionProvider, useAlimentacion] = createContextHook<Aliment
             newDieta = {
               ...res.data,
               id: String(res.data.id),
-              alimentos: typeof res.data.alimentos === 'string' ? JSON.parse(res.data.alimentos) : res.data.alimentos || [],
+              alimentos: (() => {
+                if (typeof res.data.alimentos === 'string') {
+                  try { return JSON.parse(res.data.alimentos); } catch { return []; }
+                }
+                return res.data.alimentos || [];
+              })(),
             };
           } else {
             throw new Error('API error');
