@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  StyleSheet, 
-  Text, 
-  ScrollView, 
-  TextInput, 
+import {
+  View,
+  StyleSheet,
+  Text,
+  ScrollView,
+  TextInput,
   TouchableOpacity,
   Alert,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Modal,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,17 +30,76 @@ import { useAves } from '@/context/AvesContext';
 import { Ave, ComposicionGenetica } from '@/types';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
+import DatePickerField from '@/components/common/DatePickerField';
 
 type SexoType = 'M' | 'H';
 type EstadoType = 'activo' | 'vendido' | 'muerto' | 'retirado';
 type TipoAdquisicion = 'cria_propia' | 'compra' | 'regalo' | 'intercambio';
 
 const COLORES_OPTIONS = ['Giro', 'Cenizo', 'Colorado', 'Negro', 'Jabado', 'Blanco', 'Giro Claro', 'Otro'];
-const LINEAS_OPTIONS = ['Kelso', 'Hatch', 'Sweater', 'Roundhead', 'Albany', 'Asil', 'Yellow Leg', 'Plumer', 'Otro'];
-const FRACCIONES_OPTIONS = ['1/8', '1/4', '3/8', '1/2', '5/8', '3/4', '7/8', '1/1'];
+const FRACCIONES_OPTIONS = [
+  '1/32', '1/16', '1/8', '3/16', '1/4', '5/16', '3/8', '7/16',
+  '1/2', '9/16', '5/8', '11/16', '3/4', '13/16', '7/8', '15/16', '1/1',
+];
 const FRACCION_TO_DECIMAL: Record<string, number> = {
-  '1/8': 0.125, '1/4': 0.25, '3/8': 0.375, '1/2': 0.5,
-  '5/8': 0.625, '3/4': 0.75, '7/8': 0.875, '1/1': 1.0,
+  '1/32': 1/32, '1/16': 1/16, '3/32': 3/32, '1/8': 1/8,
+  '3/16': 3/16, '1/4': 1/4, '5/16': 5/16, '3/8': 3/8, '7/16': 7/16,
+  '1/2': 1/2, '9/16': 9/16, '5/8': 5/8, '11/16': 11/16, '3/4': 3/4,
+  '13/16': 13/16, '7/8': 7/8, '15/16': 15/16, '1/1': 1,
+};
+
+// Convert decimal to nearest fraction string
+const decimalToFraccion = (decimal: number): string => {
+  // Find the closest fraction in 32nds
+  const thirtySeconds = Math.round(decimal * 32);
+  if (thirtySeconds === 0) return '0';
+  if (thirtySeconds === 32) return '1/1';
+  // Simplify fraction
+  const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
+  const divisor = gcd(thirtySeconds, 32);
+  return `${thirtySeconds / divisor}/${32 / divisor}`;
+};
+
+// Calculate child genetics from parents (each parent contributes 50%)
+const calcularGeneticaCria = (
+  padreComp: ComposicionGenetica[] | undefined,
+  madreComp: ComposicionGenetica[] | undefined
+): ComposicionGenetica[] => {
+  const lineas: Record<string, { decimal: number; via: string }> = {};
+
+  if (padreComp && padreComp.length > 0) {
+    for (const comp of padreComp) {
+      const halfDecimal = comp.decimal / 2;
+      if (lineas[comp.linea]) {
+        lineas[comp.linea].decimal += halfDecimal;
+        lineas[comp.linea].via = 'padre+madre';
+      } else {
+        lineas[comp.linea] = { decimal: halfDecimal, via: 'padre' };
+      }
+    }
+  }
+
+  if (madreComp && madreComp.length > 0) {
+    for (const comp of madreComp) {
+      const halfDecimal = comp.decimal / 2;
+      if (lineas[comp.linea]) {
+        lineas[comp.linea].decimal += halfDecimal;
+        lineas[comp.linea].via = lineas[comp.linea].via === 'padre' ? 'padre+madre' : comp.via || 'madre';
+      } else {
+        lineas[comp.linea] = { decimal: halfDecimal, via: 'madre' };
+      }
+    }
+  }
+
+  return Object.entries(lineas)
+    .filter(([_, v]) => v.decimal > 0.001)
+    .sort((a, b) => b[1].decimal - a[1].decimal)
+    .map(([linea, v]) => ({
+      linea,
+      fraccion: decimalToFraccion(v.decimal),
+      decimal: Math.round(v.decimal * 10000) / 10000,
+      via: v.via,
+    }));
 };
 const TIPO_ADQUISICION_LABELS: Record<TipoAdquisicion, string> = {
   'cria_propia': 'Cría Propia',
@@ -125,8 +185,14 @@ export default function AveFormScreen() {
   const [fechaAdquisicion, setFechaAdquisicion] = useState('');
   const [notasOrigen, setNotasOrigen] = useState('');
 
+  // Ubicación
+  const [zona, setZona] = useState('');
+  const [subZona, setSubZona] = useState('');
+  const [loteUbicacion, setLoteUbicacion] = useState('');
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fraccionModalIndex, setFraccionModalIndex] = useState<number | null>(null);
 
   // Helpers para composición genética
   const addLineaGenetica = () => {
@@ -163,6 +229,24 @@ export default function AveFormScreen() {
   };
 
   const sumaFracciones = composicionGenetica.reduce((sum, c) => sum + c.decimal, 0);
+
+  // Auto-calculate genetics from parents
+  const padre = formData.padre_id ? getAveById(formData.padre_id) : undefined;
+  const madre = formData.madre_id ? getAveById(formData.madre_id) : undefined;
+  const padreHasGenetics = padre?.composicion_genetica && padre.composicion_genetica.length > 0;
+  const madreHasGenetics = madre?.composicion_genetica && madre.composicion_genetica.length > 0;
+  const canAutoCalc = padreHasGenetics || madreHasGenetics;
+
+  const autoCalcularGenetica = () => {
+    if (!canAutoCalc) return;
+    const result = calcularGeneticaCria(padre?.composicion_genetica, madre?.composicion_genetica);
+    if (result.length > 0) {
+      setComposicionGenetica(result);
+      setEsPuro(false);
+    } else {
+      Alert.alert('Sin datos', 'Los padres seleccionados no tienen composición genética registrada.');
+    }
+  };
 
   // Helper to extract date from ISO string
   const formatDate = (dateStr: string) => {
@@ -204,9 +288,15 @@ export default function AveFormScreen() {
         }
       }
 
-      // Cargar composición genética
-      if (existingAve.composicion_genetica && Array.isArray(existingAve.composicion_genetica)) {
-        setComposicionGenetica(existingAve.composicion_genetica);
+      // Cargar composición genética (puede venir como string JSON del API)
+      if (existingAve.composicion_genetica) {
+        let comp = existingAve.composicion_genetica;
+        if (typeof comp === 'string') {
+          try { comp = JSON.parse(comp); } catch { comp = []; }
+        }
+        if (Array.isArray(comp)) {
+          setComposicionGenetica(comp);
+        }
       }
       if (existingAve.es_puro) {
         setEsPuro(true);
@@ -217,6 +307,11 @@ export default function AveFormScreen() {
       setTipoAdquisicion((existingAve as any).tipo_adquisicion || 'cria_propia');
       setFechaAdquisicion((existingAve as any).fecha_adquisicion ? formatDate((existingAve as any).fecha_adquisicion) : '');
       setNotasOrigen((existingAve as any).notas_origen || '');
+
+      // Cargar ubicación
+      setZona((existingAve as any).zona || '');
+      setSubZona((existingAve as any).sub_zona || '');
+      setLoteUbicacion((existingAve as any).lote || '');
     }
   }, [existingAve]);
 
@@ -295,6 +390,10 @@ export default function AveFormScreen() {
         tipo_adquisicion: tipoAdquisicion || undefined,
         fecha_adquisicion: fechaAdquisicion || undefined,
         notas_origen: notasOrigen || undefined,
+        // Ubicación
+        zona: zona.trim() || undefined,
+        sub_zona: subZona.trim() || undefined,
+        lote: loteUbicacion.trim() || undefined,
       };
 
       let result;
@@ -429,12 +528,10 @@ export default function AveFormScreen() {
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Fecha de Nacimiento *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={COLORS.placeholder}
+              <DatePickerField
                 value={formData.fecha_nacimiento}
-                onChangeText={(v) => updateField('fecha_nacimiento', v)}
+                onChange={(v) => updateField('fecha_nacimiento', v)}
+                placeholder="Seleccionar fecha"
               />
             </View>
 
@@ -712,35 +809,21 @@ export default function AveFormScreen() {
               </View>
             ) : (
               <>
+                {/* Auto-calc button */}
+                {canAutoCalc && (
+                  <TouchableOpacity style={styles.autoCalcBtn} onPress={autoCalcularGenetica}>
+                    <Dna size={14} color={COLORS.textLight} />
+                    <Text style={styles.autoCalcBtnText}>
+                      Calcular desde {padreHasGenetics && madreHasGenetics ? 'Padre + Madre' : padreHasGenetics ? 'Padre' : 'Madre'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
                 {composicionGenetica.map((comp, index) => (
                   <View key={index} style={styles.geneticaRow}>
-                    <TouchableOpacity
-                      style={[styles.geneticaLineaInput, { flex: 2 }]}
-                      onPress={() => {
-                        Alert.alert('Línea Genética', undefined, [
-                          ...LINEAS_OPTIONS.map(l => ({
-                            text: l,
-                            onPress: () => {
-                              if (l === 'Otro') {
-                                // Keep current or empty
-                              } else {
-                                updateLineaGenetica(index, 'linea', l);
-                              }
-                            },
-                          })),
-                          { text: 'Cancelar', style: 'cancel' as const },
-                        ]);
-                      }}
-                    >
-                      <Text style={{ color: comp.linea ? COLORS.text : COLORS.placeholder, fontSize: 14 }} numberOfLines={1}>
-                        {comp.linea || 'Línea...'}
-                      </Text>
-                      <ChevronDown size={12} color={COLORS.textSecondary} />
-                    </TouchableOpacity>
-
                     <TextInput
-                      style={[styles.geneticaLineaInput, { flex: 2 }]}
-                      placeholder="Línea manual"
+                      style={[styles.geneticaLineaInput, { flex: 3 }]}
+                      placeholder="Ej: Sweater Dink Fair..."
                       placeholderTextColor={COLORS.placeholder}
                       value={comp.linea}
                       onChangeText={(v) => updateLineaGenetica(index, 'linea', v)}
@@ -748,19 +831,17 @@ export default function AveFormScreen() {
 
                     <TouchableOpacity
                       style={[styles.geneticaFraccionBtn, { flex: 1 }]}
-                      onPress={() => {
-                        Alert.alert('Fracción', undefined, [
-                          ...FRACCIONES_OPTIONS.map(f => ({
-                            text: `${f} (${Math.round(FRACCION_TO_DECIMAL[f] * 100)}%)`,
-                            onPress: () => updateLineaGenetica(index, 'fraccion', f),
-                          })),
-                          { text: 'Cancelar', style: 'cancel' as const },
-                        ]);
-                      }}
+                      onPress={() => setFraccionModalIndex(index)}
                     >
                       <Text style={styles.geneticaFraccionText}>{comp.fraccion}</Text>
                       <Text style={styles.geneticaPctText}>{Math.round(comp.decimal * 100)}%</Text>
                     </TouchableOpacity>
+
+                    {comp.via && (
+                      <Text style={styles.geneticaViaText}>
+                        {comp.via === 'padre+madre' ? 'P+M' : comp.via === 'padre' ? 'P' : comp.via === 'madre' ? 'M' : ''}
+                      </Text>
+                    )}
 
                     <TouchableOpacity
                       style={styles.geneticaRemoveBtn}
@@ -783,13 +864,57 @@ export default function AveFormScreen() {
                       backgroundColor: Math.abs(sumaFracciones - 1) < 0.01 ? COLORS.primary : sumaFracciones > 1 ? COLORS.error : COLORS.warning,
                     }]} />
                     <Text style={styles.sumaBarText}>
-                      Total: {Math.round(sumaFracciones * 100)}% {Math.abs(sumaFracciones - 1) < 0.01 ? '✓' : sumaFracciones > 1 ? '(excede 100%)' : ''}
+                      Total: {Math.round(sumaFracciones * 100)}%
+                      {Math.abs(sumaFracciones - 1) < 0.01 ? ' ✓' : sumaFracciones > 1 ? ' (excede 100%)' : ''}
                     </Text>
                   </View>
                 )}
               </>
             )}
           </View>
+
+          {/* Fraction Picker Modal */}
+          <Modal
+            visible={fraccionModalIndex !== null}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setFraccionModalIndex(null)}
+          >
+            <TouchableOpacity
+              style={styles.modalOverlay}
+              activeOpacity={1}
+              onPress={() => setFraccionModalIndex(null)}
+            >
+              <View style={styles.fraccionModalContainer}>
+                <Text style={styles.fraccionModalTitle}>Seleccionar Fracción</Text>
+                <Text style={styles.fraccionModalSubtitle}>Toca una fracción para asignarla</Text>
+                <View style={styles.fraccionGrid}>
+                  {FRACCIONES_OPTIONS.map((f) => {
+                    const pct = Math.round(FRACCION_TO_DECIMAL[f] * 100);
+                    const isSelected = fraccionModalIndex !== null && composicionGenetica[fraccionModalIndex]?.fraccion === f;
+                    return (
+                      <TouchableOpacity
+                        key={f}
+                        style={[styles.fraccionGridItem, isSelected && styles.fraccionGridItemActive]}
+                        onPress={() => {
+                          if (fraccionModalIndex !== null) {
+                            updateLineaGenetica(fraccionModalIndex, 'fraccion', f);
+                            setFraccionModalIndex(null);
+                          }
+                        }}
+                      >
+                        <Text style={[styles.fraccionGridFrac, isSelected && styles.fraccionGridTextActive]}>{f}</Text>
+                        <Text style={[styles.fraccionGridPct, isSelected && styles.fraccionGridTextActive]}>{pct}%</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+                <TouchableOpacity style={styles.fraccionModalCancel} onPress={() => setFraccionModalIndex(null)}>
+                  <Text style={styles.fraccionModalCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </Modal>
 
           {/* Origen y Procedencia */}
           <View style={styles.section}>
@@ -839,12 +964,10 @@ export default function AveFormScreen() {
                 <View style={styles.row}>
                   <View style={[styles.inputGroup, styles.halfInput]}>
                     <Text style={styles.inputLabel}>Fecha de Adquisición</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={COLORS.placeholder}
+                    <DatePickerField
                       value={fechaAdquisicion}
-                      onChangeText={setFechaAdquisicion}
+                      onChange={setFechaAdquisicion}
+                      placeholder="Seleccionar fecha"
                     />
                   </View>
                   {tipoAdquisicion === 'compra' && (
@@ -875,6 +998,43 @@ export default function AveFormScreen() {
                 multiline
                 textAlignVertical="top"
               />
+            </View>
+          </View>
+
+          {/* Ubicación / Zona */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Ubicacion</Text>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Zona / Rancho</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: Rancho El Rey"
+                placeholderTextColor={COLORS.placeholder}
+                value={zona}
+                onChangeText={setZona}
+              />
+            </View>
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, styles.halfInput]}>
+                <Text style={styles.inputLabel}>Modulo / Corral</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ej: Nave 2"
+                  placeholderTextColor={COLORS.placeholder}
+                  value={subZona}
+                  onChangeText={setSubZona}
+                />
+              </View>
+              <View style={[styles.inputGroup, styles.halfInput]}>
+                <Text style={styles.inputLabel}>Lote</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ej: 2024-A"
+                  placeholderTextColor={COLORS.placeholder}
+                  value={loteUbicacion}
+                  onChangeText={setLoteUbicacion}
+                />
+              </View>
             </View>
           </View>
 
@@ -1454,6 +1614,96 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: COLORS.text,
     textAlign: 'center',
+  },
+  autoCalcBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: COLORS.accent,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: SPACING.sm,
+    alignSelf: 'flex-start',
+  },
+  autoCalcBtnText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: COLORS.textLight,
+  },
+  geneticaViaText: {
+    fontSize: 9,
+    fontWeight: '700' as const,
+    color: COLORS.textSecondary,
+    width: 24,
+    textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  fraccionModalContainer: {
+    backgroundColor: COLORS.card,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: SPACING.lg,
+    paddingBottom: 40,
+  },
+  fraccionModalTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: COLORS.text,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  fraccionModalSubtitle: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: SPACING.md,
+  },
+  fraccionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'center',
+  },
+  fraccionGridItem: {
+    width: 70,
+    paddingVertical: 10,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+  },
+  fraccionGridItemActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  fraccionGridFrac: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: COLORS.text,
+  },
+  fraccionGridPct: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  fraccionGridTextActive: {
+    color: COLORS.textLight,
+  },
+  fraccionModalCancel: {
+    marginTop: SPACING.md,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  fraccionModalCancelText: {
+    fontSize: 16,
+    color: COLORS.error,
+    fontWeight: '600' as const,
   },
   // Origen
   adquisicionContainer: {

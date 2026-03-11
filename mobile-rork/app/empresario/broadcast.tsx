@@ -457,6 +457,8 @@ export default function BroadcastScreen() {
         scrollEnabled={false}
         bounces={false}
         overScrollMode="never"
+        setBuiltInZoomControls={false}
+        scalesPageToFit={false}
         originWhitelist={['*']}
         mixedContentMode="compatibility"
         androidLayerType="hardware"

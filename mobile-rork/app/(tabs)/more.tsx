@@ -28,6 +28,7 @@ import {
   Radio,
   LifeBuoy,
   MessageCircle,
+  Beaker,
 } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { COLORS } from '@/constants/colors';
@@ -119,6 +120,12 @@ export default function MoreScreen() {
           label: 'Salud',
           subtitle: 'Vacunas y tratamientos',
           onPress: () => router.push('/salud'),
+        },
+        {
+          icon: <Beaker size={20} color={COLORS.primary} />,
+          label: 'Formulas / Dosis',
+          subtitle: 'Dosis personalizadas con ingredientes',
+          onPress: () => router.push('/salud/formulas'),
         },
         {
           icon: <Utensils size={20} color={COLORS.secondary} />,
@@ -277,7 +284,7 @@ export default function MoreScreen() {
 
         <View style={styles.footer}>
           <Smartphone size={14} color={COLORS.textDisabled} />
-          <Text style={styles.versionText}>GenesisPro v1.8.2</Text>
+          <Text style={styles.versionText}>GenesisPro v1.8.4</Text>
         </View>
       </ScrollView>
     </View>

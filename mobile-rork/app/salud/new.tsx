@@ -29,6 +29,7 @@ import { useAves } from '@/context/AvesContext';
 import { useSalud } from '@/context/SaludContext';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS } from '@/constants/theme';
+import DatePickerField from '@/components/common/DatePickerField';
 
 type TipoRegistro = 'vacuna' | 'tratamiento' | 'enfermedad' | 'revision' | 'desparasitacion';
 
@@ -229,32 +230,19 @@ export default function NuevoRegistroSaludScreen() {
               />
             </View>
 
-            <View style={styles.inputGroup}>
-              <View style={styles.inputIcon}>
-                <Calendar size={20} color={COLORS.textSecondary} />
-              </View>
-              <TextInput
-                style={styles.input}
-                placeholder="Fecha (YYYY-MM-DD)"
-                placeholderTextColor={COLORS.textSecondary}
-                value={fecha}
-                onChangeText={setFecha}
-              />
-            </View>
+            <DatePickerField
+              value={fecha}
+              onChange={setFecha}
+              placeholder="Seleccionar fecha"
+            />
 
             {(tipo === 'vacuna' || tipo === 'tratamiento') && (
-              <View style={styles.inputGroup}>
-                <View style={styles.inputIcon}>
-                  <Calendar size={20} color={COLORS.warning} />
-                </View>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Fecha próxima dosis (YYYY-MM-DD)"
-                  placeholderTextColor={COLORS.textSecondary}
-                  value={fechaProxima}
-                  onChangeText={setFechaProxima}
-                />
-              </View>
+              <DatePickerField
+                value={fechaProxima}
+                onChange={setFechaProxima}
+                placeholder="Fecha proxima dosis"
+                iconColor={COLORS.warning}
+              />
             )}
           </View>
 

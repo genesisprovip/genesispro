@@ -30,6 +30,7 @@ import {
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 import { api } from '@/services/api';
+import DatePickerField from '@/components/common/DatePickerField';
 
 const TIPOS_DERBY = [
   { key: '3_cocks', label: '3 Cocks' },
@@ -179,16 +180,11 @@ export default function NuevoPalenqueScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Fecha y Hora</Text>
             <View style={styles.row}>
-              <View style={[styles.inputGroup, styles.halfInput]}>
-                <View style={styles.inputIcon}>
-                  <Calendar size={20} color={COLORS.textSecondary} />
-                </View>
-                <TextInput
-                  style={styles.input}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={COLORS.placeholder}
+              <View style={{ flex: 1 }}>
+                <DatePickerField
                   value={fecha}
-                  onChangeText={setFecha}
+                  onChange={setFecha}
+                  placeholder="Fecha del evento"
                 />
               </View>
               <View style={[styles.inputGroup, styles.halfInput]}>

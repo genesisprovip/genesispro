@@ -30,6 +30,7 @@ import { useAves } from '@/context/AvesContext';
 import { useAlimentacion } from '@/context/AlimentacionContext';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
+import DatePickerField from '@/components/common/DatePickerField';
 
 type FormType = 'inventario' | 'registro' | 'dieta';
 type TipoAlimento = 'concentrado' | 'suplemento' | 'vitamina' | 'mineral' | 'otro';
@@ -360,28 +361,20 @@ export default function NuevoAlimentacionScreen() {
         </View>
 
         <View style={styles.row}>
-          <View style={[styles.inputGroup, styles.halfInput]}>
-            <View style={styles.inputIcon}>
-              <Calendar size={20} color={COLORS.success} />
-            </View>
-            <TextInput
-              style={styles.input}
-              placeholder="Fecha compra"
-              placeholderTextColor={COLORS.textSecondary}
+          <View style={{ flex: 1 }}>
+            <DatePickerField
               value={fechaCompra}
-              onChangeText={setFechaCompra}
+              onChange={setFechaCompra}
+              placeholder="Fecha compra"
+              iconColor={COLORS.success}
             />
           </View>
-          <View style={[styles.inputGroup, styles.halfInput]}>
-            <View style={styles.inputIcon}>
-              <Calendar size={20} color={COLORS.error} />
-            </View>
-            <TextInput
-              style={styles.input}
-              placeholder="Vencimiento"
-              placeholderTextColor={COLORS.textSecondary}
+          <View style={{ flex: 1 }}>
+            <DatePickerField
               value={fechaVencimiento}
-              onChangeText={setFechaVencimiento}
+              onChange={setFechaVencimiento}
+              placeholder="Vencimiento"
+              iconColor={COLORS.error}
             />
           </View>
         </View>
@@ -528,16 +521,11 @@ export default function NuevoAlimentacionScreen() {
         </View>
 
         <View style={styles.row}>
-          <View style={[styles.inputGroup, styles.halfInput]}>
-            <View style={styles.inputIcon}>
-              <Calendar size={20} color={COLORS.textSecondary} />
-            </View>
-            <TextInput
-              style={styles.input}
-              placeholder="Fecha"
-              placeholderTextColor={COLORS.textSecondary}
+          <View style={{ flex: 1 }}>
+            <DatePickerField
               value={fechaRegistro}
-              onChangeText={setFechaRegistro}
+              onChange={setFechaRegistro}
+              placeholder="Fecha"
             />
           </View>
           <View style={[styles.inputGroup, styles.halfInput]}>

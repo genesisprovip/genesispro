@@ -701,6 +701,23 @@ router.post('/:id/finalizar',
 
     logger.info(`Evento finalized: ${id} by user ${req.userId}`);
 
+    // Auto-stop active streams after 30 seconds
+    setTimeout(async () => {
+      try {
+        const { rows: activeStreams } = await db.query(
+          `UPDATE streams_evento SET estado = 'finalizado', ended_at = NOW()
+           WHERE evento_id = $1 AND estado = 'activo'
+           RETURNING id, stream_key`,
+          [id]
+        );
+        if (activeStreams.length > 0) {
+          logger.info(`Auto-stopped ${activeStreams.length} stream(s) for finalized evento ${id}`);
+        }
+      } catch (err) {
+        logger.error(`Error auto-stopping streams for evento ${id}:`, err);
+      }
+    }, 30000);
+
     res.json({
       success: true,
       data: rows[0]

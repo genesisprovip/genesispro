@@ -13,6 +13,7 @@ import { CombatesProvider } from "@/context/CombatesContext";
 import { EventosProvider } from "@/context/EventosContext";
 import { SaludProvider } from "@/context/SaludContext";
 import { AlimentacionProvider } from "@/context/AlimentacionContext";
+import GenesisFloatingButton from "@/components/common/GenesisFloatingButton";
 
 // Show notifications even when app is in foreground
 Notifications.setNotificationHandler({
@@ -119,6 +120,12 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="salud/[id]"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="salud/formulas"
         options={{
           headerShown: false,
         }}
@@ -256,6 +263,7 @@ export default function RootLayout() {
                 <AlimentacionProvider>
                   <EventosProvider>
                     <RootLayoutNav />
+                    <GenesisFloatingButton />
                   </EventosProvider>
                 </AlimentacionProvider>
               </SaludProvider>

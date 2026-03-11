@@ -922,6 +922,43 @@ class ApiService {
     return !!this.accessToken;
   }
 
+  // Formulas
+  async getFormulas() {
+    return this.request<{ success: boolean; data: any[] }>('/formulas');
+  }
+
+  async getFormula(id: string) {
+    return this.request<{ success: boolean; data: any }>(`/formulas/${id}`);
+  }
+
+  async createFormula(data: any) {
+    return this.request<{ success: boolean; data: any }>('/formulas', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }, 'Crear formula');
+  }
+
+  async updateFormula(id: string, data: any) {
+    return this.request<{ success: boolean; data: any }>(`/formulas/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }, 'Actualizar formula');
+  }
+
+  async deleteFormula(id: string) {
+    return this.request<{ success: boolean }>(`/formulas/${id}`, {
+      method: 'DELETE',
+    }, 'Eliminar formula');
+  }
+
+  // Genesis Assistant
+  async consultarGenesis(pregunta: string, eventoId?: string) {
+    return this.request<{ success: boolean; data: { respuesta: string } }>('/genesis/consultar', {
+      method: 'POST',
+      body: JSON.stringify({ pregunta, eventoId }),
+    }, 'Consultar Genesis');
+  }
+
   // Offline sync
   getSyncQueue() { return syncQueue.getQueue(); }
   get pendingSyncCount() { return syncQueue.pendingCount; }

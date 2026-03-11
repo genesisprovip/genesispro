@@ -19,6 +19,7 @@ import { useAves } from '@/context/AvesContext';
 import { useCombates } from '@/context/CombatesContext';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
+import DatePickerField from '@/components/common/DatePickerField';
 
 type Resultado = 'victoria' | 'derrota' | 'empate' | 'pendiente';
 
@@ -39,6 +40,8 @@ export default function NuevoCombateScreen() {
   const [duracionMinutos, setDuracionMinutos] = useState('');
   const [tipoVictoria, setTipoVictoria] = useState('');
   const [notas, setNotas] = useState('');
+  const [aveMurio, setAveMurio] = useState(false);
+  const [motivoBaja, setMotivoBaja] = useState('Murio en combate');
 
   const machos = aves.filter(ave => ave.sexo === 'M' && ave.estado === 'activo');
 
@@ -84,12 +87,16 @@ export default function NuevoCombateScreen() {
         duracion_minutos: duracionMinutos ? parseInt(duracionMinutos) : undefined,
         tipo_victoria: tipoVictoria.trim() || undefined,
         notas: notas.trim() || undefined,
+        ave_murio: aveMurio,
+        motivo_baja: aveMurio ? motivoBaja.trim() : undefined,
       };
 
       const result = await addCombate(combateData as any);
 
       if (result.success) {
-        Alert.alert('Éxito', 'Combate registrado correctamente', [
+        Alert.alert('Exito', aveMurio
+          ? 'Combate registrado. El ave fue marcada como fallecida.'
+          : 'Combate registrado correctamente', [
           { text: 'OK', onPress: () => router.back() }
         ]);
       } else {
@@ -173,18 +180,11 @@ export default function NuevoCombateScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Información del Combate</Text>
 
-            <View style={styles.inputGroup}>
-              <View style={styles.inputIcon}>
-                <Calendar size={20} color={COLORS.textSecondary} />
-              </View>
-              <TextInput
-                style={styles.input}
-                placeholder="Fecha (YYYY-MM-DD)"
-                placeholderTextColor={COLORS.textSecondary}
-                value={fecha}
-                onChangeText={setFecha}
-              />
-            </View>
+            <DatePickerField
+              value={fecha}
+              onChange={setFecha}
+              placeholder="Fecha del combate"
+            />
 
             <View style={styles.inputGroup}>
               <View style={styles.inputIcon}>
@@ -293,6 +293,36 @@ export default function NuevoCombateScreen() {
               />
             </View>
           </View>
+
+          {/* Muerte del Ave */}
+          {resultado === 'derrota' && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Estado del Ave</Text>
+              <TouchableOpacity
+                style={[
+                  styles.deathToggle,
+                  aveMurio && styles.deathToggleActive,
+                ]}
+                onPress={() => setAveMurio(!aveMurio)}
+              >
+                <Text style={[
+                  styles.deathToggleText,
+                  aveMurio && styles.deathToggleTextActive,
+                ]}>
+                  {aveMurio ? 'El ave murio en este combate' : 'El ave sobrevivio'}
+                </Text>
+              </TouchableOpacity>
+              {aveMurio && (
+                <TextInput
+                  style={[styles.input, styles.fullInput, { marginTop: SPACING.sm }]}
+                  placeholder="Motivo de baja (ej: Murio en combate)"
+                  placeholderTextColor={COLORS.textSecondary}
+                  value={motivoBaja}
+                  onChangeText={setMotivoBaja}
+                />
+              )}
+            </View>
+          )}
 
           {/* Notas */}
           <View style={styles.section}>
@@ -492,5 +522,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: COLORS.textLight,
+  },
+  deathToggle: {
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.card,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+  },
+  deathToggleActive: {
+    borderColor: COLORS.error,
+    backgroundColor: COLORS.error + '15',
+  },
+  deathToggleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  deathToggleTextActive: {
+    color: COLORS.error,
   },
 });

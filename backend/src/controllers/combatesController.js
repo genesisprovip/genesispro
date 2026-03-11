@@ -421,11 +421,21 @@ const create = async (req, res) => {
 
   const combate = rows[0];
 
+  // If ave died in combat, update its estado
+  const { ave_murio, motivo_baja } = req.body;
+  if (ave_murio && resultado === 'derrota') {
+    await db.query(
+      `UPDATE aves SET estado = 'muerto', motivo_baja = $1, fecha_baja = $2, updated_at = NOW() WHERE id = $3`,
+      [motivo_baja || 'Murio en combate', fecha_combate || new Date().toISOString().slice(0, 10), macho_id]
+    );
+    logger.info(`Ave ${ave[0].codigo_identidad} marked as dead (combat) by user ${req.userId}`);
+  }
+
   logger.info(`Combate created: ${combate.id} for ave ${ave[0].codigo_identidad} by user ${req.userId}`);
 
   res.status(201).json({
     success: true,
-    message: 'Combate registrado exitosamente',
+    message: ave_murio ? 'Combate registrado. Ave marcada como fallecida.' : 'Combate registrado exitosamente',
     data: {
       ...combate,
       ave: {

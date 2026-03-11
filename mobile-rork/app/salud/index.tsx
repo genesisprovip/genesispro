@@ -22,6 +22,7 @@ import {
   Calendar,
   AlertCircle,
   ChevronRight,
+  Beaker,
 } from 'lucide-react-native';
 import { useSalud, RegistroSalud } from '@/context/SaludContext';
 import { useAves } from '@/context/AvesContext';
@@ -163,6 +164,17 @@ export default function SaludScreen() {
         </View>
       </LinearGradient>
 
+      {/* Formulas shortcut */}
+      <TouchableOpacity
+        style={styles.formulasBtn}
+        onPress={() => router.push('/salud/formulas')}
+        activeOpacity={0.7}
+      >
+        <Beaker size={18} color={COLORS.primary} />
+        <Text style={styles.formulasBtnText}>Mis Formulas / Dosis</Text>
+        <ChevronRight size={16} color={COLORS.primary} />
+      </TouchableOpacity>
+
       {/* Próximas vacunas */}
       {proximasVacunas.length > 0 && (
         <View style={styles.alertSection}>
@@ -273,6 +285,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  formulasBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary + '10',
+    marginHorizontal: SPACING.md,
+    marginTop: SPACING.sm,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '30',
+    gap: SPACING.sm,
+  },
+  formulasBtnText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.primary,
   },
   loadingContainer: {
     justifyContent: 'center',
