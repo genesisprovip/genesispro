@@ -25,7 +25,10 @@
       "package": "com.genesispro.app",
       "permissions": [
         "CAMERA",
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {
@@ -85,9 +88,9 @@
         "origin": "https://genesispro.vip/"
       },
       "eas": {
-        "projectId": "f82dbac6-7a51-46a4-9e25-af9ab66535a1"
+        "projectId": "7bae4097-6940-4dd2-84cb-40531ee8556f"
       }
     },
-    "owner": "auralink"
+    "owner": "genesispro"
   }
 }
