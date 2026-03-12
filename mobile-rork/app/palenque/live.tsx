@@ -278,7 +278,10 @@ export default function LiveEventScreen() {
     }
 
     const calcElapsed = () => {
-      const start = new Date(peleaActual.hora_inicio!).getTime();
+      // Timezone-safe: append Z if no timezone info
+      const raw = peleaActual.hora_inicio!;
+      const isoStr = (!raw.endsWith('Z') && !raw.includes('+') && !raw.includes('T')) ? raw + 'Z' : raw;
+      const start = new Date(isoStr).getTime();
       const now = Date.now();
       const elapsed = Math.max(0, Math.floor((now - start) / 1000));
       setFightElapsedSeconds(elapsed);
