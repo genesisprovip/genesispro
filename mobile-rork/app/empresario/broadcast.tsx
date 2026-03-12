@@ -34,6 +34,8 @@ import {
   ZoomIn,
   ZoomOut,
   Shuffle,
+  Star,
+  RefreshCw,
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS } from '@/constants/theme';
@@ -127,6 +129,25 @@ export default function BroadcastScreen() {
   const currentPelea = peleas.length > 0 ? peleas[currentPeleaIndex] : null;
   const hasMoreFights = currentPeleaIndex < peleas.length - 1;
 
+  // Round progress computation
+  const roundInfo = React.useMemo(() => {
+    if (!currentPelea || !currentPelea.numero_ronda) return null;
+    const currentRound = currentPelea.numero_ronda;
+    const allRounds = [...new Set(peleas.map(p => p.numero_ronda).filter(Boolean))] as number[];
+    const totalRounds = Math.max(...allRounds, 0);
+    const fightsInRound = peleas.filter(p => p.numero_ronda === currentRound);
+    const currentFightInRound = fightsInRound.findIndex(p => p.id === currentPelea.id) + 1;
+    const totalFightsInRound = fightsInRound.length;
+    const allRoundDone = fightsInRound.every(p => p.estado === 'finalizada' || p.estado === 'cancelada');
+    return { currentRound, totalRounds, currentFightInRound, totalFightsInRound, allRoundDone };
+  }, [peleas, currentPelea]);
+
+  // Detect if this stream is the director/principal
+  const isDirector = React.useMemo(() => {
+    if (!streamKey || camaras.length === 0) return false;
+    return camaras.some(c => c.stream_id === streamKey && c.es_principal);
+  }, [camaras, streamKey]);
+
   // If eventoId was passed directly, resolve it
   useEffect(() => {
     if (eventoId) {
@@ -192,30 +213,32 @@ export default function BroadcastScreen() {
 
   // Fight timer — synced from server hora_inicio
   useEffect(() => {
+    if (fightTimerRef.current) clearInterval(fightTimerRef.current);
+
     if (currentPelea?.estado === 'en_curso' && currentPelea?.hora_inicio) {
-      // Calculate from server time
-      const calcElapsed = () => {
-        const start = new Date(currentPelea.hora_inicio!).getTime();
-        return Math.max(0, Math.floor((Date.now() - start) / 1000));
-      };
+      // Timezone-safe parsing: append Z if no timezone info
+      const raw = currentPelea.hora_inicio;
+      const isoStr = (!raw.endsWith('Z') && !raw.includes('+') && !raw.includes('T')) ? raw + 'Z' : raw;
+      const startMs = new Date(isoStr).getTime();
+
+      const calcElapsed = () => Math.max(0, Math.floor((Date.now() - startMs) / 1000));
       setFightTimerSeconds(calcElapsed());
       setFightTimerRunning(true);
       fightTimerRef.current = setInterval(() => {
         setFightTimerSeconds(calcElapsed());
       }, 1000);
     } else if (currentPelea?.estado === 'finalizada') {
-      // Stop timer, keep last value
+      // Stop timer, freeze at last value — do NOT reset
       setFightTimerRunning(false);
-      if (fightTimerRef.current) clearInterval(fightTimerRef.current);
     } else {
-      // programada or no pelea — reset
-      if (!fightTimerRunning) setFightTimerSeconds(0);
-      if (fightTimerRef.current) clearInterval(fightTimerRef.current);
+      // programada or no pelea — reset to 0
+      setFightTimerSeconds(0);
+      setFightTimerRunning(false);
     }
     return () => {
       if (fightTimerRef.current) clearInterval(fightTimerRef.current);
     };
-  }, [currentPelea?.estado, currentPelea?.hora_inicio]);
+  }, [currentPelea?.id, currentPelea?.estado, currentPelea?.hora_inicio]);
 
   // Poll viewer count every 10s while live
   useEffect(() => {
@@ -274,7 +297,8 @@ export default function BroadcastScreen() {
         const idx = res.data.findIndex(
           (p: Pelea) => p.estado !== 'finalizada' && p.estado !== 'cancelada'
         );
-        setCurrentPeleaIndex(idx >= 0 ? idx : 0);
+        // When all fights are done (idx=-1), point to LAST fight so sorteo button shows
+        setCurrentPeleaIndex(idx >= 0 ? idx : Math.max(0, res.data.length - 1));
       }
     } catch (error) {
       console.error('Error loading peleas:', error);
@@ -698,6 +722,12 @@ export default function BroadcastScreen() {
               <Text style={styles.liveText}>EN VIVO</Text>
             </View>
           )}
+          {isLive && isDirector && (
+            <View style={styles.directorBadge}>
+              <Star size={10} color="#FFF" />
+              <Text style={styles.liveText}>DIRECTOR</Text>
+            </View>
+          )}
           {broadcastStatus === 'connecting' && (
             <View style={[styles.liveBadge, { backgroundColor: '#F59E0B' }]}>
               <Text style={styles.liveText}>CONECTANDO</Text>
@@ -741,10 +771,11 @@ export default function BroadcastScreen() {
         </View>
       )}
 
-      {/* Switch camera + fullscreen toggle */}
+      {/* Switch camera + fullscreen toggle — prominent at bottom */}
       <View style={styles.cameraBottomBtns}>
-        <TouchableOpacity style={styles.switchCamBtn} onPress={handleSwitchCamera} activeOpacity={0.7}>
-          <CameraIcon size={18} color={COLORS.textLight} />
+        <TouchableOpacity style={styles.switchCamBtnLarge} onPress={handleSwitchCamera} activeOpacity={0.7}>
+          <RefreshCw size={20} color={COLORS.textLight} />
+          <Text style={styles.switchCamLabel}>Camara</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.switchCamBtn} onPress={() => setCameraFullscreen(f => !f)} activeOpacity={0.7}>
           {cameraFullscreen ? (
@@ -840,16 +871,36 @@ export default function BroadcastScreen() {
 
       {currentPelea && (
         <View style={styles.fightPanel}>
-          <View style={styles.fightInfoRow}>
+          {/* Round progress header */}
+          {roundInfo && (
+            <View style={styles.roundProgressRow}>
+              <Text style={styles.roundProgressText}>
+                RONDA {roundInfo.currentRound} de {roundInfo.totalRounds}
+              </Text>
+              <View style={styles.roundProgressDivider} />
+              <Text style={styles.roundProgressText}>
+                Pelea {roundInfo.currentFightInRound} de {roundInfo.totalFightsInRound}
+              </Text>
+              {isManual && (
+                <>
+                  <View style={styles.roundProgressDivider} />
+                  <Text style={[styles.roundProgressText, { color: '#F59E0B' }]}>MANUAL</Text>
+                </>
+              )}
+            </View>
+          )}
+          {!roundInfo && (
             <Text style={styles.fightNumber}>
               Pelea {currentPelea.numero_pelea} de {peleas.length}
-              {currentPelea.numero_ronda ? `  ·  Ronda ${currentPelea.numero_ronda}` : ''}
               {isManual ? '  ·  Manual' : ''}
             </Text>
+          )}
+
+          <View style={styles.fightInfoRow}>
             <View style={styles.fightMatchup}>
               <View style={styles.fightCornerBox}>
                 {(currentPelea.placa_rojo || currentPelea.partido_rojo_nombre) && (
-                  <Text style={styles.fightPartidoName} numberOfLines={1}>{currentPelea.placa_rojo || currentPelea.partido_rojo_nombre}</Text>
+                  <Text style={styles.fightPartidoNameLarge} numberOfLines={1}>{currentPelea.placa_rojo || currentPelea.partido_rojo_nombre}</Text>
                 )}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <View style={[styles.fightDot, { backgroundColor: '#EF4444' }]} />
@@ -857,14 +908,16 @@ export default function BroadcastScreen() {
                     {currentPelea.anillo_rojo || 'ROJO'}
                   </Text>
                 </View>
-                {currentPelea.peso_rojo && (
-                  <Text style={styles.fightPeso}>{currentPelea.peso_rojo}kg</Text>
+                {currentPelea.peso_rojo != null && (
+                  <Text style={styles.fightPeso}>
+                    {currentPelea.peso_rojo >= 100 ? (currentPelea.peso_rojo / 1000).toFixed(2) : currentPelea.peso_rojo.toFixed(2)} kg
+                  </Text>
                 )}
               </View>
               <Text style={styles.fightVs}>VS</Text>
               <View style={styles.fightCornerBox}>
                 {(currentPelea.placa_verde || currentPelea.partido_verde_nombre) && (
-                  <Text style={styles.fightPartidoName} numberOfLines={1}>{currentPelea.placa_verde || currentPelea.partido_verde_nombre}</Text>
+                  <Text style={styles.fightPartidoNameLarge} numberOfLines={1}>{currentPelea.placa_verde || currentPelea.partido_verde_nombre}</Text>
                 )}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <View style={[styles.fightDot, { backgroundColor: '#10B981' }]} />
@@ -872,8 +925,10 @@ export default function BroadcastScreen() {
                     {currentPelea.anillo_verde || 'VERDE'}
                   </Text>
                 </View>
-                {currentPelea.peso_verde && (
-                  <Text style={styles.fightPeso}>{currentPelea.peso_verde}kg</Text>
+                {currentPelea.peso_verde != null && (
+                  <Text style={styles.fightPeso}>
+                    {currentPelea.peso_verde >= 100 ? (currentPelea.peso_verde / 1000).toFixed(2) : currentPelea.peso_verde.toFixed(2)} kg
+                  </Text>
                 )}
               </View>
             </View>
@@ -931,6 +986,7 @@ export default function BroadcastScreen() {
             </TouchableOpacity>
           )}
 
+          {/* Sorteo: show when all fights done (or current round done) and not manual */}
           {currentPelea.estado === 'finalizada' && !hasMoreFights && !isManual && (
             <TouchableOpacity
               style={[styles.siguientePeleaBtn, { backgroundColor: '#F59E0B' }]}
@@ -943,7 +999,9 @@ export default function BroadcastScreen() {
               ) : (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Shuffle size={18} color="#fff" />
-                  <Text style={styles.siguientePeleaBtnText}>SORTEO SIGUIENTE RONDA</Text>
+                  <Text style={styles.siguientePeleaBtnText}>
+                    SORTEO RONDA {roundInfo ? roundInfo.currentRound + 1 : ''}
+                  </Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -1130,6 +1188,30 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center', alignItems: 'center',
   },
+  switchCamBtnLarge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
+  },
+  switchCamLabel: {
+    color: '#FFFFFF', fontSize: 12, fontWeight: '700',
+  },
+  directorBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#6366F1', paddingHorizontal: 10, paddingVertical: 3,
+    borderRadius: 20,
+  },
+  roundProgressRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 4,
+  },
+  roundProgressText: {
+    color: '#10B981', fontSize: 12, fontWeight: '800', letterSpacing: 0.5,
+  },
+  roundProgressDivider: {
+    width: 4, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.3)',
+  },
 
   // Zoom controls — positioned on right edge, vertically centered via render logic
   zoomControlsContainer: {
@@ -1168,6 +1250,7 @@ const styles = StyleSheet.create({
   fightMatchup: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.md },
   fightCornerBox: { alignItems: 'center', gap: 4 },
   fightPartidoName: { color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: '600' },
+  fightPartidoNameLarge: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', textTransform: 'uppercase' },
   fightDot: { width: 10, height: 10, borderRadius: 5 },
   fightCorner: { fontSize: 16, fontWeight: '800' },
   fightPeso: { color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: '500' },
