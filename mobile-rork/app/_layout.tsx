@@ -2,9 +2,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as Notifications from "expo-notifications";
+import * as Updates from "expo-updates";
 import { type EventSubscription } from "expo-modules-core";
 import React, { useEffect, useRef } from "react";
-import { Platform, Vibration } from "react-native";
+import { Platform, Vibration, Alert } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useKeepAwake } from "expo-keep-awake";
 import { AuthProvider } from "@/context/AuthContext";
@@ -210,6 +211,38 @@ export default function RootLayout() {
   const router = useRouter();
   const notificationListener = useRef<EventSubscription | null>(null);
   const responseListener = useRef<EventSubscription | null>(null);
+
+  // OTA Update check — notify user when a new version is available
+  useEffect(() => {
+    if (__DEV__) return; // Skip in development
+    const checkForUpdate = async () => {
+      try {
+        const update = await Updates.checkForUpdateAsync();
+        if (update.isAvailable) {
+          const result = await Updates.fetchUpdateAsync();
+          if (result.isNew) {
+            Alert.alert(
+              'Nueva version disponible',
+              'Se descargo una actualizacion de GenesisPro. ¿Deseas aplicarla ahora?',
+              [
+                { text: 'Despues', style: 'cancel' },
+                {
+                  text: 'Actualizar',
+                  onPress: () => Updates.reloadAsync(),
+                },
+              ]
+            );
+          }
+        }
+      } catch (e) {
+        // Silent fail — user will get the update next time
+        console.log('Update check failed:', e);
+      }
+    };
+    // Check 3 seconds after app start to not block startup
+    const timer = setTimeout(checkForUpdate, 3000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     SplashScreen.hideAsync();
