@@ -27,6 +27,10 @@ class ApiService {
       if (syncQueue.pendingCount > 0) {
         syncQueue.processQueue();
       }
+      // Re-register push token on app startup (token may have changed)
+      if (this.accessToken) {
+        this.autoRegisterPushToken();
+      }
     } catch (error) {
       console.error('Error loading tokens:', error);
     }
@@ -782,10 +786,56 @@ class ApiService {
         estado: string;
         startedAt: string | null;
         calidad: string;
+        calidadMaxHeight: number;
+        rendition: string;
+        planActual: string;
+        previewMinutos: number | null;
         viewersCount: number;
         isLive: boolean;
+        webrtcSignaling: string | null;
+        streamName: string | null;
       };
     }>(`/streaming/evento/${eventoId}`);
+  }
+
+  // Multi-camera director
+  async getCamarasEvento(eventoId: string) {
+    return this.request<{
+      success: boolean;
+      data: Array<{
+        id: string;
+        stream_id: string;
+        nombre_camara: string;
+        estado: string;
+        es_principal: boolean;
+        operador_nombre: string;
+        started_at: string | null;
+      }>;
+    }>(`/streaming/camaras/${eventoId}`);
+  }
+
+  async setPrincipalCamera(eventoId: string, streamId: string) {
+    return this.request<{ success: boolean; data: any }>('/streaming/set-principal', {
+      method: 'POST',
+      body: JSON.stringify({ eventoId, streamId }),
+    });
+  }
+
+  async addOperador(eventoId: string, email: string) {
+    return this.request<{ success: boolean; data: any }>('/streaming/operadores', {
+      method: 'POST',
+      body: JSON.stringify({ eventoId, email }),
+    });
+  }
+
+  async getOperadores(eventoId: string) {
+    return this.request<{ success: boolean; data: any[] }>(`/streaming/operadores/${eventoId}`);
+  }
+
+  async removeOperador(operadorId: string) {
+    return this.request<{ success: boolean }>(`/streaming/operadores/${operadorId}`, {
+      method: 'DELETE',
+    });
   }
 
   async getActiveStreams() {
@@ -951,12 +1001,63 @@ class ApiService {
     }, 'Eliminar formula');
   }
 
+  // Observaciones de Gallera
+  async getObservaciones(params?: { categoria?: string }) {
+    const query = params?.categoria ? `?categoria=${params.categoria}` : '';
+    return this.request<{ success: boolean; data: any[] }>(`/observaciones${query}`);
+  }
+
+  async createObservacion(data: { titulo?: string; contenido: string; categoria?: string; fecha?: string }) {
+    return this.request<{ success: boolean; data: any }>('/observaciones', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }, 'Crear observacion');
+  }
+
+  async updateObservacion(id: string, data: { titulo?: string; contenido?: string; categoria?: string }) {
+    return this.request<{ success: boolean; data: any }>(`/observaciones/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }, 'Actualizar observacion');
+  }
+
+  async deleteObservacion(id: string) {
+    return this.request<{ success: boolean }>(`/observaciones/${id}`, {
+      method: 'DELETE',
+    }, 'Eliminar observacion');
+  }
+
   // Genesis Assistant
   async consultarGenesis(pregunta: string, eventoId?: string) {
     return this.request<{ success: boolean; data: { respuesta: string } }>('/genesis/consultar', {
       method: 'POST',
       body: JSON.stringify({ pregunta, eventoId }),
     }, 'Consultar Genesis');
+  }
+
+  // Referral tracking
+  async setReferralContext(empresarioId: string, eventoId: string) {
+    await AsyncStorage.setItem('referral_context', JSON.stringify({ empresarioId, eventoId, timestamp: Date.now() }));
+  }
+
+  async getReferralContext(): Promise<{ empresarioId: string; eventoId: string } | null> {
+    try {
+      const raw = await AsyncStorage.getItem('referral_context');
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      // Expire after 7 days
+      if (Date.now() - data.timestamp > 7 * 24 * 60 * 60 * 1000) {
+        await AsyncStorage.removeItem('referral_context');
+        return null;
+      }
+      return { empresarioId: data.empresarioId, eventoId: data.eventoId };
+    } catch {
+      return null;
+    }
+  }
+
+  async clearReferralContext() {
+    await AsyncStorage.removeItem('referral_context');
   }
 
   // Offline sync

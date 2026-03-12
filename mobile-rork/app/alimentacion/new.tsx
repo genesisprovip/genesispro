@@ -714,6 +714,7 @@ export default function NuevoAlimentacionScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Form Type Selector */}
           <View style={styles.formTypeSelector}>

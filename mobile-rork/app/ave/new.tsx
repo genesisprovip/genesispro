@@ -450,9 +450,10 @@ export default function AveFormScreen() {
         style={styles.formContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           <TouchableOpacity style={styles.imagePickerContainer} onPress={pickImage}>
             {formData.foto_principal ? (

@@ -19,6 +19,8 @@ interface RegisterData {
   password: string;
   nombre: string;
   plan?: string;
+  referido_por?: string;
+  referido_evento_id?: string;
 }
 
 export const [AuthProvider, useAuth] = createContextHook<AuthState>(() => {

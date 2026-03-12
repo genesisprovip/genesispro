@@ -1,13 +1,16 @@
 import { Tabs } from "expo-router";
-import { Home, Bird, Swords, TrendingUp, Menu } from "lucide-react-native";
+import { Home, Bird, Swords, TrendingUp, Menu, Radio } from "lucide-react-native";
 import React, { useEffect } from "react";
 import { Platform, StyleSheet, BackHandler } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "@/constants/colors";
+import { useAuth } from "@/context/AuthContext";
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const bottomPadding = Math.max(insets.bottom, 10);
+  const { user } = useAuth();
+  const isEmpresario = !!user?.plan_empresario;
 
   // Prevent Android back button from exiting to welcome/login screens
   useEffect(() => {
@@ -52,6 +55,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => (
             <Bird size={22} color={color} />
           ),
+          ...(isEmpresario ? { href: null } : {}),
         }}
       />
       <Tabs.Screen
@@ -61,6 +65,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => (
             <Swords size={22} color={color} />
           ),
+          ...(isEmpresario ? { href: null } : {}),
         }}
       />
       <Tabs.Screen
@@ -70,6 +75,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => (
             <TrendingUp size={22} color={color} />
           ),
+          ...(isEmpresario ? { href: null } : {}),
         }}
       />
       <Tabs.Screen

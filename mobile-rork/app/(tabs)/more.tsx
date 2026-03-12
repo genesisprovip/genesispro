@@ -29,6 +29,7 @@ import {
   LifeBuoy,
   MessageCircle,
   Beaker,
+  ClipboardList,
 } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { COLORS } from '@/constants/colors';
@@ -115,24 +116,32 @@ export default function MoreScreen() {
           subtitle: 'Eventos y recordatorios',
           onPress: () => router.push('/calendario'),
         },
-        {
-          icon: <Heart size={20} color={COLORS.error} />,
-          label: 'Salud',
-          subtitle: 'Vacunas y tratamientos',
-          onPress: () => router.push('/salud'),
-        },
-        {
-          icon: <Beaker size={20} color={COLORS.primary} />,
-          label: 'Formulas / Dosis',
-          subtitle: 'Dosis personalizadas con ingredientes',
-          onPress: () => router.push('/salud/formulas'),
-        },
-        {
-          icon: <Utensils size={20} color={COLORS.secondary} />,
-          label: 'Alimentación',
-          subtitle: 'Dietas e inventario',
-          onPress: () => router.push('/alimentacion'),
-        },
+        ...(!isEmpresario ? [
+          {
+            icon: <Heart size={20} color={COLORS.error} />,
+            label: 'Salud',
+            subtitle: 'Vacunas y tratamientos',
+            onPress: () => router.push('/salud'),
+          },
+          {
+            icon: <Beaker size={20} color={COLORS.primary} />,
+            label: 'Formulas / Dosis',
+            subtitle: 'Dosis personalizadas con ingredientes',
+            onPress: () => router.push('/salud/formulas'),
+          },
+          {
+            icon: <Utensils size={20} color={COLORS.secondary} />,
+            label: 'Alimentación',
+            subtitle: 'Dietas e inventario',
+            onPress: () => router.push('/alimentacion'),
+          },
+          {
+            icon: <ClipboardList size={20} color={COLORS.info} />,
+            label: 'Observaciones',
+            subtitle: 'Notas de tu gallera',
+            onPress: () => router.push('/observaciones' as any),
+          },
+        ] : []),
       ],
     },
     {

@@ -336,7 +336,7 @@ router.post('/',
       if (aveData.length > 0) {
         const a = aveData[0];
         if (!finalAnilloRojo) finalAnilloRojo = a.anillo;
-        if (!finalPesoRojo) finalPesoRojo = a.peso ? a.peso / 1000 : null;
+        if (!finalPesoRojo) finalPesoRojo = a.peso || null;
         if (!finalPlacaRojo) finalPlacaRojo = a.partido_nombre;
         if (!finalPartidoDerbyRojoId) finalPartidoDerbyRojoId = a.partido_id;
       }
@@ -356,7 +356,7 @@ router.post('/',
       if (aveData.length > 0) {
         const a = aveData[0];
         if (!finalAnilloVerde) finalAnilloVerde = a.anillo;
-        if (!finalPesoVerde) finalPesoVerde = a.peso ? a.peso / 1000 : null;
+        if (!finalPesoVerde) finalPesoVerde = a.peso || null;
         if (!finalPlacaVerde) finalPlacaVerde = a.partido_nombre;
         if (!finalPartidoDerbyVerdeId) finalPartidoDerbyVerdeId = a.partido_id;
       }
@@ -444,7 +444,7 @@ router.post('/bulk',
           );
           if (a.length > 0) {
             if (!anilloRojo) anilloRojo = a[0].anillo;
-            if (!pesoRojo) pesoRojo = a[0].peso ? a[0].peso / 1000 : null;
+            if (!pesoRojo) pesoRojo = a[0].peso || null;
             if (!placaRojo) placaRojo = a[0].partido_nombre;
             if (!partidoDerbyRojoId) partidoDerbyRojoId = a[0].partido_id;
           }
@@ -458,7 +458,7 @@ router.post('/bulk',
           );
           if (a.length > 0) {
             if (!anilloVerde) anilloVerde = a[0].anillo;
-            if (!pesoVerde) pesoVerde = a[0].peso ? a[0].peso / 1000 : null;
+            if (!pesoVerde) pesoVerde = a[0].peso || null;
             if (!placaVerde) placaVerde = a[0].partido_nombre;
             if (!partidoDerbyVerdeId) partidoDerbyVerdeId = a[0].partido_id;
           }

@@ -55,9 +55,9 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
       COALESCE(SUM(monto) FILTER (WHERE tipo = 'ingreso'), 0) as ingresos,
       COALESCE(SUM(monto) FILTER (WHERE tipo = 'egreso'), 0) as egresos
       FROM transacciones WHERE fecha > NOW() - INTERVAL '30 days'`), { ingresos: 0, egresos: 0 }),
-    db.query(`SELECT id, email, nombre, rol, plan_actual, plan_empresario, created_at
+    safe(db.query(`SELECT id, email, nombre, rol, plan_actual, plan_empresario, created_at
       FROM usuarios WHERE deleted_at IS NULL
-      ORDER BY created_at DESC LIMIT 10`),
+      ORDER BY created_at DESC LIMIT 10`), []),
     safe(db.query(`SELECT COUNT(*) as total FROM streams_evento WHERE estado = 'activo'`), { total: 0 }),
   ]);
 
@@ -141,7 +141,7 @@ router.get('/usuarios/:id',
       `SELECT id, email, nombre, telefono, ubicacion, rol, plan_actual, plan_empresario,
         activo, email_verificado, ultimo_acceso, created_at, updated_at,
         (SELECT COUNT(*) FROM aves WHERE usuario_id = u.id AND deleted_at IS NULL) as total_aves,
-        (SELECT COUNT(*) FROM combates WHERE usuario_id = u.id AND deleted_at IS NULL) as total_combates,
+        (SELECT COUNT(*) FROM combates c JOIN aves a ON c.macho_id = a.id WHERE a.usuario_id = u.id AND c.deleted_at IS NULL) as total_combates,
         (SELECT COUNT(*) FROM eventos_palenque WHERE organizador_id = u.id AND deleted_at IS NULL) as total_eventos
       FROM usuarios u WHERE u.id = $1 AND u.deleted_at IS NULL`,
       [req.params.id]

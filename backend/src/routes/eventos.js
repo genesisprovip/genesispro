@@ -13,6 +13,8 @@ const { body, param, query } = require('express-validator');
 const db = require('../config/database');
 const logger = require('../config/logger');
 const { EMPRESARIO_CONFIG } = require('../config/stripe');
+const notificationsRouter = require('./notifications');
+const { sendPushNotification } = notificationsRouter;
 
 /**
  * Verify user has active empresario subscription and hasn't exceeded event limit
@@ -197,6 +199,10 @@ router.get('/por-codigo/:codigo',
 
     if (evento.estado === 'cancelado') {
       throw Errors.badRequest('Este evento ha sido cancelado');
+    }
+
+    if (evento.estado === 'finalizado') {
+      throw Errors.badRequest('Este evento ya finalizó. Solo el organizador puede consultar los resultados.');
     }
 
     res.json({ success: true, data: evento });
@@ -445,6 +451,42 @@ router.post('/',
     );
 
     logger.info(`Evento created: ${evento.id} by user ${req.userId}`);
+
+    // Fire-and-forget: notify referred users about the new event
+    (async () => {
+      try {
+        // Get empresario name
+        const { rows: [empresario] } = await db.query(
+          'SELECT nombre FROM usuarios WHERE id = $1',
+          [req.userId]
+        );
+        const empresarioNombre = empresario?.nombre || 'Un empresario';
+
+        // Get push tokens for users referred by this empresario
+        const { rows: tokenRows } = await db.query(
+          `SELECT DISTINCT pt.token
+           FROM push_tokens pt
+           JOIN usuarios u ON u.id = pt.usuario_id
+           WHERE u.referido_por = $1
+             AND u.deleted_at IS NULL
+             AND pt.activo = true`,
+          [req.userId]
+        );
+
+        const tokens = tokenRows.map(r => r.token);
+        if (tokens.length > 0) {
+          await sendPushNotification(
+            tokens,
+            '¡Nuevo evento!',
+            `${empresarioNombre} creó un nuevo evento: ${evento.nombre}`,
+            { tipo: 'nuevo_evento', eventoId: evento.id }
+          );
+          logger.info(`Notified ${tokens.length} referred users about new evento ${evento.id}`);
+        }
+      } catch (err) {
+        logger.error(`Error notifying referred users for evento ${evento.id}:`, err);
+      }
+    })();
 
     res.status(201).json({
       success: true,

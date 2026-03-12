@@ -145,7 +145,7 @@ export default function GenesisFloatingButton() {
       <Modal visible={visible} animationType="slide" transparent>
         <KeyboardAvoidingView
           style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <View style={styles.chatContainer}>
             {/* Header */}
@@ -164,6 +164,7 @@ export default function GenesisFloatingButton() {
               ref={scrollRef}
               style={styles.messagesArea}
               contentContainerStyle={styles.messagesContent}
+              keyboardShouldPersistTaps="handled"
               onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
             >
               {messages.map((msg, i) => (

@@ -15,6 +15,7 @@ export interface User {
   fecha_registro: string;
   has_subscription?: boolean;
   plan_empresario?: 'empresario_basico' | 'empresario_pro' | 'empresario_premium' | null;
+  email_verificado?: boolean;
 }
 
 export interface ComposicionGenetica {

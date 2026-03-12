@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,6 +8,7 @@ import {
   RefreshControl,
   Alert,
   TextInput,
+  Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -32,6 +33,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useAves } from '@/context/AvesContext';
 import { useCombates } from '@/context/CombatesContext';
 import { useSalud } from '@/context/SaludContext';
+import { useAlimentacion } from '@/context/AlimentacionContext';
+import { useEventos } from '@/context/EventosContext';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 import api from '@/services/api';
@@ -43,6 +46,8 @@ export default function HomeScreen() {
   const { aves, refreshAves, isLoading: loadingAves } = useAves();
   const { combates, stats, refreshCombates, isLoading: loadingCombates } = useCombates();
   const { stats: saludStats, getProximasVacunas } = useSalud();
+  const { stats: alimentacionStats, registros: registrosAlimentacion } = useAlimentacion();
+  const { eventos } = useEventos();
   const [refreshing, setRefreshing] = React.useState(false);
   const [eventoActivo, setEventoActivo] = React.useState<any>(null);
   const [visitorId, setVisitorId] = React.useState<string>('');
@@ -79,6 +84,71 @@ export default function HomeScreen() {
   const machos = aves.filter(a => a.sexo === 'M').length;
   const hembras = aves.filter(a => a.sexo === 'H').length;
   const proximasVacunas = getProximasVacunas();
+  const [alertasVisible, setAlertasVisible] = useState(false);
+
+  // Campana semáforo: calcular alertas de múltiples fuentes
+  const alertas = useMemo(() => {
+    const criticas: { texto: string; tipo: string }[] = [];
+    const proximas: { texto: string; tipo: string }[] = [];
+
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    // 1. Vacunas vencidas o próximas
+    proximasVacunas.forEach(v => {
+      const fecha = new Date(v.fecha_proxima!);
+      const diffDias = Math.ceil((fecha.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+      const label = v.nombre || v.tipo || 'Vacuna';
+      if (diffDias <= 0) {
+        criticas.push({ texto: `Vacuna vencida: ${label}`, tipo: 'vacuna' });
+      } else if (diffDias <= 3) {
+        criticas.push({ texto: `Vacuna en ${diffDias} día${diffDias > 1 ? 's' : ''}: ${label}`, tipo: 'vacuna' });
+      } else if (diffDias <= 7) {
+        proximas.push({ texto: `Vacuna en ${diffDias} días: ${label}`, tipo: 'vacuna' });
+      }
+    });
+
+    // 2. Salud — tratamientos activos y enfermedades
+    if (saludStats.tratamientosActivos > 0) {
+      criticas.push({ texto: `${saludStats.tratamientosActivos} tratamiento${saludStats.tratamientosActivos > 1 ? 's' : ''} activo${saludStats.tratamientosActivos > 1 ? 's' : ''}`, tipo: 'salud' });
+    }
+
+    // 3. Alimentación — stock bajo y sin registro hoy
+    if (alimentacionStats.alimentosBajoStock > 0) {
+      criticas.push({ texto: `${alimentacionStats.alimentosBajoStock} alimento${alimentacionStats.alimentosBajoStock > 1 ? 's' : ''} con stock bajo`, tipo: 'alimentacion' });
+    }
+    if (alimentacionStats.totalAlimentos > 0 && alimentacionStats.registrosHoy === 0) {
+      proximas.push({ texto: 'Sin registro de alimentación hoy', tipo: 'alimentacion' });
+    }
+
+    // 4. Calendario — eventos próximos (vacunas, combates, tratamientos)
+    eventos.forEach(ev => {
+      if (!ev.fecha) return;
+      const fecha = new Date(ev.fecha);
+      const diffDias = Math.ceil((fecha.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDias >= 0 && diffDias <= 2 && ev.tipo === 'combate') {
+        criticas.push({ texto: `Combate ${diffDias === 0 ? 'hoy' : 'en ' + diffDias + ' día' + (diffDias > 1 ? 's' : '')}: ${ev.ave_codigo || ''}`, tipo: 'combate' });
+      } else if (diffDias > 2 && diffDias <= 7 && ev.tipo === 'combate') {
+        proximas.push({ texto: `Combate en ${diffDias} días: ${ev.ave_codigo || ''}`, tipo: 'combate' });
+      }
+    });
+
+    // 5. Aves — sin peso registrado
+    const sinPeso = aves.filter(a => a.estado === 'activo' && !a.peso_actual);
+    if (sinPeso.length > 0) {
+      proximas.push({ texto: `${sinPeso.length} ave${sinPeso.length > 1 ? 's' : ''} sin peso registrado`, tipo: 'ave' });
+    }
+
+    return { criticas, proximas };
+  }, [aves, proximasVacunas, saludStats, alimentacionStats, eventos]);
+
+  const bellColor = alertas.criticas.length > 0
+    ? '#EF4444'    // Rojo
+    : alertas.proximas.length > 0
+      ? '#F59E0B'  // Ámbar
+      : '#10B981'; // Verde
+
+  const totalAlertas = alertas.criticas.length + alertas.proximas.length;
 
   const requireAuth = (action: () => void) => {
     if (isAuthenticated) {
@@ -112,13 +182,22 @@ export default function HomeScreen() {
     try {
       const res = await api.getEventoByCodigo(code);
       if (res.success && res.data?.id) {
+        // Store referral context for tracking (empresario who created the event)
+        if (res.data.usuario_id) {
+          api.setReferralContext(res.data.usuario_id, res.data.id);
+        }
         setCodigoEvento('');
         router.push(`/palenque/live?eventoId=${res.data.id}&code=${code}`);
       } else {
         Alert.alert('No encontrado', 'No se encontro ningun evento con ese codigo');
       }
-    } catch {
-      Alert.alert('Error', 'No se pudo buscar el evento. Verifica el codigo e intenta de nuevo.');
+    } catch (error: any) {
+      const msg = error?.message || '';
+      if (msg.includes('finalizó') || msg.includes('cancelado')) {
+        Alert.alert('Evento no disponible', msg);
+      } else {
+        Alert.alert('Error', 'No se pudo buscar el evento. Verifica el codigo e intenta de nuevo.');
+      }
     } finally {
       setJoiningEvento(false);
     }
@@ -142,38 +221,48 @@ export default function HomeScreen() {
               <Text style={styles.userName}>{user?.nombre || `Visitante`}</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.notificationButton}>
-            <Bell size={22} color={COLORS.textLight} />
-            {proximasVacunas.length > 0 && <View style={styles.notifDot} />}
+          <TouchableOpacity
+            style={[styles.notificationButton, { borderWidth: 1.5, borderColor: bellColor }]}
+            onPress={() => setAlertasVisible(true)}
+          >
+            <Bell size={22} color={bellColor} />
+            {totalAlertas > 0 && (
+              <View style={[styles.notifDot, { backgroundColor: bellColor }]}>
+                <Text style={styles.notifDotText}>{totalAlertas > 9 ? '9+' : totalAlertas}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
-        {/* Hero Stats */}
-        <View style={styles.heroStats}>
-          <View style={styles.heroStatMain}>
-            <Text style={styles.heroNumber}>{avesActivas}</Text>
-            <Text style={styles.heroLabel}>Aves Activas</Text>
-          </View>
-          <View style={styles.heroDivider} />
-          <View style={styles.heroStatSide}>
-            <View style={styles.heroMiniStat}>
-              <View style={[styles.miniDot, { backgroundColor: COLORS.male }]} />
-              <Text style={styles.heroMiniNumber}>{machos}</Text>
-              <Text style={styles.heroMiniLabel}>Machos</Text>
+        {/* Hero Stats - solo para galleros */}
+        {!isEmpresario && (
+          <View style={styles.heroStats}>
+            <View style={styles.heroStatMain}>
+              <Text style={styles.heroNumber}>{avesActivas}</Text>
+              <Text style={styles.heroLabel}>Aves Activas</Text>
             </View>
-            <View style={styles.heroMiniStat}>
-              <View style={[styles.miniDot, { backgroundColor: COLORS.female }]} />
-              <Text style={styles.heroMiniNumber}>{hembras}</Text>
-              <Text style={styles.heroMiniLabel}>Hembras</Text>
+            <View style={styles.heroDivider} />
+            <View style={styles.heroStatSide}>
+              <View style={styles.heroMiniStat}>
+                <View style={[styles.miniDot, { backgroundColor: COLORS.male }]} />
+                <Text style={styles.heroMiniNumber}>{machos}</Text>
+                <Text style={styles.heroMiniLabel}>Machos</Text>
+              </View>
+              <View style={styles.heroMiniStat}>
+                <View style={[styles.miniDot, { backgroundColor: COLORS.female }]} />
+                <Text style={styles.heroMiniNumber}>{hembras}</Text>
+                <Text style={styles.heroMiniLabel}>Hembras</Text>
+              </View>
             </View>
           </View>
-        </View>
+        )}
       </LinearGradient>
 
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -260,63 +349,69 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
-        {/* KPI Cards */}
-        <View style={styles.kpiContainer}>
-          <View style={styles.kpiRow}>
-            <KPICard
-              title="Combates"
-              value={stats.total.toString()}
-              subtitle={`${stats.porcentajeVictorias}% victorias`}
-              icon={<Swords size={18} color={COLORS.primary} />}
-              color={COLORS.primary}
-            />
-            <KPICard
-              title="Victorias"
-              value={stats.victorias.toString()}
-              subtitle={`de ${stats.total}`}
-              icon={<Trophy size={18} color={COLORS.secondary} />}
-              color={COLORS.secondary}
-            />
+        {/* KPI Cards - solo para galleros */}
+        {!isEmpresario && (
+          <View style={styles.kpiContainer}>
+            <View style={styles.kpiRow}>
+              <KPICard
+                title="Combates"
+                value={stats.total.toString()}
+                subtitle={`${stats.porcentajeVictorias}% victorias`}
+                icon={<Swords size={18} color={COLORS.primary} />}
+                color={COLORS.primary}
+              />
+              <KPICard
+                title="Victorias"
+                value={stats.victorias.toString()}
+                subtitle={`de ${stats.total}`}
+                icon={<Trophy size={18} color={COLORS.secondary} />}
+                color={COLORS.secondary}
+              />
+            </View>
+            <View style={styles.kpiRow}>
+              <KPICard
+                title="Balance"
+                value={`$${stats.roi >= 0 ? '+' : ''}${stats.roi.toLocaleString()}`}
+                subtitle="Total neto"
+                icon={<DollarSign size={18} color={stats.roi >= 0 ? COLORS.success : COLORS.error} />}
+                color={stats.roi >= 0 ? COLORS.success : COLORS.error}
+              />
+              <KPICard
+                title="Salud"
+                value={saludStats.vacunasPendientes.toString()}
+                subtitle="vacunas pendientes"
+                icon={<Heart size={18} color={COLORS.error} />}
+                color={COLORS.error}
+              />
+            </View>
           </View>
-          <View style={styles.kpiRow}>
-            <KPICard
-              title="Balance"
-              value={`$${stats.roi >= 0 ? '+' : ''}${stats.roi.toLocaleString()}`}
-              subtitle="Total neto"
-              icon={<DollarSign size={18} color={stats.roi >= 0 ? COLORS.success : COLORS.error} />}
-              color={stats.roi >= 0 ? COLORS.success : COLORS.error}
-            />
-            <KPICard
-              title="Salud"
-              value={saludStats.vacunasPendientes.toString()}
-              subtitle="vacunas pendientes"
-              icon={<Heart size={18} color={COLORS.error} />}
-              color={COLORS.error}
-            />
-          </View>
-        </View>
+        )}
 
         {/* Quick Actions */}
         <Text style={styles.sectionLabel}>ACCIONES RAPIDAS</Text>
         <View style={styles.quickActions}>
-          <QuickAction
-            icon={<Plus size={22} color={COLORS.textLight} />}
-            label="Nueva Ave"
-            colors={[COLORS.primary, COLORS.primaryDark]}
-            onPress={() => requireAuth(() => router.push('/ave/new'))}
-          />
-          <QuickAction
-            icon={<Swords size={22} color={COLORS.textLight} />}
-            label="Combate"
-            colors={[COLORS.secondary, COLORS.secondaryDark]}
-            onPress={() => requireAuth(() => router.push('/combate/new'))}
-          />
-          <QuickAction
-            icon={<Heart size={22} color={COLORS.textLight} />}
-            label="Salud"
-            colors={['#EC4899', '#DB2777']}
-            onPress={() => router.push('/salud')}
-          />
+          {!isEmpresario && (
+            <>
+              <QuickAction
+                icon={<Plus size={22} color={COLORS.textLight} />}
+                label="Nueva Ave"
+                colors={[COLORS.primary, COLORS.primaryDark]}
+                onPress={() => requireAuth(() => router.push('/ave/new'))}
+              />
+              <QuickAction
+                icon={<Swords size={22} color={COLORS.textLight} />}
+                label="Combate"
+                colors={[COLORS.secondary, COLORS.secondaryDark]}
+                onPress={() => requireAuth(() => router.push('/combate/new'))}
+              />
+              <QuickAction
+                icon={<Heart size={22} color={COLORS.textLight} />}
+                label="Salud"
+                colors={['#EC4899', '#DB2777']}
+                onPress={() => router.push('/salud')}
+              />
+            </>
+          )}
           <QuickAction
             icon={<Trophy size={22} color={COLORS.textLight} />}
             label="Palenque"
@@ -325,8 +420,8 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* Win Rate Ring */}
-        {stats.total > 0 && (
+        {/* Win Rate Ring - solo galleros */}
+        {!isEmpresario && stats.total > 0 && (
           <>
             <Text style={styles.sectionLabel}>RENDIMIENTO</Text>
             <View style={[styles.performanceCard, SHADOWS.md]}>
@@ -362,8 +457,8 @@ export default function HomeScreen() {
           </>
         )}
 
-        {/* Alerts */}
-        {proximasVacunas.length > 0 && (
+        {/* Alerts - solo galleros */}
+        {!isEmpresario && proximasVacunas.length > 0 && (
           <>
             <Text style={styles.sectionLabel}>ALERTAS</Text>
             <TouchableOpacity
@@ -384,7 +479,8 @@ export default function HomeScreen() {
           </>
         )}
 
-        {/* Recent Fights */}
+        {/* Recent Fights - solo galleros */}
+        {!isEmpresario && (
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionLabel}>ÚLTIMOS COMBATES</Text>
           {combates.length > 0 && (
@@ -393,7 +489,8 @@ export default function HomeScreen() {
             </TouchableOpacity>
           )}
         </View>
-        {combates.length === 0 ? (
+        )}
+        {!isEmpresario && (combates.length === 0 ? (
           <View style={[styles.emptyCard, SHADOWS.sm]}>
             <Swords size={32} color={COLORS.textDisabled} />
             <Text style={styles.emptyText}>Sin combates registrados</Text>
@@ -452,10 +549,69 @@ export default function HomeScreen() {
               </View>
             </View>
           ))
-        )}
+        ))}
 
         <View style={{ height: SPACING.xxl }} />
       </ScrollView>
+
+      {/* Modal de alertas */}
+      <Modal visible={alertasVisible} animationType="slide" transparent>
+        <View style={styles.alertModalOverlay}>
+          <View style={styles.alertModalContent}>
+            <View style={styles.alertModalHeader}>
+              <Bell size={20} color={bellColor} />
+              <Text style={styles.alertModalTitle}>Estado de tu Gallera</Text>
+              <TouchableOpacity onPress={() => setAlertasVisible(false)}>
+                <Text style={styles.alertModalClose}>Cerrar</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.alertModalScroll} showsVerticalScrollIndicator={false}>
+              {alertas.criticas.length > 0 && (
+                <View style={styles.alertSection}>
+                  <View style={[styles.alertSectionHeader, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
+                    <AlertTriangle size={14} color="#EF4444" />
+                    <Text style={[styles.alertSectionTitle, { color: '#EF4444' }]}>
+                      Atención Urgente ({alertas.criticas.length})
+                    </Text>
+                  </View>
+                  {alertas.criticas.map((a, i) => (
+                    <View key={`c-${i}`} style={styles.alertItem}>
+                      <View style={[styles.alertDot, { backgroundColor: '#EF4444' }]} />
+                      <Text style={styles.alertItemText}>{a.texto}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {alertas.proximas.length > 0 && (
+                <View style={styles.alertSection}>
+                  <View style={[styles.alertSectionHeader, { backgroundColor: 'rgba(245,158,11,0.1)' }]}>
+                    <Calendar size={14} color="#F59E0B" />
+                    <Text style={[styles.alertSectionTitle, { color: '#F59E0B' }]}>
+                      Próximamente ({alertas.proximas.length})
+                    </Text>
+                  </View>
+                  {alertas.proximas.map((a, i) => (
+                    <View key={`p-${i}`} style={styles.alertItem}>
+                      <View style={[styles.alertDot, { backgroundColor: '#F59E0B' }]} />
+                      <Text style={styles.alertItemText}>{a.texto}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {totalAlertas === 0 && (
+                <View style={styles.alertEmpty}>
+                  <Bell size={40} color="#10B981" />
+                  <Text style={styles.alertEmptyTitle}>Todo en orden</Text>
+                  <Text style={styles.alertEmptyText}>No hay alertas pendientes. Tu gallera está al día.</Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -563,14 +719,21 @@ const styles = StyleSheet.create({
   },
   notifDot: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.error,
+    top: 6,
+    right: 6,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
     borderWidth: 1.5,
     borderColor: COLORS.backgroundDark,
+  },
+  notifDotText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '800',
   },
   heroStats: {
     flexDirection: 'row',
@@ -972,6 +1135,90 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.textSecondary,
     marginTop: SPACING.xs,
+    textAlign: 'center',
+  },
+  // Alert Modal
+  alertModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+  },
+  alertModalContent: {
+    backgroundColor: COLORS.background,
+    borderRadius: BORDER_RADIUS.xl,
+    maxHeight: '80%',
+    overflow: 'hidden',
+  },
+  alertModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    padding: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  alertModalTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  alertModalClose: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  alertModalScroll: {
+    padding: SPACING.lg,
+  },
+  alertSection: {
+    marginBottom: SPACING.lg,
+  },
+  alertSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 6,
+    borderRadius: BORDER_RADIUS.sm,
+    marginBottom: SPACING.sm,
+  },
+  alertSectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  alertItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingVertical: 8,
+    paddingHorizontal: SPACING.sm,
+  },
+  alertDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  alertItemText: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.text,
+  },
+  alertEmpty: {
+    alignItems: 'center',
+    paddingVertical: SPACING.xl,
+    gap: SPACING.sm,
+  },
+  alertEmptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  alertEmptyText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
     textAlign: 'center',
   },
 });

@@ -138,6 +138,7 @@ export default function ProfileScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Info chips */}
           <View style={styles.chipsRow}>

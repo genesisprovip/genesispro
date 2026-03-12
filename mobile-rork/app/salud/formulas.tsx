@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -249,7 +251,10 @@ export default function FormulasScreen() {
 
       {/* Create/Edit Modal */}
       <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <View style={[styles.modalContent, { paddingBottom: insets.bottom + SPACING.md }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
@@ -260,7 +265,7 @@ export default function FormulasScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={styles.modalScroll}>
+            <ScrollView showsVerticalScrollIndicator={false} style={styles.modalScroll} keyboardShouldPersistTaps="handled">
               <TextInput
                 style={styles.modalInput}
                 placeholder="Nombre de la formula"
@@ -350,7 +355,7 @@ export default function FormulasScreen() {
               </LinearGradient>
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

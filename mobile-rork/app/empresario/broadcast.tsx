@@ -97,6 +97,19 @@ export default function BroadcastScreen() {
   const [eventoError, setEventoError] = useState('');
   const [needsEventSelection, setNeedsEventSelection] = useState(!eventoId);
 
+  // Multi-camera state
+  interface CamaraData {
+    id: string;
+    stream_id: string;
+    nombre_camara: string;
+    estado: string;
+    es_principal: boolean;
+    operador_nombre: string;
+    started_at: string | null;
+  }
+  const [camaras, setCamaras] = useState<CamaraData[]>([]);
+  const [settingPrincipal, setSettingPrincipal] = useState<string | null>(null);
+
   const isLive = broadcastStatus === 'live' || broadcastStatus === 'reconnecting';
   const isManual = eventoModo === 'manual';
   const currentPelea = peleas.length > 0 ? peleas[currentPeleaIndex] : null;
@@ -192,6 +205,39 @@ export default function BroadcastScreen() {
     }, 10000);
     return () => clearInterval(poll);
   }, [isLive, resolvedEventoId]);
+
+  // Poll active cameras every 5s while streaming
+  useEffect(() => {
+    if (!isLive || !resolvedEventoId) return;
+    const loadCamaras = async () => {
+      try {
+        const res = await api.getCamarasEvento(resolvedEventoId);
+        if (res.success && res.data) {
+          setCamaras(res.data);
+        }
+      } catch { /* ignore - endpoint may not exist yet */ }
+    };
+    loadCamaras();
+    const poll = setInterval(loadCamaras, 5000);
+    return () => clearInterval(poll);
+  }, [isLive, resolvedEventoId]);
+
+  const handleSetPrincipal = async (streamId: string) => {
+    if (!resolvedEventoId || settingPrincipal) return;
+    setSettingPrincipal(streamId);
+    try {
+      await api.setPrincipalCamera(resolvedEventoId, streamId);
+      // Optimistic update
+      setCamaras(prev => prev.map(c => ({
+        ...c,
+        es_principal: c.stream_id === streamId,
+      })));
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'No se pudo cambiar la camara principal');
+    } finally {
+      setSettingPrincipal(null);
+    }
+  };
 
   // Load fights
   const loadPeleas = useCallback(async () => {
@@ -623,6 +669,7 @@ export default function BroadcastScreen() {
     <ScrollView
       style={isLandscape && !cameraFullscreen ? styles.controlsScrollLandscape : styles.controlsScroll}
       contentContainerStyle={styles.controlsContent}
+      keyboardShouldPersistTaps="handled"
     >
       {/* Mode indicator + manual fight selector */}
       {peleas.length > 0 && isManual && (
@@ -645,6 +692,55 @@ export default function BroadcastScreen() {
                 ]}>#{p.numero_pelea}</Text>
               </TouchableOpacity>
             ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Multi-camera director grid */}
+      {camaras.length > 1 && (
+        <View style={styles.camarasSection}>
+          <View style={styles.camarasHeader}>
+            <CameraIcon size={14} color={COLORS.textLight} />
+            <Text style={styles.camarasTitle}>Camaras activas</Text>
+            <View style={styles.camarasCountBadge}>
+              <Text style={styles.camarasCountText}>{camaras.filter(c => c.estado === 'live' || c.estado === 'activa').length}</Text>
+            </View>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.camarasScroll}>
+            {camaras.map((cam) => {
+              const isPrincipal = cam.es_principal;
+              const isSettingThis = settingPrincipal === cam.stream_id;
+              return (
+                <TouchableOpacity
+                  key={cam.id}
+                  style={[
+                    styles.camaraCard,
+                    isPrincipal && styles.camaraCardPrincipal,
+                  ]}
+                  onPress={() => !isPrincipal && handleSetPrincipal(cam.stream_id)}
+                  disabled={isPrincipal || !!settingPrincipal}
+                  activeOpacity={0.7}
+                >
+                  {isSettingThis && (
+                    <ActivityIndicator size="small" color={COLORS.textLight} style={{ marginBottom: 4 }} />
+                  )}
+                  {isPrincipal && (
+                    <View style={styles.enVivoBadge}>
+                      <View style={styles.enVivoDot} />
+                      <Text style={styles.enVivoText}>EN VIVO</Text>
+                    </View>
+                  )}
+                  <Text style={styles.camaraNombre} numberOfLines={1}>{cam.nombre_camara || 'Camara'}</Text>
+                  <Text style={styles.camaraOperador} numberOfLines={1}>{cam.operador_nombre || ''}</Text>
+                  <Text style={[
+                    styles.camaraEstado,
+                    cam.estado === 'live' || cam.estado === 'activa' ? { color: '#10B981' } : { color: '#64748B' },
+                  ]}>
+                    {cam.estado === 'live' || cam.estado === 'activa' ? 'Activa' : cam.estado}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
       )}
@@ -1005,4 +1101,62 @@ const styles = StyleSheet.create({
   },
   stopIcon: { width: 16, height: 16, borderRadius: 3, backgroundColor: '#EF4444' },
   stopBtnText: { color: COLORS.textLight, fontSize: 15, fontWeight: '700' },
+
+  // Multi-camera director
+  camarasSection: {
+    backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.sm, marginBottom: SPACING.sm,
+  },
+  camarasHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginBottom: SPACING.sm,
+  },
+  camarasTitle: {
+    color: COLORS.textLight, fontSize: 13, fontWeight: '700', flex: 1,
+  },
+  camarasCountBadge: {
+    backgroundColor: '#10B981', borderRadius: 10,
+    width: 20, height: 20, justifyContent: 'center', alignItems: 'center',
+  },
+  camarasCountText: {
+    color: '#FFFFFF', fontSize: 11, fontWeight: '800',
+  },
+  camarasScroll: {
+    gap: SPACING.sm,
+  },
+  camaraCard: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.sm,
+    minWidth: 110,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  camaraCardPrincipal: {
+    borderColor: '#10B981',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+  },
+  enVivoBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#10B981', paddingHorizontal: 8, paddingVertical: 2,
+    borderRadius: BORDER_RADIUS.round, marginBottom: 4,
+  },
+  enVivoDot: {
+    width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFFFFF',
+  },
+  enVivoText: {
+    color: '#FFFFFF', fontSize: 9, fontWeight: '800', letterSpacing: 0.5,
+  },
+  camaraNombre: {
+    color: COLORS.textLight, fontSize: 13, fontWeight: '700',
+    marginBottom: 2,
+  },
+  camaraOperador: {
+    color: 'rgba(255,255,255,0.5)', fontSize: 11, fontWeight: '500',
+    marginBottom: 2,
+  },
+  camaraEstado: {
+    fontSize: 10, fontWeight: '700', letterSpacing: 0.3,
+  },
 });

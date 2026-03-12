@@ -158,6 +158,7 @@ export default function NuevoPalenqueScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Event Name */}
           <View style={styles.section}>

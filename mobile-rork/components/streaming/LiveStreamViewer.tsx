@@ -8,7 +8,7 @@ import {
   Animated,
 } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { Eye, Radio, Volume2, VolumeX, Lock, Maximize2, Zap } from 'lucide-react-native';
+import { Eye, Radio, Volume2, VolumeX, Lock, Maximize2, Zap, ArrowUpCircle } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS } from '@/constants/theme';
@@ -16,11 +16,27 @@ import WebRTCPlayer from './WebRTCPlayer';
 
 const DEFAULT_PREVIEW_MINUTES = 5;
 
+// Quality badge colors per tier
+const QUALITY_COLORS: Record<string, string> = {
+  '360p': '#EF4444',  // red - free
+  '480p': '#F59E0B',  // amber - basico
+  '720p': '#3B82F6',  // blue - pro
+  '1080p': '#10B981', // green - premium
+};
+
+const QUALITY_LABELS: Record<string, string> = {
+  free: 'Gratis',
+  basico: 'Basico',
+  pro: 'Pro',
+  premium: 'Premium',
+};
+
 interface LiveStreamViewerProps {
   hlsUrl: string;
   isLive: boolean;
   viewersCount: number;
   calidad: string;
+  calidadMaxHeight?: number;
   previewMinutos?: number | null;
   webrtcSignaling?: string | null;
   streamName?: string | null;
@@ -33,6 +49,7 @@ export default function LiveStreamViewer({
   isLive,
   viewersCount,
   calidad,
+  calidadMaxHeight,
   previewMinutos,
   webrtcSignaling,
   streamName,
@@ -48,6 +65,8 @@ export default function LiveStreamViewer({
   const [previewExpired, setPreviewExpired] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const isFreeUser = previewMinutos !== null && previewMinutos !== undefined ? true : userPlan === 'free';
+  const isPremium = userPlan === 'premium';
+  const qualityColor = QUALITY_COLORS[calidad] || QUALITY_COLORS['480p'];
 
   // Dual-path: WebRTC primary, HLS fallback
   const canWebRTC = !!(webrtcSignaling && streamName);
@@ -82,6 +101,19 @@ export default function LiveStreamViewer({
     return () => clearTimeout(fallbackTimer);
   }, [useWebRTC, webrtcReady]);
 
+  // Map quality tiers to approximate max bitrates (kbps) for ABR capping
+  // When OME serves multi-bitrate LLHLS, ExoPlayer/AVPlayer use these hints
+  // to cap the selected rendition to the user's allowed quality tier.
+  const maxBitrateForQuality: Record<number, number> = {
+    360: 800_000,    // 800 kbps for 360p
+    480: 1_500_000,  // 1.5 Mbps for 480p
+    720: 4_000_000,  // 4 Mbps for 720p
+    1080: 10_000_000, // 10 Mbps for 1080p (effectively unlimited)
+  };
+  const effectiveMaxBitrate = calidadMaxHeight
+    ? (maxBitrateForQuality[calidadMaxHeight] || 10_000_000)
+    : 10_000_000;
+
   // Native video player via expo-video (ExoPlayer on Android, AVPlayer on iOS)
   // Use source object with buffering hints for low latency
   const safeHlsUrl = hlsUrl || 'about:blank';
@@ -94,6 +126,14 @@ export default function LiveStreamViewer({
     p.muted = false;
     // Minimize buffer for lower latency on live streams
     (p as any).preferredForwardBufferDuration = 2; // Only buffer 2 seconds ahead
+    // Cap ABR rendition selection based on user's quality tier
+    // preferredPeakBitRate works on AVPlayer (iOS); ExoPlayer uses maxVideoBitrate
+    if ((p as any).preferredPeakBitRate !== undefined) {
+      (p as any).preferredPeakBitRate = effectiveMaxBitrate;
+    }
+    if ((p as any).maxVideoBitrate !== undefined) {
+      (p as any).maxVideoBitrate = effectiveMaxBitrate;
+    }
     p.play();
   });
 
@@ -228,6 +268,7 @@ export default function LiveStreamViewer({
         <WebRTCPlayer
           signalingUrl={webrtcSignaling!}
           streamName={streamName!}
+          maxHeight={calidadMaxHeight}
           onReady={handleWebRTCReady}
           onError={handleWebRTCError}
           onAudioState={handleWebRTCAudioState}
@@ -253,15 +294,15 @@ export default function LiveStreamViewer({
       )}
 
       {/* Top overlay: Live badge + quality + viewers */}
-      <View style={styles.topOverlay} pointerEvents="none">
-        <View style={styles.topLeft}>
+      <View style={styles.topOverlay} pointerEvents="box-none">
+        <View style={styles.topLeft} pointerEvents="none">
           {isLive && (
             <View style={styles.liveBadge}>
               <Animated.View style={[styles.liveDot, { opacity: pulseAnim }]} />
               <Text style={styles.liveText}>EN VIVO</Text>
             </View>
           )}
-          <View style={styles.qualityBadge}>
+          <View style={[styles.qualityBadge, { backgroundColor: qualityColor + 'CC' }]}>
             <Text style={styles.qualityText}>{calidad}</Text>
           </View>
           {useWebRTC && webrtcReady && (
@@ -271,11 +312,29 @@ export default function LiveStreamViewer({
             </View>
           )}
         </View>
-        <View style={styles.viewersContainer}>
-          <Eye size={14} color={COLORS.textLight} />
-          <Text style={styles.viewersText}>{viewersCount.toLocaleString()}</Text>
+        <View style={styles.topRight}>
+          <View style={styles.viewersContainer} pointerEvents="none">
+            <Eye size={14} color={COLORS.textLight} />
+            <Text style={styles.viewersText}>{viewersCount.toLocaleString()}</Text>
+          </View>
         </View>
       </View>
+
+      {/* Quality upgrade prompt for non-premium users */}
+      {!isPremium && !isFreeUser && !previewExpired && playerStatus === 'playing' && (
+        <View style={styles.upgradeOverlay} pointerEvents="box-none">
+          <TouchableOpacity
+            style={styles.upgradeBadge}
+            onPress={() => router.push('/subscription')}
+            activeOpacity={0.8}
+          >
+            <ArrowUpCircle size={12} color="#fff" />
+            <Text style={styles.upgradeText}>
+              Mejora tu plan para ver en {userPlan === 'basico' ? '720p/1080p' : '1080p'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Bottom overlay: controls */}
       <View style={styles.bottomOverlay}>
@@ -402,6 +461,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
+  topRight: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: SPACING.xs,
+  },
   viewersContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -508,5 +572,26 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     fontSize: 16,
     fontWeight: '700',
+  },
+  upgradeOverlay: {
+    position: 'absolute',
+    bottom: 50,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  upgradeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(99, 102, 241, 0.85)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: BORDER_RADIUS.md,
+    gap: 6,
+  },
+  upgradeText: {
+    color: COLORS.textLight,
+    fontSize: 11,
+    fontWeight: '600',
   },
 });

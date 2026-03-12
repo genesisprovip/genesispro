@@ -132,6 +132,7 @@ export default function NuevoCombateScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Selección de Ave */}
           <View style={styles.section}>

@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Switch,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,7 +42,7 @@ export default function SaludDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
-  const { registros, deleteRegistro } = useSalud();
+  const { registros, deleteRegistro, updateRegistro } = useSalud();
   const { getAveById } = useAves();
 
   const registro = registros.find(r => r.id === id);
@@ -147,6 +148,24 @@ export default function SaludDetailScreen() {
                 }) : '-'}
               </Text>
             </View>
+          </View>
+        )}
+
+        {/* Toggle recordatorio */}
+        {registro.fecha_proxima && (
+          <View style={[styles.toggleRow, SHADOWS.sm]}>
+            <View style={styles.toggleInfo}>
+              <Text style={styles.toggleLabel}>Silenciar recordatorio</Text>
+              <Text style={styles.toggleSub}>No mostrar en alertas ni calendario</Text>
+            </View>
+            <Switch
+              value={registro.recordatorio_silenciado ?? false}
+              onValueChange={(value) => {
+                updateRegistro(registro.id, { recordatorio_silenciado: value });
+              }}
+              trackColor={{ false: COLORS.border, true: COLORS.primary + '60' }}
+              thumbColor={registro.recordatorio_silenciado ? COLORS.primary : COLORS.textSecondary}
+            />
           </View>
         )}
 
@@ -352,6 +371,27 @@ const styles = StyleSheet.create({
   },
   alertContent: {
     flex: 1,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  toggleInfo: {
+    flex: 1,
+  },
+  toggleLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+  },
+  toggleSub: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
   },
   alertTitle: {
     fontSize: 14,

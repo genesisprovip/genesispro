@@ -17,6 +17,7 @@ export interface RegistroSalud {
   dosis?: string;
   costo?: number;
   notas?: string;
+  recordatorio_silenciado?: boolean;
   created_at: string;
 }
 
@@ -338,6 +339,7 @@ export const [SaludProvider, useSalud] = createContextHook<SaludState>(() => {
     return registros
       .filter(r => {
         if (r.tipo !== 'vacuna' || !r.fecha_proxima) return false;
+        if (r.recordatorio_silenciado) return false;
         const fechaProxima = new Date(r.fecha_proxima);
         return fechaProxima >= hoy;
       })

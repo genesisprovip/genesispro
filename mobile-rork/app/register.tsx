@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import { Mail, Lock, User, Eye, EyeOff, ChevronLeft, Check } from 'lucide-react-
 import { useAuth } from '@/context/AuthContext';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS } from '@/constants/theme';
+import api from '@/services/api';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -32,6 +33,11 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [referral, setReferral] = useState<{ empresarioId: string; eventoId: string } | null>(null);
+
+  useEffect(() => {
+    api.getReferralContext().then(ctx => { if (ctx) setReferral(ctx); });
+  }, []);
   const [selectedPlan, setSelectedPlan] = useState('pro');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
@@ -68,8 +74,10 @@ export default function RegisterScreen() {
         email: email.trim().toLowerCase(),
         password,
         plan: selectedPlan,
+        ...(referral ? { referido_por: referral.empresarioId, referido_evento_id: referral.eventoId } : {}),
       });
       if (result.success) {
+        if (referral) api.clearReferralContext();
         router.replace('/(tabs)');
       } else {
         Alert.alert('Error', result.error || 'No se pudo crear la cuenta');

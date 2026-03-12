@@ -10,6 +10,7 @@ import { WebView } from 'react-native-webview';
 interface WebRTCPlayerProps {
   signalingUrl: string;
   streamName: string;
+  maxHeight?: number;
   onReady?: () => void;
   onError?: () => void;
   onAudioState?: (muted: boolean) => void;
@@ -20,6 +21,7 @@ interface WebRTCPlayerProps {
 export default function WebRTCPlayer({
   signalingUrl,
   streamName,
+  maxHeight,
   onReady,
   onError,
   onAudioState,
@@ -52,8 +54,9 @@ export default function WebRTCPlayer({
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #000; overflow: hidden; width: 100vw; height: 100vh; }
+    body { background: #000; overflow: hidden; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
     video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+    /* Quality tier CSS enforcement: scale down if needed */
     .connecting { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
       color: #fff; font-family: sans-serif; font-size: 14px; }
     #unmute-overlay {
@@ -87,6 +90,7 @@ export default function WebRTCPlayer({
   <script>
     const SIGNALING_URL = '${signalingUrl}';
     const STREAM_NAME = '${streamName}';
+    const MAX_HEIGHT = ${maxHeight || 0};
     const video = document.getElementById('player');
     const status = document.getElementById('status');
     const unmuteOverlay = document.getElementById('unmute-overlay');
@@ -187,12 +191,26 @@ export default function WebRTCPlayer({
 
             // Create and send answer
             const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
+
+            // Enforce quality tier: cap bandwidth in SDP based on maxHeight
+            let modifiedSdp = answer.sdp;
+            if (MAX_HEIGHT > 0 && MAX_HEIGHT < 1080) {
+              // Map height to approximate max bitrate (kbps) for SDP b=AS line
+              const bwMap = { 360: 600, 480: 1200, 720: 3000 };
+              const maxBw = bwMap[MAX_HEIGHT] || 3000;
+              // Insert bandwidth limit after each m=video line
+              modifiedSdp = modifiedSdp.replace(
+                /(m=video[^\\r\\n]*)(\\r\\n|\\n)/g,
+                '$1$2b=AS:' + maxBw + '$2'
+              );
+            }
+
+            await pc.setLocalDescription({ type: 'answer', sdp: modifiedSdp });
 
             ws.send(JSON.stringify({
               command: 'answer',
               id: msg.id,
-              sdp: answer.sdp
+              sdp: modifiedSdp
             }));
 
           } else if (msg.command === 'candidate' && pc) {

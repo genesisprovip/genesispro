@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   BackHandler,
   Animated,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,6 +35,7 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 import { api } from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
 import LiveStreamViewer from '@/components/streaming/LiveStreamViewer';
 import LiveChat from '@/components/streaming/LiveChat';
 import { playFightStartSound, playResultSound, unloadSounds } from '@/utils/sounds';
@@ -119,6 +122,7 @@ export default function LiveEventScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ code?: string; eventoId?: string }>();
+  const { user } = useAuth();
 
   // Always show role selection so users can identify as partido (even guests)
   const isGuest = !api.isAuthenticated();
@@ -137,11 +141,16 @@ export default function LiveEventScreen() {
     isLive: boolean;
     hlsUrl: string;
     calidad: string;
+    calidadMaxHeight?: number;
+    planActual?: string;
     viewersCount: number;
     previewMinutos?: number;
     webrtcSignaling?: string;
     streamName?: string;
   } | null>(null);
+  const [cameraName, setCameraName] = useState<string | null>(null);
+  const [totalCameras, setTotalCameras] = useState(0);
+  const previousHlsUrl = useRef<string | null>(null);
 
   // Keep screen awake during live event
   useKeepAwake();
@@ -310,21 +319,62 @@ export default function LiveEventScreen() {
       const streamRes = await api.getStreamInfo(id);
       if (streamRes.success && streamRes.data?.isLive) {
         const d = streamRes.data as any;
+        const newHlsUrl = d.hlsUrl || '';
+        const newStreamName = d.streamName || null;
+
+        // Detect principal camera change — auto-swap stream for viewer
+        const hlsChanged = previousHlsUrl.current && newHlsUrl && previousHlsUrl.current !== newHlsUrl;
+        previousHlsUrl.current = newHlsUrl;
+
         setStreamInfo({
           isLive: true,
-          hlsUrl: d.hlsUrl || '',
+          hlsUrl: newHlsUrl,
           calidad: d.calidad || 'auto',
+          calidadMaxHeight: d.calidadMaxHeight,
+          planActual: d.planActual,
           viewersCount: d.viewersCount || 0,
           previewMinutos: d.previewMinutos,
           webrtcSignaling: d.webrtcSignaling,
-          streamName: d.streamName,
+          streamName: newStreamName,
         });
+
+        // If HLS URL changed mid-stream, force a re-render by briefly clearing
+        if (hlsChanged) {
+          setStreamInfo(null);
+          setTimeout(() => {
+            setStreamInfo({
+              isLive: true,
+              hlsUrl: newHlsUrl,
+              calidad: d.calidad || 'auto',
+              calidadMaxHeight: d.calidadMaxHeight,
+              planActual: d.planActual,
+              viewersCount: d.viewersCount || 0,
+              previewMinutos: d.previewMinutos,
+              webrtcSignaling: d.webrtcSignaling,
+              streamName: newStreamName,
+            });
+          }, 200);
+        }
       } else {
         setStreamInfo(null);
+        previousHlsUrl.current = null;
       }
     } catch (err) {
       // Stream not available — that's fine
       setStreamInfo(null);
+    }
+
+    // Load camera info for multi-camera indicator
+    try {
+      const camarasRes = await api.getCamarasEvento(id);
+      if (camarasRes.success && camarasRes.data) {
+        const activeCams = camarasRes.data.filter((c: any) => c.estado === 'live' || c.estado === 'activa');
+        setTotalCameras(activeCams.length);
+        const principal = camarasRes.data.find((c: any) => c.es_principal);
+        setCameraName(principal?.nombre_camara || null);
+      }
+    } catch {
+      // Multi-camera endpoint may not exist yet — ignore
     }
 
     // Load partido-specific data if we have a partido code
@@ -420,7 +470,10 @@ export default function LiveEventScreen() {
   if (rol === 'partido' && !partidoId.trim()) {
     return (
       <LinearGradient colors={['#0F172A', '#1a2744', '#0F172A']} style={styles.container}>
-        <View style={[styles.roleScreen, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
+        <KeyboardAvoidingView
+          style={[styles.roleScreen, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <TouchableOpacity onPress={() => setRol(null)} style={styles.backBtn}>
             <ChevronLeft size={24} color={COLORS.textLight} />
           </TouchableOpacity>
@@ -479,7 +532,7 @@ export default function LiveEventScreen() {
               <Text style={styles.confirmText}>Entrar al Evento</Text>
             </LinearGradient>
           </TouchableOpacity>
-        </View>
+        </KeyboardAvoidingView>
       </LinearGradient>
     );
   }
@@ -634,11 +687,19 @@ export default function LiveEventScreen() {
             isLive={streamInfo.isLive}
             viewersCount={streamInfo.viewersCount}
             calidad={streamInfo.calidad}
+            calidadMaxHeight={streamInfo.calidadMaxHeight}
             previewMinutos={streamInfo.previewMinutos}
             webrtcSignaling={streamInfo.webrtcSignaling}
             streamName={streamInfo.streamName}
-            userPlan={isPublic ? 'free' : 'premium'}
+            userPlan={(streamInfo.planActual || user?.plan || 'free') as 'free' | 'basico' | 'pro' | 'premium'}
           />
+          {/* Multi-camera indicator */}
+          {totalCameras > 1 && cameraName && (
+            <View style={styles.cameraIndicator}>
+              <View style={styles.cameraIndicatorDot} />
+              <Text style={styles.cameraIndicatorText}>{cameraName}</Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -720,6 +781,7 @@ export default function LiveEventScreen() {
 
       <ScrollView
         contentContainerStyle={styles.liveContent}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.secondary} />
         }
@@ -985,7 +1047,19 @@ const styles = StyleSheet.create({
   liveStatText: { fontSize: 12, color: 'rgba(255,255,255,0.5)' },
 
   // Stream
-  streamContainer: { paddingHorizontal: SPACING.md, paddingTop: SPACING.md },
+  streamContainer: { paddingHorizontal: SPACING.md, paddingTop: SPACING.md, position: 'relative' },
+  cameraIndicator: {
+    position: 'absolute', bottom: 8, left: SPACING.md + 8,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: BORDER_RADIUS.round,
+  },
+  cameraIndicatorDot: {
+    width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981',
+  },
+  cameraIndicatorText: {
+    color: '#FFFFFF', fontSize: 11, fontWeight: '600',
+  },
 
   // Fight info bar
   fightInfoBar: {

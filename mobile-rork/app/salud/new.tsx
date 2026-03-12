@@ -134,6 +134,7 @@ export default function NuevoRegistroSaludScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Selección de Ave */}
           <View style={styles.section}>

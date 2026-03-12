@@ -350,6 +350,18 @@
         <div class="qa-icon">&#x1F3C6;</div>
         <div class="qa-label">Palenque</div>
       </a>
+      <a class="quick-action" onclick="scrollToSection('formulas')">
+        <div class="qa-icon">&#x1F9EA;</div>
+        <div class="qa-label">Formulas</div>
+      </a>
+      <a class="quick-action" onclick="scrollToSection('derby')">
+        <div class="qa-icon">&#x1F3C5;</div>
+        <div class="qa-label">Derby</div>
+      </a>
+      <a class="quick-action" onclick="scrollToSection('streaming')">
+        <div class="qa-icon">&#x1F4F9;</div>
+        <div class="qa-label">Streaming</div>
+      </a>
       <a class="quick-action" onclick="scrollToSection('cuenta')">
         <div class="qa-icon">&#x1F464;</div>
         <div class="qa-label">Mi Cuenta</div>
@@ -491,6 +503,28 @@
       </div>
     </div>
 
+    <!-- FAQ: Formulas -->
+    <div class="section" id="formulas">
+      <div class="section-title"><span class="dot" style="background:#10B981"></span> Formulas y Dosis</div>
+
+      <div class="faq-item" data-keywords="formula dosis ingrediente personalizada">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Como creo una formula personalizada?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>Ve a <strong>Mas > Formulas / Dosis</strong> y presiona <strong>+</strong>. Llena:</p>
+          <ul>
+            <li><strong>Nombre</strong> - Ej: "Vitamina pre-combate"</li>
+            <li><strong>Descripcion</strong> - Para que sirve</li>
+            <li><strong>Ingredientes</strong> - Agrega cada ingrediente con cantidad y unidad</li>
+            <li><strong>Dosis</strong> - Cantidad total a aplicar</li>
+          </ul>
+          <p>Las formulas quedan guardadas para reutilizarlas cuando las necesites.</p>
+        </div>
+      </div>
+    </div>
+
     <!-- FAQ: Combates -->
     <div class="section" id="combates">
       <div class="section-title"><span class="dot" style="background:#6366F1"></span> Combates</div>
@@ -561,6 +595,70 @@
             <li>Transmitir en vivo (plan Pro y Premium)</li>
             <li>Gestionar finanzas del evento</li>
           </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAQ: Derby -->
+    <div class="section" id="derby">
+      <div class="section-title"><span class="dot" style="background:#6366F1"></span> Derby y Torneos</div>
+
+      <div class="faq-item" data-keywords="derby torneo puntos ranking campeon">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Como funciona el sistema de Derby?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>El Derby es un torneo donde los <strong>partidos</strong> (equipos de gallos) compiten por puntos:</p>
+          <ul>
+            <li><strong>Victoria</strong> = 3 puntos</li>
+            <li><strong>Tablas</strong> = 1 punto</li>
+            <li><strong>Derrota</strong> = 0 puntos</li>
+          </ul>
+          <p>Al final del evento, el partido con mas puntos es el <strong>campeon</strong>. El ranking se actualiza automaticamente conforme se registran resultados.</p>
+        </div>
+      </div>
+
+      <div class="faq-item" data-keywords="partido equipo cotejo peso pesaje">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Que es el cotejo de peleas?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>El <strong>cotejo</strong> es el proceso de emparejar gallos por peso para las peleas. El organizador registra los pesos de cada ave y el sistema los empareja automaticamente buscando pesos similares.</p>
+          <p>Cada pelea queda vinculada a los <strong>partidos</strong> (rojo y verde) que compiten en el derby.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAQ: Streaming -->
+    <div class="section" id="streaming">
+      <div class="section-title"><span class="dot" style="background:#EF4444"></span> Streaming en Vivo</div>
+
+      <div class="faq-item" data-keywords="transmitir broadcast camara empresario">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Como inicio una transmision en vivo?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>Necesitas un <strong>plan Empresario Pro o Premium</strong>. Desde <strong>Mas > Transmitir En Vivo</strong>:</p>
+          <ul>
+            <li>Ingresa el <strong>codigo del evento</strong> activo</li>
+            <li>Acepta permisos de camara y microfono</li>
+            <li>Presiona <strong>Iniciar Transmision</strong></li>
+          </ul>
+          <p>Los espectadores que ingresen con el codigo del evento veran tu transmision automaticamente.</p>
+        </div>
+      </div>
+
+      <div class="faq-item" data-keywords="notificacion push pelea proxima aviso alerta">
+        <div class="faq-question" onclick="toggleFAQ(this)">
+          Me avisa cuando me toca pelear?
+          <span class="faq-arrow">&#x25BC;</span>
+        </div>
+        <div class="faq-answer">
+          <p>Si. Si estas registrado en un evento, recibiras <strong>notificaciones push</strong> cuando tu pelea este proxima (a 8, 5 y 3 peleas de distancia).</p>
+          <p>Las notificaciones llegan aunque tengas la app cerrada o el telefono bloqueado. Asegurate de tener las notificaciones activadas en los ajustes de tu telefono.</p>
         </div>
       </div>
     </div>
@@ -645,7 +743,7 @@
           <span class="faq-arrow">&#x25BC;</span>
         </div>
         <div class="faq-answer">
-          <p>Si. Al registrarte obtienes un <strong>trial de 7 dias</strong> con acceso a todas las funciones Premium. Al terminar el trial, tu cuenta pasa al plan gratuito y puedes elegir un plan de pago cuando quieras.</p>
+          <p>Si. Al registrarte obtienes un <strong>trial de 15 dias</strong> con acceso a todas las funciones Premium. Al terminar el trial, tu cuenta pasa al plan gratuito y puedes elegir un plan de pago cuando quieras.</p>
         </div>
       </div>
     </div>
@@ -670,7 +768,7 @@
   </div>
 
   <div class="footer">
-    <p>GenesisPro v1.8.0 &middot; <a href="/terminos">Terminos</a> &middot; <a href="/privacidad">Privacidad</a></p>
+    <p>GenesisPro v1.8.4 &middot; <a href="/terminos">Terminos</a> &middot; <a href="/privacidad">Privacidad</a></p>
     <p style="margin-top:0.3rem;">&copy; 2026 GenesisPro. Todos los derechos reservados.</p>
   </div>
 
@@ -720,7 +818,7 @@
       },
       {
         keywords: ['plan', 'planes', 'precio', 'costo', 'cuanto', 'diferencia'],
-        answer: 'Tenemos planes desde $299 MXN/mes (Basico) hasta $999/mes (Premium) para galleros. Para organizadores de eventos, los planes Empresario van de $799 a $2,999/mes. Todos incluyen 7 dias de prueba gratis.'
+        answer: 'Tenemos planes desde $299 MXN/mes (Basico) hasta $999/mes (Premium) para galleros. Para organizadores de eventos, los planes Empresario van de $799 a $2,999/mes. Todos incluyen 15 dias de prueba gratis.'
       },
       {
         keywords: ['stream', 'transmision', 'vivo', 'ver video', 'live'],
@@ -779,8 +877,36 @@
         answer: 'El tab Analytics muestra un resumen general: total de aves, record de combates, aves top por victorias, y graficas de rendimiento. Tambien hay estadisticas financieras si tienes transacciones.'
       },
       {
-        keywords: ['trial', 'prueba', 'gratis', '7 dias'],
-        answer: 'Al registrarte obtienes 7 dias de prueba con todas las funciones Premium. Al terminar, pasas al plan gratuito y puedes elegir un plan de pago cuando quieras.'
+        keywords: ['trial', 'prueba', 'gratis', '15 dias'],
+        answer: 'Al registrarte obtienes 15 dias de prueba con todas las funciones Premium. Al terminar, pasas al plan gratuito y puedes elegir un plan de pago cuando quieras.'
+      },
+      {
+        keywords: ['formula', 'dosis', 'ingrediente', 'personalizada', 'receta'],
+        answer: 'En Mas > Formulas / Dosis puedes crear formulas personalizadas con multiples ingredientes, cantidades y unidades. Quedan guardadas para reutilizarlas cuando quieras.'
+      },
+      {
+        keywords: ['derby', 'torneo', 'puntos', 'ranking', 'campeon', 'clasificacion'],
+        answer: 'El Derby es un torneo por puntos: Victoria = 3 pts, Tablas = 1 pt, Derrota = 0 pts. El partido con mas puntos al final es campeon. El ranking se actualiza automaticamente.'
+      },
+      {
+        keywords: ['cotejo', 'emparejar', 'pesaje', 'peso', 'partido'],
+        answer: 'El cotejo empareja gallos por peso similar para las peleas. El organizador registra pesos y el sistema hace el emparejamiento. Cada pelea se vincula a los partidos rojo y verde del derby.'
+      },
+      {
+        keywords: ['transmitir', 'broadcast', 'camara', 'iniciar stream'],
+        answer: 'Para transmitir necesitas plan Empresario Pro o Premium. Ve a Mas > Transmitir En Vivo, ingresa el codigo del evento activo, acepta permisos de camara y presiona Iniciar. Los espectadores te ven automaticamente.'
+      },
+      {
+        keywords: ['notificacion', 'push', 'alerta', 'aviso', 'pelea proxima'],
+        answer: 'Si estas en un evento, recibes notificaciones push a 8, 5 y 3 peleas de distancia. Llegan con app cerrada y telefono bloqueado. Asegurate de tener notificaciones activadas en ajustes del telefono.'
+      },
+      {
+        keywords: ['campanita', 'campana', 'semaforo', 'verde', 'rojo', 'ambar'],
+        answer: 'La campanita en la pantalla principal cambia de color: Verde (todo bien), Ambar (avisos proximos como vacunas), Rojo (situaciones criticas como vacunas vencidas). Presionala para ver el detalle.'
+      },
+      {
+        keywords: ['finanzas', 'transaccion', 'ingreso', 'egreso', 'balance', 'dinero'],
+        answer: 'En el tab Analytics puedes ver tu balance financiero. Registra ingresos (ventas, premios) y egresos (compras, inscripciones) para llevar el control de tus finanzas galleras.'
       },
     ];
 

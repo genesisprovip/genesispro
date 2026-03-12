@@ -56,6 +56,16 @@ router.post('/checkout', authenticateJWT, asyncHandler(async (req, res) => {
   // Get or create Stripe customer
   let customerId = user.stripe_customer_id;
 
+  // Validate existing customer ID (may be from test mode while using live keys or vice versa)
+  if (customerId) {
+    try {
+      await stripe.customers.retrieve(customerId);
+    } catch (err) {
+      logger.warn(`[Stripe] Invalid customer ${customerId} for user ${userId}: ${err.message}. Creating new customer.`);
+      customerId = null;
+    }
+  }
+
   if (!customerId) {
     const customer = await stripe.customers.create({
       email: user.email,

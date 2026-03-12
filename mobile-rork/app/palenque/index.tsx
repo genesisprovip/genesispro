@@ -84,13 +84,21 @@ export default function PalenqueScreen() {
     try {
       const res = await api.getEventoByCodigo(code);
       if (res.success && res.data?.id) {
+        if (res.data.usuario_id) {
+          api.setReferralContext(res.data.usuario_id, res.data.id);
+        }
         setCodigoAcceso('');
         router.push(`/palenque/live?eventoId=${res.data.id}&code=${code}`);
       } else {
         Alert.alert('No encontrado', 'No se encontro ningun evento con ese codigo');
       }
-    } catch {
-      Alert.alert('Error', 'No se pudo buscar el evento. Verifica el codigo e intenta de nuevo.');
+    } catch (error: any) {
+      const msg = error?.message || '';
+      if (msg.includes('finalizó') || msg.includes('cancelado')) {
+        Alert.alert('Evento no disponible', msg);
+      } else {
+        Alert.alert('Error', 'No se pudo buscar el evento. Verifica el codigo e intenta de nuevo.');
+      }
     }
   };
 
@@ -317,6 +325,7 @@ export default function PalenqueScreen() {
           renderItem={renderEvento}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

@@ -9,6 +9,7 @@ import {
   Alert,
   Platform,
   Linking,
+  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,18 +25,25 @@ import {
   MessageCircle,
   ChevronRight,
   Wifi,
+  Mail,
+  CheckCircle,
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 import api from '@/services/api';
+import { useAuth } from '@/context/AuthContext';
 
 const PREFS_KEY = 'notification_preferences';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user, refreshProfile } = useAuth();
 
   const [pushNotifications, setPushNotifications] = useState(true);
+  const [verifyCode, setVerifyCode] = useState('');
+  const [verifySending, setVerifySending] = useState(false);
+  const [verifyStep, setVerifyStep] = useState<'idle' | 'sent'>('idle');
   const [vacunaAlerts, setVacunaAlerts] = useState(true);
   const [combateReminders, setCombateReminders] = useState(false);
   const [offlineMode, setOfflineMode] = useState(true);
@@ -162,6 +170,7 @@ export default function SettingsScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Notifications */}
         <Text style={styles.sectionLabel}>NOTIFICACIONES</Text>
@@ -202,6 +211,103 @@ export default function SettingsScreen() {
             onToggle={handleToggleOffline}
           />
         </View>
+
+        {/* Email Verification */}
+        {user && !user.email_verificado && (
+          <>
+            <Text style={styles.sectionLabel}>VERIFICAR EMAIL</Text>
+            <View style={[styles.card, SHADOWS.sm, { padding: SPACING.md }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <Mail size={20} color={COLORS.warning} />
+                <Text style={{ color: COLORS.text, fontSize: 14, fontWeight: '600', flex: 1 }}>
+                  Tu email no está verificado
+                </Text>
+              </View>
+              <Text style={{ color: COLORS.textSecondary, fontSize: 12, marginBottom: 12 }}>
+                Verifica {user.email} para respaldar tu cuenta y acceder a todas las funciones.
+              </Text>
+              {verifyStep === 'idle' ? (
+                <TouchableOpacity
+                  style={{ backgroundColor: COLORS.primary, borderRadius: BORDER_RADIUS.md, padding: 12, alignItems: 'center' }}
+                  disabled={verifySending}
+                  onPress={async () => {
+                    if (!user.email) return;
+                    setVerifySending(true);
+                    try {
+                      await api.resendVerification(user.email);
+                      setVerifyStep('sent');
+                      Alert.alert('Código enviado', `Revisa tu bandeja de ${user.email}`);
+                    } catch {
+                      Alert.alert('Error', 'No se pudo enviar el código. Intenta más tarde.');
+                    } finally {
+                      setVerifySending(false);
+                    }
+                  }}
+                >
+                  <Text style={{ color: COLORS.textLight, fontWeight: '700', fontSize: 14 }}>
+                    {verifySending ? 'Enviando...' : 'Enviar código de verificación'}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <View>
+                  <TextInput
+                    style={{
+                      backgroundColor: COLORS.background, borderRadius: BORDER_RADIUS.md,
+                      padding: 12, fontSize: 18, color: COLORS.text, textAlign: 'center',
+                      borderWidth: 1, borderColor: COLORS.border, letterSpacing: 8, marginBottom: 10,
+                    }}
+                    placeholder="000000"
+                    placeholderTextColor={COLORS.placeholder}
+                    value={verifyCode}
+                    onChangeText={setVerifyCode}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                  />
+                  <TouchableOpacity
+                    style={{ backgroundColor: COLORS.primary, borderRadius: BORDER_RADIUS.md, padding: 12, alignItems: 'center' }}
+                    disabled={verifyCode.length < 6 || verifySending}
+                    onPress={async () => {
+                      if (!user.email) return;
+                      setVerifySending(true);
+                      try {
+                        const res = await api.verifyEmail(user.email, verifyCode);
+                        if (res.success) {
+                          Alert.alert('Verificado', 'Tu email ha sido verificado correctamente.');
+                          refreshProfile();
+                          setVerifyStep('idle');
+                          setVerifyCode('');
+                        }
+                      } catch {
+                        Alert.alert('Error', 'Código inválido o expirado. Intenta de nuevo.');
+                      } finally {
+                        setVerifySending(false);
+                      }
+                    }}
+                  >
+                    <Text style={{ color: COLORS.textLight, fontWeight: '700', fontSize: 14 }}>
+                      {verifySending ? 'Verificando...' : 'Verificar'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ alignItems: 'center', marginTop: 10 }}
+                    onPress={() => { setVerifyStep('idle'); setVerifyCode(''); }}
+                  >
+                    <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>Reenviar código</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </>
+        )}
+        {user?.email_verificado && (
+          <>
+            <Text style={styles.sectionLabel}>EMAIL</Text>
+            <View style={[styles.card, SHADOWS.sm, { padding: SPACING.md, flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+              <CheckCircle size={20} color={COLORS.success} />
+              <Text style={{ color: COLORS.success, fontSize: 14, fontWeight: '600' }}>Email verificado</Text>
+            </View>
+          </>
+        )}
 
         {/* Legal */}
         <Text style={styles.sectionLabel}>LEGAL</Text>

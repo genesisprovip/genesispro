@@ -58,6 +58,7 @@ const adminRoutes = require('./routes/admin');
 const genesisRoutes = require('./routes/genesis');
 const formulasRoutes = require('./routes/formulas');
 const observacionesRoutes = require('./routes/observaciones');
+const comisionesRoutes = require('./routes/comisiones');
 
 const app = express();
 
@@ -424,6 +425,7 @@ app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/genesis', genesisRoutes);
 app.use('/api/v1/formulas', formulasRoutes);
 app.use('/api/v1/observaciones', observacionesRoutes);
+app.use('/api/v1/comisiones', comisionesRoutes);
 
 // API info
 app.get('/api/v1', (req, res) => {

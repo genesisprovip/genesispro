@@ -164,7 +164,16 @@ const list = asyncHandler(async (req, res) => {
       a.disponible_venta, a.disponible_cruces,
       a.created_at,
       f.ruta_archivo as foto_principal,
-      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN (SELECT descripcion FROM calcular_edad_ave(a.fecha_nacimiento)) ELSE NULL END as edad
+      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN
+        CASE
+          WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento)) >= 1 THEN
+            EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' año(s), ' || EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' mes(es)'
+          WHEN EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento)) >= 1 THEN
+            EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' mes(es), ' || EXTRACT(DAY FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' día(s)'
+          ELSE
+            EXTRACT(DAY FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' día(s)'
+        END
+      ELSE NULL END as edad
     FROM aves a
     LEFT JOIN fotos f ON a.id = f.ave_id AND f.es_principal = true
     WHERE ${whereClause}
@@ -237,7 +246,16 @@ const search = asyncHandler(async (req, res) => {
     `SELECT
       a.id, a.codigo_identidad, a.sexo, a.fecha_nacimiento,
       a.linea_genetica, a.color, a.estado,
-      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN (SELECT descripcion FROM calcular_edad_ave(a.fecha_nacimiento)) ELSE NULL END as edad
+      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN
+        CASE
+          WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento)) >= 1 THEN
+            EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' año(s), ' || EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' mes(es)'
+          WHEN EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento)) >= 1 THEN
+            EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' mes(es), ' || EXTRACT(DAY FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' día(s)'
+          ELSE
+            EXTRACT(DAY FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' día(s)'
+        END
+      ELSE NULL END as edad
     FROM aves a
     WHERE ${whereClause}
     ORDER BY a.codigo_identidad
@@ -273,9 +291,18 @@ const getById = asyncHandler(async (req, res) => {
       madre.codigo_identidad as madre_codigo,
       madre.color as madre_color,
       madre.linea_genetica as madre_linea,
-      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN (SELECT descripcion FROM calcular_edad_ave(a.fecha_nacimiento)) ELSE NULL END as edad,
-      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN (SELECT total_meses FROM calcular_edad_ave(a.fecha_nacimiento)) ELSE NULL END as total_meses,
-      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN (SELECT total_dias FROM calcular_edad_ave(a.fecha_nacimiento)) ELSE NULL END as total_dias
+      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN
+        CASE
+          WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento)) >= 1 THEN
+            EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' año(s), ' || EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' mes(es)'
+          WHEN EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento)) >= 1 THEN
+            EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' mes(es), ' || EXTRACT(DAY FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' día(s)'
+          ELSE
+            EXTRACT(DAY FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' día(s)'
+        END
+      ELSE NULL END as edad,
+      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN (EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER) ELSE NULL END as total_meses,
+      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN (CURRENT_DATE - a.fecha_nacimiento::DATE)::INTEGER ELSE NULL END as total_dias
     FROM aves a
     LEFT JOIN aves padre ON a.padre_id = padre.id
     LEFT JOIN aves madre ON a.madre_id = madre.id
@@ -341,7 +368,16 @@ const getByCodigo = asyncHandler(async (req, res) => {
     `SELECT
       a.id, a.codigo_identidad, a.sexo, a.fecha_nacimiento,
       a.linea_genetica, a.color, a.estado, a.usuario_id,
-      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN (SELECT descripcion FROM calcular_edad_ave(a.fecha_nacimiento)) ELSE NULL END as edad,
+      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN
+        CASE
+          WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento)) >= 1 THEN
+            EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' año(s), ' || EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' mes(es)'
+          WHEN EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento)) >= 1 THEN
+            EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' mes(es), ' || EXTRACT(DAY FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' día(s)'
+          ELSE
+            EXTRACT(DAY FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' día(s)'
+        END
+      ELSE NULL END as edad,
       u.nombre as propietario_nombre
     FROM aves a
     JOIN usuarios u ON a.usuario_id = u.id

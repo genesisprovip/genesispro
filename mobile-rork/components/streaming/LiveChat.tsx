@@ -140,7 +140,10 @@ export default function LiveChat({ eventoId }: LiveChatProps) {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       {/* Header */}
       <View style={styles.header}>
         <MessageCircle size={16} color={COLORS.secondary} />
@@ -158,6 +161,7 @@ export default function LiveChat({ eventoId }: LiveChatProps) {
         renderItem={renderMessage}
         style={styles.messageList}
         contentContainerStyle={styles.messageListContent}
+        keyboardShouldPersistTaps="handled"
         onContentSizeChange={() => {
           flatListRef.current?.scrollToEnd({ animated: false });
         }}
@@ -189,7 +193,7 @@ export default function LiveChat({ eventoId }: LiveChatProps) {
           <Send size={16} color={COLORS.textLight} />
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

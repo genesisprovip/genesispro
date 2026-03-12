@@ -61,6 +61,10 @@ export default function WelcomeScreen() {
       colors={['#0F172A', '#1a2744', '#0F172A']}
       style={styles.container}
     >
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
@@ -206,6 +210,7 @@ export default function WelcomeScreen() {
         </View>
         <Text style={styles.version}>v1.8.4 · genesispro.vip</Text>
       </ScrollView>
+      </KeyboardAvoidingView>
     </LinearGradient>
   );
 }
