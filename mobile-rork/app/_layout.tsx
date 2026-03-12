@@ -220,14 +220,14 @@ export default function RootLayout() {
         name: 'Alertas de Pelea',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 300, 200, 500, 200, 300],
-        sound: 'default',
+        sound: 'fight_alert',
         enableVibrate: true,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       });
       Notifications.setNotificationChannelAsync('default', {
         name: 'General',
         importance: Notifications.AndroidImportance.HIGH,
-        sound: 'default',
+        sound: 'notification',
         enableVibrate: true,
       });
     }
