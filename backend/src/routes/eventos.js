@@ -21,14 +21,24 @@ const { sendPushNotification } = notificationsRouter;
  */
 async function verificarMembresiaEmpresario(userId) {
   const { rows: [user] } = await db.query(
-    `SELECT u.plan_empresario, se.estado
+    `SELECT u.plan_empresario, u.rol, u.estado_cuenta, se.estado
      FROM usuarios u
      LEFT JOIN suscripciones_empresario se ON u.suscripcion_empresario_id = se.id
      WHERE u.id = $1 AND u.deleted_at IS NULL`,
     [userId]
   );
 
-  if (!user?.plan_empresario || user.estado !== 'activa') {
+  if (!user?.plan_empresario) {
+    throw Errors.forbidden('Necesitas una membresía de Empresario para crear eventos. Suscríbete desde tu perfil.');
+  }
+
+  // Allow: active subscription, admin role, or manually activated accounts
+  const suscripcionValida = user.estado === 'activa'
+    || user.rol === 'admin'
+    || user.estado_cuenta === 'activa'
+    || user.estado_cuenta === 'activo';
+
+  if (!suscripcionValida) {
     throw Errors.forbidden('Necesitas una membresía de Empresario para crear eventos. Suscríbete desde tu perfil.');
   }
 

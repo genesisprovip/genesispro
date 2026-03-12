@@ -22,7 +22,9 @@
         body.embedded .controls,
         body.embedded .status-bar,
         body.embedded .debug-log,
-        body.embedded .video-overlay { display: none !important; }
+        body.embedded .video-overlay,
+        body.embedded .zoom-control,
+        body.embedded .stream-warning { display: none !important; }
         body.embedded .video-container { flex: 1; }
         body.embedded #localVideo { width: 100%; height: 100%; object-fit: cover; }
 
@@ -346,6 +348,9 @@
                 setupTapToFocus();
                 document.getElementById('streamWarning').style.display = 'block';
                 log('Camara iniciada OK');
+
+                // Report zoom capabilities to React Native
+                reportZoomInfo();
 
                 // In embedded mode, auto-start streaming
                 if (isEmbedded) {
@@ -673,6 +678,10 @@
                         }
                     }
                 }
+                // Re-setup zoom for new camera and report to RN
+                setupZoomControl();
+                reportZoomInfo();
+                setupTapToFocus();
                 log('Camara cambiada a: ' + facingMode);
             } catch (err) {
                 log('Error al cambiar camara: ' + err.message);
@@ -681,6 +690,15 @@
         }
 
         // ─── ZOOM CONTROL ───
+        function reportZoomInfo() {
+            sendToApp('zoom_info', {
+                supported: supportsZoom,
+                min: zoomMin,
+                max: zoomMax,
+                current: currentZoom
+            });
+        }
+
         function setupZoomControl() {
             const videoTrack = localStream ? localStream.getVideoTracks()[0] : null;
             if (!videoTrack) return;
@@ -749,6 +767,7 @@
             videoTrack.applyConstraints({ advanced: [{ zoom: currentZoom }] }).catch(() => {});
             document.getElementById('zoomSlider').value = currentZoom;
             document.getElementById('zoomLabel').textContent = currentZoom.toFixed(1) + 'x';
+            sendToApp('zoom_changed', { level: currentZoom });
         }
 
         // ─── TAP TO FOCUS + ZOOM ───
@@ -851,24 +870,51 @@
             applyZoom(parseFloat(value));
         }
 
+        // Handle focus command from React Native
+        function handleFocusCommand(normX, normY) {
+            applyFocusPoint(normX, normY);
+            // Show visual focus ring at the corresponding screen position
+            var container = document.getElementById('videoContainer');
+            if (container) {
+                var rect = container.getBoundingClientRect();
+                var x = normX * rect.width;
+                var y = normY * rect.height;
+                var focusRing = document.getElementById('focusRing');
+                if (focusRing) {
+                    focusRing.style.left = x + 'px';
+                    focusRing.style.top = y + 'px';
+                    focusRing.classList.remove('active', 'locked');
+                    void focusRing.offsetWidth;
+                    focusRing.classList.add('active');
+                    setTimeout(function() {
+                        focusRing.classList.add('locked');
+                        setTimeout(function() { focusRing.classList.remove('active', 'locked'); }, 800);
+                    }, 400);
+                }
+            }
+            var videoTrack = localStream ? localStream.getVideoTracks()[0] : null;
+            var capabilities = videoTrack && videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
+            if (!capabilities.pointsOfInterest && !capabilities.focusMode) {
+                sendToApp('focus_result', 'auto_only');
+            }
+        }
+
         // Listen for commands from React Native WebView
-        window.addEventListener('message', function(e) {
+        function handleRNCommand(e) {
             try {
                 var cmd = JSON.parse(e.data);
                 if (cmd.action === 'stop') stopStreaming();
                 if (cmd.action === 'switchCamera') switchCamera();
-                if (cmd.action === 'zoom' && cmd.value) setZoom(cmd.value);
+                if (cmd.action === 'zoom' && cmd.value !== undefined) setZoom(cmd.value);
+                if (cmd.action === 'focus' && cmd.x !== undefined && cmd.y !== undefined) {
+                    handleFocusCommand(cmd.x, cmd.y);
+                }
+                if (cmd.action === 'getZoomInfo') reportZoomInfo();
             } catch(ex) {}
-        });
+        }
+        window.addEventListener('message', handleRNCommand);
         // Also for Android
-        document.addEventListener('message', function(e) {
-            try {
-                var cmd = JSON.parse(e.data);
-                if (cmd.action === 'stop') stopStreaming();
-                if (cmd.action === 'switchCamera') switchCamera();
-                if (cmd.action === 'zoom' && cmd.value) setZoom(cmd.value);
-            } catch(ex) {}
-        });
+        document.addEventListener('message', handleRNCommand);
 
         // In embedded mode, auto-start immediately
         if (isEmbedded) {

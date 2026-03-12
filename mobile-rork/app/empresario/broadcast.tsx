@@ -31,6 +31,8 @@ import {
   Maximize2,
   Search,
   AlertCircle,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS } from '@/constants/theme';
@@ -88,6 +90,12 @@ export default function BroadcastScreen() {
   const [resultAnimation, setResultAnimation] = useState<string | null>(null);
   const resultOpacity = useRef(new Animated.Value(0)).current;
   const [cameraFullscreen, setCameraFullscreen] = useState(false);
+
+  // Zoom & focus state
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomMin, setZoomMin] = useState(1);
+  const [zoomMax, setZoomMax] = useState(1);
+  const [zoomSupported, setZoomSupported] = useState(false);
 
   const [resolvedEventoId, setResolvedEventoId] = useState(eventoId || '');
   const [resolvedEventoNombre, setResolvedEventoNombre] = useState(eventoNombre || '');
@@ -474,6 +482,20 @@ export default function BroadcastScreen() {
       } else if (msg.type === 'error' && msg.data === 'camera_denied') {
         Alert.alert('Permiso de camara', 'Necesitas permitir acceso a la camara para transmitir.');
         setBroadcastStatus('error');
+      } else if (msg.type === 'zoom_info') {
+        // WebView reports zoom capabilities after camera init
+        setZoomSupported(msg.data.supported);
+        setZoomMin(msg.data.min || 1);
+        setZoomMax(msg.data.max || 1);
+        setZoomLevel(msg.data.current || 1);
+      } else if (msg.type === 'zoom_changed') {
+        // WebView reports zoom level changed (from pinch or slider inside WebView)
+        setZoomLevel(msg.data.level || 1);
+      } else if (msg.type === 'focus_result') {
+        // WebView reports focus attempt result
+        if (msg.data === 'auto_only') {
+          // Camera doesn't support manual focus — already handled visually
+        }
       } else if (msg.type === 'log') {
         console.log('[Broadcast]', msg.data);
       }
@@ -482,6 +504,28 @@ export default function BroadcastScreen() {
 
   const handleSwitchCamera = () => {
     webViewRef.current?.injectJavaScript('switchCamera(); true;');
+  };
+
+  const handleZoomIn = () => {
+    if (!zoomSupported) return;
+    const step = (zoomMax - zoomMin) / 8;
+    const newZoom = Math.min(zoomMax, zoomLevel + step);
+    setZoomLevel(newZoom);
+    webViewRef.current?.injectJavaScript(`setZoom(${newZoom}); true;`);
+  };
+
+  const handleZoomOut = () => {
+    if (!zoomSupported) return;
+    const step = (zoomMax - zoomMin) / 8;
+    const newZoom = Math.max(zoomMin, zoomLevel - step);
+    setZoomLevel(newZoom);
+    webViewRef.current?.injectJavaScript(`setZoom(${newZoom}); true;`);
+  };
+
+  const handleZoomReset = () => {
+    if (!zoomSupported) return;
+    setZoomLevel(zoomMin);
+    webViewRef.current?.injectJavaScript(`animateZoomTo(${zoomMin}); true;`);
   };
 
   // Event code input screen — user must enter the event code to link the stream
@@ -647,6 +691,23 @@ export default function BroadcastScreen() {
           <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
         </View>
       </View>
+
+      {/* Zoom controls - right side */}
+      {zoomSupported && (
+        <View style={styles.zoomControlsContainer}>
+          <TouchableOpacity style={styles.zoomBtn} onPress={handleZoomIn} activeOpacity={0.7}>
+            <ZoomIn size={18} color={COLORS.textLight} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleZoomReset} activeOpacity={0.7}>
+            <View style={styles.zoomLevelBadge}>
+              <Text style={styles.zoomLevelText}>{zoomLevel.toFixed(1)}x</Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.zoomBtn} onPress={handleZoomOut} activeOpacity={0.7}>
+            <ZoomOut size={18} color={COLORS.textLight} />
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Switch camera + fullscreen toggle */}
       <View style={styles.cameraBottomBtns}>
@@ -1015,6 +1076,28 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center', alignItems: 'center',
   },
+
+  // Zoom controls — positioned on right edge, vertically centered via render logic
+  zoomControlsContainer: {
+    position: 'absolute', right: 8, top: 0, bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center', gap: 4, zIndex: 10,
+  },
+  zoomBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+  },
+  zoomLevelBadge: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 8, paddingVertical: 4,
+    borderRadius: 10, minWidth: 42, alignItems: 'center',
+  },
+  zoomLevelText: {
+    color: '#10B981', fontSize: 12, fontWeight: '800',
+  },
+
 
   // Controls area
   controlsScroll: { flex: 1 },

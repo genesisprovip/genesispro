@@ -152,6 +152,10 @@ export default function LiveEventScreen() {
   const [totalCameras, setTotalCameras] = useState(0);
   const previousHlsUrl = useRef<string | null>(null);
 
+  // Fight timer state
+  const [fightElapsedSeconds, setFightElapsedSeconds] = useState<number>(0);
+  const previousPeleaActualForTimer = useRef<number | null>(null);
+
   // Keep screen awake during live event
   useKeepAwake();
 
@@ -187,12 +191,15 @@ export default function LiveEventScreen() {
   // --- Sound notifications for fight events ---
   const previousPeleaActual = useRef<number | null>(null);
   const previousResults = useRef<Record<string, string | null>>({});
+  const previousFightEstado = useRef<string | null>(null);
 
   useEffect(() => {
     // Only play sounds when event is live
     if (evento?.estado !== 'en_curso') return;
 
-    // Detect new fight starting (pelea_actual changed)
+    const activeFight = peleas.find(p => p.numero_pelea === evento.pelea_actual);
+
+    // Detect new fight starting (pelea_actual changed = next fight transition)
     if (
       evento.pelea_actual != null &&
       previousPeleaActual.current != null &&
@@ -200,7 +207,16 @@ export default function LiveEventScreen() {
     ) {
       playFightStartSound();
     }
+    // Also detect same fight transitioning to en_curso (fight actually starts)
+    else if (
+      activeFight?.estado === 'en_curso' &&
+      previousFightEstado.current &&
+      previousFightEstado.current !== 'en_curso'
+    ) {
+      playFightStartSound();
+    }
     previousPeleaActual.current = evento.pelea_actual ?? null;
+    previousFightEstado.current = activeFight?.estado ?? null;
 
     // Detect fight result announced
     for (const pelea of peleas) {
@@ -226,6 +242,43 @@ export default function LiveEventScreen() {
       unloadSounds();
     };
   }, []);
+
+  // Fight timer: calculate elapsed seconds from hora_inicio
+  useEffect(() => {
+    const peleaActual = peleas.find(p => p.numero_pelea === (evento?.pelea_actual ?? -1));
+
+    // Detect pelea_actual change -> reset timer
+    if (evento?.pelea_actual !== previousPeleaActualForTimer.current) {
+      previousPeleaActualForTimer.current = evento?.pelea_actual ?? null;
+      setFightElapsedSeconds(0);
+    }
+
+    // Only run timer when fight is actively en_curso with hora_inicio
+    if (!peleaActual || peleaActual.estado !== 'en_curso' || !peleaActual.hora_inicio) {
+      // If fight ended (has resultado), freeze the timer at last value
+      if (peleaActual?.resultado) return;
+      setFightElapsedSeconds(0);
+      return;
+    }
+
+    const calcElapsed = () => {
+      const start = new Date(peleaActual.hora_inicio!).getTime();
+      const now = Date.now();
+      const elapsed = Math.max(0, Math.floor((now - start) / 1000));
+      setFightElapsedSeconds(elapsed);
+    };
+
+    calcElapsed(); // immediate
+    const interval = setInterval(calcElapsed, 1000);
+    return () => clearInterval(interval);
+  }, [evento?.pelea_actual, peleas]);
+
+  // Format seconds as MM:SS
+  const formatTimer = (totalSeconds: number): string => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const handleBack = useCallback(() => {
     if (rol) {
@@ -393,14 +446,19 @@ export default function LiveEventScreen() {
     loadEventByCode();
   }, []);
 
-  // Auto-refresh every 5 seconds when event is en_curso
+  // Adaptive polling: 2s during active fight, 5s between fights, stop when finalizado
   useEffect(() => {
     if (evento?.estado !== 'en_curso' || !eventoId) return;
+
+    const activeFight = peleas.find(p => p.numero_pelea === evento.pelea_actual);
+    const fightIsActive = activeFight?.estado === 'en_curso';
+    const pollInterval = fightIsActive ? 2000 : 5000;
+
     const interval = setInterval(() => {
       loadEventData(eventoId);
-    }, 5000);
+    }, pollInterval);
     return () => clearInterval(interval);
-  }, [evento?.estado, eventoId]);
+  }, [evento?.estado, evento?.pelea_actual, eventoId, peleas]);
 
   const onRefresh = async () => {
     if (!eventoId) return;
@@ -628,19 +686,27 @@ export default function LiveEventScreen() {
         {/* Live status */}
         {evento.estado === 'en_curso' && currentFight ? (
           <View style={styles.livePanel}>
-            {currentFight.resultado ? (
-              <Text style={[styles.liveBadge, { backgroundColor: currentFight.resultado === 'rojo' ? '#EF4444' : currentFight.resultado === 'verde' ? '#10B981' : '#F59E0B' }]}>
-                {currentFight.resultado === 'tabla' || currentFight.resultado === 'empate' ? 'TABLAS' : `GANA ${currentFight.resultado.toUpperCase()}`}
-              </Text>
-            ) : (
-              <Text style={styles.liveBadge}>EN VIVO</Text>
-            )}
+            <View style={styles.liveBadgeRow}>
+              {currentFight.resultado ? (
+                <Text style={[styles.liveBadge, { backgroundColor: currentFight.resultado === 'rojo' ? '#EF4444' : currentFight.resultado === 'verde' ? '#10B981' : '#F59E0B' }]}>
+                  {currentFight.resultado === 'tabla' || currentFight.resultado === 'empate' ? 'TABLAS' : `GANA ${currentFight.resultado.toUpperCase()}`}
+                </Text>
+              ) : (
+                <>
+                  <Text style={styles.liveBadge}>EN VIVO</Text>
+                  {currentFight.estado === 'en_curso' && currentFight.hora_inicio && (
+                    <Text style={styles.fightTimer}>{formatTimer(fightElapsedSeconds)}</Text>
+                  )}
+                </>
+              )}
+            </View>
             <Text style={styles.liveFightNum}>Pelea #{currentFight.numero_pelea}</Text>
             <View style={styles.vsRow}>
               <Animated.View style={[styles.cornerBox, getCornerGlow('rojo')]}>
                 <Text style={[styles.cornerLabel, { color: '#EF4444' }]}>ROJO</Text>
-                <Text style={styles.cornerAnillo}>{currentFight.placa_rojo || currentFight.anillo_rojo || '---'}</Text>
-                <Text style={styles.cornerPeso}>{currentFight.peso_rojo}g</Text>
+                <Text style={styles.cornerPartido} numberOfLines={1}>{currentFight.placa_rojo || '---'}</Text>
+                <Text style={styles.cornerAnillo}>{currentFight.anillo_rojo || '---'}</Text>
+                <Text style={styles.cornerPeso}>{currentFight.peso_rojo ? `${(currentFight.peso_rojo / 1000).toFixed(2)} kg` : '-'}</Text>
                 {currentFight.resultado === 'rojo' && (
                   <Text style={styles.winnerTag}>GANADOR</Text>
                 )}
@@ -648,8 +714,9 @@ export default function LiveEventScreen() {
               <Text style={styles.vsText}>VS</Text>
               <Animated.View style={[styles.cornerBox, getCornerGlow('verde')]}>
                 <Text style={[styles.cornerLabel, { color: '#10B981' }]}>VERDE</Text>
-                <Text style={styles.cornerAnillo}>{currentFight.placa_verde || currentFight.anillo_verde || '---'}</Text>
-                <Text style={styles.cornerPeso}>{currentFight.peso_verde}g</Text>
+                <Text style={styles.cornerPartido} numberOfLines={1}>{currentFight.placa_verde || '---'}</Text>
+                <Text style={styles.cornerAnillo}>{currentFight.anillo_verde || '---'}</Text>
+                <Text style={styles.cornerPeso}>{currentFight.peso_verde ? `${(currentFight.peso_verde / 1000).toFixed(2)} kg` : '-'}</Text>
                 {currentFight.resultado === 'verde' && (
                   <Text style={[styles.winnerTag, { color: '#10B981' }]}>GANADOR</Text>
                 )}
@@ -715,42 +782,43 @@ export default function LiveEventScreen() {
                 Pelea {currentFight.numero_pelea} de {peleas.length}
                 {currentFight.numero_ronda ? ` · Ronda ${currentFight.numero_ronda}` : ''}
               </Text>
-              <Text style={[styles.fightInfoStatus,
-                currentFight.estado === 'en_curso' && { color: '#F59E0B' },
-                isFinished && { color: COLORS.primary },
-              ]}>
-                {currentFight.estado === 'programada' ? 'PROXIMA' :
-                 currentFight.estado === 'en_curso' ? 'EN CURSO' :
-                 isFinished && currentFight.resultado === 'rojo' ? 'GANA ROJO' :
-                 isFinished && currentFight.resultado === 'verde' ? 'GANA VERDE' :
-                 isFinished && (currentFight.resultado === 'tabla' || currentFight.resultado === 'empate') ? 'TABLAS' : ''}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                {currentFight.estado === 'en_curso' && currentFight.hora_inicio && (
+                  <Text style={styles.fightInfoTimer}>{formatTimer(fightElapsedSeconds)}</Text>
+                )}
+                <Text style={[styles.fightInfoStatus,
+                  currentFight.estado === 'en_curso' && { color: '#F59E0B' },
+                  isFinished && { color: COLORS.primary },
+                ]}>
+                  {currentFight.estado === 'programada' ? 'PROXIMA' :
+                   currentFight.estado === 'en_curso' ? 'EN CURSO' :
+                   isFinished && currentFight.resultado === 'rojo' ? 'GANA ROJO' :
+                   isFinished && currentFight.resultado === 'verde' ? 'GANA VERDE' :
+                   isFinished && (currentFight.resultado === 'tabla' || currentFight.resultado === 'empate') ? 'TABLAS' : ''}
+                </Text>
+              </View>
             </View>
             <View style={styles.fightInfoMatchup}>
               <View style={[styles.fightInfoCorner,
                 isFinished && currentFight.resultado === 'rojo' && styles.fightInfoCornerWinner,
               ]}>
-                {currentFight.partido_rojo_nombre && (
-                  <Text style={styles.fightInfoPartido}>{currentFight.partido_rojo_nombre}</Text>
-                )}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
                   <View style={[styles.fightInfoDot, { backgroundColor: '#EF4444' }]} />
-                  <Text style={styles.fightInfoAnillo}>{currentFight.anillo_rojo || 'ROJO'}</Text>
+                  <Text style={styles.fightInfoPartidoName} numberOfLines={1}>{currentFight.placa_rojo || 'ROJO'}</Text>
                 </View>
-                {currentFight.peso_rojo && <Text style={styles.fightInfoPeso}>{currentFight.peso_rojo}kg</Text>}
+                <Text style={styles.fightInfoAnillo}>{currentFight.anillo_rojo || '---'}</Text>
+                {currentFight.peso_rojo ? <Text style={styles.fightInfoPeso}>{(currentFight.peso_rojo / 1000).toFixed(2)} kg</Text> : null}
               </View>
               <Text style={styles.fightInfoVs}>VS</Text>
               <View style={[styles.fightInfoCorner,
                 isFinished && currentFight.resultado === 'verde' && styles.fightInfoCornerWinner,
               ]}>
-                {currentFight.partido_verde_nombre && (
-                  <Text style={styles.fightInfoPartido}>{currentFight.partido_verde_nombre}</Text>
-                )}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
                   <View style={[styles.fightInfoDot, { backgroundColor: '#10B981' }]} />
-                  <Text style={styles.fightInfoAnillo}>{currentFight.anillo_verde || 'VERDE'}</Text>
+                  <Text style={styles.fightInfoPartidoName} numberOfLines={1}>{currentFight.placa_verde || 'VERDE'}</Text>
                 </View>
-                {currentFight.peso_verde && <Text style={styles.fightInfoPeso}>{currentFight.peso_verde}kg</Text>}
+                <Text style={styles.fightInfoAnillo}>{currentFight.anillo_verde || '---'}</Text>
+                {currentFight.peso_verde ? <Text style={styles.fightInfoPeso}>{(currentFight.peso_verde / 1000).toFixed(2)} kg</Text> : null}
               </View>
             </View>
           </View>
@@ -1020,19 +1088,26 @@ const styles = StyleSheet.create({
   liveMeta: { fontSize: 12, color: 'rgba(255,255,255,0.5)' },
 
   livePanel: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: BORDER_RADIUS.xl, padding: SPACING.md, alignItems: 'center' },
+  liveBadgeRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: SPACING.xs,
+  },
   liveBadge: {
     fontSize: 11, fontWeight: '800', color: '#fff',
     backgroundColor: '#EF4444', paddingHorizontal: 10, paddingVertical: 3,
     borderRadius: BORDER_RADIUS.round, letterSpacing: 1, overflow: 'hidden',
-    marginBottom: SPACING.xs,
+  },
+  fightTimer: {
+    fontSize: 18, fontWeight: '800', color: '#F59E0B',
+    fontVariant: ['tabular-nums'], letterSpacing: 1,
   },
   liveFightNum: { fontSize: 20, fontWeight: '700', color: COLORS.textLight, marginBottom: SPACING.sm },
 
   vsRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, marginBottom: SPACING.sm },
   cornerBox: { alignItems: 'center', flex: 1 },
   cornerLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
-  cornerAnillo: { fontSize: 16, fontWeight: '700', color: COLORS.textLight, marginTop: 2 },
-  cornerPeso: { fontSize: 12, color: 'rgba(255,255,255,0.5)' },
+  cornerPartido: { fontSize: 17, fontWeight: '800', color: COLORS.textLight, marginTop: 2, maxWidth: '100%' },
+  cornerAnillo: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+  cornerPeso: { fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 1 },
   vsText: { fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.3)' },
   winnerTag: {
     fontSize: 10, fontWeight: '800', color: '#EF4444',
@@ -1095,9 +1170,8 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
   },
   fightInfoCorner: {
-    flexDirection: 'row',
+    flex: 1,
     alignItems: 'center',
-    gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: BORDER_RADIUS.sm,
@@ -1113,21 +1187,28 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
   },
-  fightInfoPartido: {
-    color: COLORS.textSecondary,
-    fontSize: 11,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  fightInfoAnillo: {
+  fightInfoPartidoName: {
     color: COLORS.textLight,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
+    flexShrink: 1,
+  },
+  fightInfoAnillo: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    fontWeight: '600',
   },
   fightInfoPeso: {
     color: COLORS.textSecondary,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
+    marginTop: 1,
+  },
+  fightInfoTimer: {
+    color: '#F59E0B',
+    fontSize: 13,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
   },
   fightInfoVs: {
     color: 'rgba(255,255,255,0.3)',
