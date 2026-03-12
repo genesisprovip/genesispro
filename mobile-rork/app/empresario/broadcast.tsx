@@ -52,6 +52,7 @@ interface Pelea {
   numero_ronda: number | null;
   partido_rojo_nombre: string | null;
   partido_verde_nombre: string | null;
+  hora_inicio: string | null;
 }
 
 export default function BroadcastScreen() {
@@ -186,19 +187,32 @@ export default function BroadcastScreen() {
     };
   }, [isLive]);
 
-  // Fight timer
+  // Fight timer — synced from server hora_inicio
   useEffect(() => {
-    if (fightTimerRunning) {
+    if (currentPelea?.estado === 'en_curso' && currentPelea?.hora_inicio) {
+      // Calculate from server time
+      const calcElapsed = () => {
+        const start = new Date(currentPelea.hora_inicio!).getTime();
+        return Math.max(0, Math.floor((Date.now() - start) / 1000));
+      };
+      setFightTimerSeconds(calcElapsed());
+      setFightTimerRunning(true);
       fightTimerRef.current = setInterval(() => {
-        setFightTimerSeconds(s => s + 1);
+        setFightTimerSeconds(calcElapsed());
       }, 1000);
+    } else if (currentPelea?.estado === 'finalizada') {
+      // Stop timer, keep last value
+      setFightTimerRunning(false);
+      if (fightTimerRef.current) clearInterval(fightTimerRef.current);
     } else {
+      // programada or no pelea — reset
+      if (!fightTimerRunning) setFightTimerSeconds(0);
       if (fightTimerRef.current) clearInterval(fightTimerRef.current);
     }
     return () => {
       if (fightTimerRef.current) clearInterval(fightTimerRef.current);
     };
-  }, [fightTimerRunning]);
+  }, [currentPelea?.estado, currentPelea?.hora_inicio]);
 
   // Poll viewer count every 10s while live
   useEffect(() => {
@@ -298,16 +312,11 @@ export default function BroadcastScreen() {
           }
         }
       } catch { /* ignore */ }
-    }, 5000);
+    }, currentPelea?.estado === 'en_curso' ? 2000 : 5000);
     return () => clearInterval(poll);
-  }, [isLive, streamKey, resolvedEventoId]);
+  }, [isLive, streamKey, resolvedEventoId, currentPelea?.estado]);
 
-  useEffect(() => {
-    if (currentPelea) {
-      setFightTimerSeconds(0);
-      setFightTimerRunning(false);
-    }
-  }, [currentPeleaIndex]);
+  // Timer reset handled by the hora_inicio sync useEffect above
 
   const formatTime = (secs: number) => {
     const h = Math.floor(secs / 3600);
@@ -367,9 +376,10 @@ export default function BroadcastScreen() {
   const handleIniciarPelea = async () => {
     if (!currentPelea) return;
     try {
-      await api.iniciarPelea(currentPelea.id);
+      const res = await api.iniciarPelea(currentPelea.id);
+      const horaInicio = res?.data?.hora_inicio || new Date().toISOString();
       setPeleas(prev => prev.map(p =>
-        p.id === currentPelea.id ? { ...p, estado: 'en_curso' } : p
+        p.id === currentPelea.id ? { ...p, estado: 'en_curso', hora_inicio: horaInicio } : p
       ));
       setFightTimerSeconds(0);
       setFightTimerRunning(true);
@@ -693,7 +703,7 @@ export default function BroadcastScreen() {
       </View>
 
       {/* Zoom controls - right side */}
-      {zoomSupported && (
+      {isLive && (
         <View style={styles.zoomControlsContainer}>
           <TouchableOpacity style={styles.zoomBtn} onPress={handleZoomIn} activeOpacity={0.7}>
             <ZoomIn size={18} color={COLORS.textLight} />
@@ -816,8 +826,8 @@ export default function BroadcastScreen() {
             </Text>
             <View style={styles.fightMatchup}>
               <View style={styles.fightCornerBox}>
-                {currentPelea.partido_rojo_nombre && (
-                  <Text style={styles.fightPartidoName}>{currentPelea.partido_rojo_nombre}</Text>
+                {(currentPelea.placa_rojo || currentPelea.partido_rojo_nombre) && (
+                  <Text style={styles.fightPartidoName} numberOfLines={1}>{currentPelea.placa_rojo || currentPelea.partido_rojo_nombre}</Text>
                 )}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <View style={[styles.fightDot, { backgroundColor: '#EF4444' }]} />
@@ -831,8 +841,8 @@ export default function BroadcastScreen() {
               </View>
               <Text style={styles.fightVs}>VS</Text>
               <View style={styles.fightCornerBox}>
-                {currentPelea.partido_verde_nombre && (
-                  <Text style={styles.fightPartidoName}>{currentPelea.partido_verde_nombre}</Text>
+                {(currentPelea.placa_verde || currentPelea.partido_verde_nombre) && (
+                  <Text style={styles.fightPartidoName} numberOfLines={1}>{currentPelea.placa_verde || currentPelea.partido_verde_nombre}</Text>
                 )}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <View style={[styles.fightDot, { backgroundColor: '#10B981' }]} />
