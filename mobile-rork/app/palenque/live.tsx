@@ -192,10 +192,26 @@ export default function LiveEventScreen() {
   const previousPeleaActual = useRef<number | null>(null);
   const previousResults = useRef<Record<string, string | null>>({});
   const previousFightEstado = useRef<string | null>(null);
+  const isFirstLoad = useRef(true);
 
   useEffect(() => {
     // Only play sounds when event is live
     if (evento?.estado !== 'en_curso') return;
+
+    // On first load, populate refs without playing sounds
+    if (isFirstLoad.current) {
+      isFirstLoad.current = false;
+      previousPeleaActual.current = evento.pelea_actual ?? null;
+      const activeFight = peleas.find(p => p.numero_pelea === evento.pelea_actual);
+      previousFightEstado.current = activeFight?.estado ?? null;
+      // Populate previous results from current state so we don't trigger sounds
+      const initialResults: Record<string, string | null> = {};
+      for (const pelea of peleas) {
+        initialResults[pelea.id] = pelea.resultado;
+      }
+      previousResults.current = initialResults;
+      return;
+    }
 
     const activeFight = peleas.find(p => p.numero_pelea === evento.pelea_actual);
 
@@ -341,10 +357,10 @@ export default function LiveEventScreen() {
     try {
       const [peleasRes, tablaRes] = await Promise.all([
         api.getPeleasEvento(id, true).catch(() => ({ success: false, data: [] })),
-        api.getTabla(id, true).catch(() => ({ success: true, data: [] })),
+        api.getTabla(id, true).catch(() => ({ success: false, data: [] })),
       ]);
-      if (peleasRes.success) setPeleas(peleasRes.data || []);
-      if (tablaRes.success) setTabla(tablaRes.data || []);
+      if (peleasRes.success && peleasRes.data && peleasRes.data.length > 0) setPeleas(peleasRes.data);
+      if (tablaRes.success && tablaRes.data && tablaRes.data.length > 0) setTabla(tablaRes.data);
     } catch (err) {
       console.log('Error loading peleas/tabla:', err);
     }
@@ -446,19 +462,43 @@ export default function LiveEventScreen() {
     loadEventByCode();
   }, []);
 
+  // Ref to track whether a fight is currently active (for adaptive polling rate)
+  const isFightActive = useRef(false);
+
+  // Update the ref whenever peleas/evento changes
+  useEffect(() => {
+    const activeFight = peleas.find(p => p.numero_pelea === (evento?.pelea_actual ?? -1));
+    isFightActive.current = activeFight?.estado === 'en_curso';
+  }, [peleas, evento?.pelea_actual]);
+
   // Adaptive polling: 2s during active fight, 5s between fights, stop when finalizado
+  // Uses setTimeout chaining to prevent concurrent polls
   useEffect(() => {
     if (evento?.estado !== 'en_curso' || !eventoId) return;
 
-    const activeFight = peleas.find(p => p.numero_pelea === evento.pelea_actual);
-    const fightIsActive = activeFight?.estado === 'en_curso';
-    const pollInterval = fightIsActive ? 2000 : 5000;
+    let cancelled = false;
 
-    const interval = setInterval(() => {
-      loadEventData(eventoId);
-    }, pollInterval);
-    return () => clearInterval(interval);
-  }, [evento?.estado, evento?.pelea_actual, eventoId, peleas]);
+    const poll = async () => {
+      if (cancelled) return;
+      try {
+        await loadEventData(eventoId);
+      } catch (err) {
+        console.log('Polling error:', err);
+      }
+      if (cancelled) return;
+      const delay = isFightActive.current ? 2000 : 5000;
+      timeoutId = setTimeout(poll, delay);
+    };
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const initialDelay = isFightActive.current ? 2000 : 5000;
+    timeoutId = setTimeout(poll, initialDelay);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [evento?.estado, eventoId]);
 
   const onRefresh = async () => {
     if (!eventoId) return;
@@ -933,8 +973,8 @@ export default function LiveEventScreen() {
                       </Text>
                       <Text style={styles.miAvePeso}>
                         {p.mi_esquina === 'rojo'
-                          ? (p.mi_peso ? `${Math.round(p.mi_peso * 1000)}g` : '-')
-                          : (p.oponente_peso ? `${Math.round(p.oponente_peso * 1000)}g` : '-')}
+                          ? (p.mi_peso ? `${(p.mi_peso / 1000).toFixed(2)} kg` : '-')
+                          : (p.oponente_peso ? `${(p.oponente_peso / 1000).toFixed(2)} kg` : '-')}
                       </Text>
                       <Text style={styles.miAveLabel}>
                         {p.mi_esquina === 'rojo' ? 'Tu ave' : (p.oponente_nombre || 'Oponente')}
@@ -954,8 +994,8 @@ export default function LiveEventScreen() {
                       </Text>
                       <Text style={styles.miAvePeso}>
                         {p.mi_esquina === 'verde'
-                          ? (p.mi_peso ? `${Math.round(p.mi_peso * 1000)}g` : '-')
-                          : (p.oponente_peso ? `${Math.round(p.oponente_peso * 1000)}g` : '-')}
+                          ? (p.mi_peso ? `${(p.mi_peso / 1000).toFixed(2)} kg` : '-')
+                          : (p.oponente_peso ? `${(p.oponente_peso / 1000).toFixed(2)} kg` : '-')}
                       </Text>
                       <Text style={styles.miAveLabel}>
                         {p.mi_esquina === 'verde' ? 'Tu ave' : (p.oponente_nombre || 'Oponente')}

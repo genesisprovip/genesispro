@@ -655,7 +655,8 @@
 <div class="modal-overlay" id="result-modal">
   <div class="modal">
     <h2>Registrar Resultado</h2>
-    <p id="result-fight-info" style="color: var(--text-secondary); margin-bottom: 16px;"></p>
+    <p id="result-fight-info" style="color: var(--text-secondary); margin-bottom: 8px;"></p>
+    <div id="result-fight-context" style="margin-bottom: 16px; font-size: 13px; line-height: 1.6;"></div>
     <div class="result-options">
       <div class="result-option" onclick="selectResult('rojo')" id="opt-rojo">
         <div style="font-size: 32px;">🔴</div>
@@ -939,6 +940,14 @@ let currentEvent = null;
 let currentPeleaId = null;
 let selectedResult = null;
 let autoRefreshInterval = null;
+let isProcessing = false;
+let _peleasCache = {}; // id -> fight object, for result modal context
+
+// Escape user-supplied text to prevent XSS in innerHTML
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 
 function formatTime(isoStr) {
   if (!isoStr) return '';
@@ -1039,12 +1048,12 @@ function renderEventsList() {
     return `
       <div class="event-card" onclick="showEventDetail('${ev.id}')">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <h3>${ev.nombre}</h3>
-          <span class="badge badge-${ev.estado}">${estado}${ev.estado === 'finalizado' ? ' 🏆' : ''}</span>
+          <h3>${escapeHtml(ev.nombre)}</h3>
+          <span class="badge badge-${ev.estado}">${escapeHtml(estado)}${ev.estado === 'finalizado' ? ' 🏆' : ''}</span>
         </div>
         <div class="meta">
           <span>📅 ${fecha}${ev.hora_inicio ? ' · ' + ev.hora_inicio.slice(0,5) : ''}</span>
-          <span>📍 ${ev.lugar || 'Sin lugar'}</span>
+          <span>📍 ${escapeHtml(ev.lugar || 'Sin lugar')}</span>
           ${ev.pesaje_abre ? `<span>⚖️ Pesaje: ${ev.pesaje_abre.slice(0,5)} - ${(ev.pesaje_cierra || '').slice(0,5)}</span>` : ''}
           <span>⚔️ ${ev.total_peleas || 0} peleas${ev.estado === 'en_curso' ? ' · Pelea ' + ev.pelea_actual : ''}${ev.aves_por_partido ? ' · ' + ev.aves_por_partido + ' aves/partido' : ''}</span>
           <span>🔑 Código: <strong>${ev.codigo_acceso || '---'}</strong></span>
@@ -1108,6 +1117,9 @@ function startAutoRefresh(id) {
         ]);
         const ev = evRes.data;
         const peleas = peleasRes.data;
+
+        // Re-check: user may have navigated away during fetch
+        if (currentEventId !== id) return;
 
         // Sync fight timer from server data
         const activeFight = peleas.find(p => p.numero_pelea === ev.pelea_actual);
@@ -1203,6 +1215,9 @@ async function showEventDetail(id) {
     editingEvent = ev;
     genesisWidget.show(ev.id);
     const peleas = peleasRes.data;
+    // Cache peleas for result modal context
+    _peleasCache = {};
+    peleas.forEach(p => { _peleasCache[p.id] = p; });
     const participantes = partRes.data || [];
     const derbyPartidos = derbyPartRes.data || [];
     const derbyAves = derbyAvesRes.data || [];
@@ -1265,13 +1280,13 @@ async function showEventDetail(id) {
           ` : currentFight ? `
             <div style="margin: 20px 0; display: flex; align-items: center; justify-content: center; gap: 24px; font-size: 18px;">
               <div style="text-align:center;">
-                ${currentFight.placa_rojo ? `<div style="font-size:16px; font-weight:700; color:var(--rojo); margin-bottom:4px;">${currentFight.placa_rojo}</div>` : ''}
-                <span class="corner-rojo">🔴 ${currentFight.anillo_rojo || '---'} (${currentFight.peso_rojo || '?'}kg)</span>
+                ${currentFight.placa_rojo ? `<div style="font-size:16px; font-weight:700; color:var(--rojo); margin-bottom:4px;">${escapeHtml(currentFight.placa_rojo)}</div>` : ''}
+                <span class="corner-rojo">🔴 ${escapeHtml(currentFight.anillo_rojo || '---')} (${escapeHtml(currentFight.peso_rojo || '?')}kg)</span>
               </div>
               <span style="color: var(--text-secondary); font-weight:700;">VS</span>
               <div style="text-align:center;">
-                ${currentFight.placa_verde ? `<div style="font-size:16px; font-weight:700; color:var(--verde); margin-bottom:4px;">${currentFight.placa_verde}</div>` : ''}
-                <span class="corner-verde">🟢 ${currentFight.anillo_verde || '---'} (${currentFight.peso_verde || '?'}kg)</span>
+                ${currentFight.placa_verde ? `<div style="font-size:16px; font-weight:700; color:var(--verde); margin-bottom:4px;">${escapeHtml(currentFight.placa_verde)}</div>` : ''}
+                <span class="corner-verde">🟢 ${escapeHtml(currentFight.anillo_verde || '---')} (${escapeHtml(currentFight.peso_verde || '?')}kg)</span>
               </div>
             </div>
           ` : ''}
@@ -1447,14 +1462,14 @@ async function showEventDetail(id) {
                         <td><strong>${p.numero_pelea}</strong>${isCurrent ? ' 🔴' : ''}</td>
                         <td style="font-size:12px; color:var(--secondary);">${p.ronda_id ? (derbyRondas.find(r => r.id === p.ronda_id)?.numero_ronda || '-') : '-'}</td>
                         <td class="corner-rojo">
-                          ${p.placa_rojo ? '<strong style="display:block; font-size:13px;">' + p.placa_rojo + '</strong>' : ''}
-                          ${p.anillo_rojo || '---'}
-                          ${p.peso_rojo ? ' <small style="color:var(--text-secondary);">' + p.peso_rojo + 'kg</small>' : ''}
+                          ${p.placa_rojo ? '<strong style="display:block; font-size:13px;">' + escapeHtml(p.placa_rojo) + '</strong>' : ''}
+                          ${escapeHtml(p.anillo_rojo || '---')}
+                          ${p.peso_rojo ? ' <small style="color:var(--text-secondary);">' + escapeHtml(p.peso_rojo) + 'kg</small>' : ''}
                         </td>
                         <td class="corner-verde">
-                          ${p.placa_verde ? '<strong style="display:block; font-size:13px;">' + p.placa_verde + '</strong>' : ''}
-                          ${p.anillo_verde || '---'}
-                          ${p.peso_verde ? ' <small style="color:var(--text-secondary);">' + p.peso_verde + 'kg</small>' : ''}
+                          ${p.placa_verde ? '<strong style="display:block; font-size:13px;">' + escapeHtml(p.placa_verde) + '</strong>' : ''}
+                          ${escapeHtml(p.anillo_verde || '---')}
+                          ${p.peso_verde ? ' <small style="color:var(--text-secondary);">' + escapeHtml(p.peso_verde) + 'kg</small>' : ''}
                         </td>
                         <td>
                           ${p.resultado ? `<span class="result-badge result-${p.resultado}">${resultLabel(p.resultado)}</span>` : `<span class="badge badge-${p.estado === 'en_curso' ? 'en_curso' : 'programado'}" style="font-size:10px;">${p.estado === 'en_curso' ? 'EN CURSO' : '—'}</span>`}
@@ -2065,11 +2080,13 @@ async function startEvent(id) {
 }
 
 async function nextFight(id) {
+  if (isProcessing) return;
+  isProcessing = true;
   try {
     await api(`/eventos/${id}/siguiente-pelea`, 'POST');
     resetFightTimer();
     showEventDetail(id);
-  } catch (e) { toast(e.message, true); }
+  } catch (e) { toast(e.message, true); } finally { isProcessing = false; }
 }
 
 // ─── FIGHT TIMER (server-synced) ───
@@ -2081,7 +2098,10 @@ let fightTimerPaused = false; // manual pause state (local only)
 // Calculate elapsed seconds from server hora_inicio
 function calcElapsedFromServer(horaInicio) {
   if (!horaInicio) return 0;
-  const elapsed = Math.floor((Date.now() - new Date(horaInicio).getTime()) / 1000);
+  // Ensure UTC interpretation if no timezone info
+  let ts = horaInicio;
+  if (!/[Z+\-]\d{0,4}$/.test(ts)) ts += 'Z';
+  const elapsed = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
   return Math.max(0, elapsed);
 }
 
@@ -2287,6 +2307,8 @@ async function deleteFight(id) {
 }
 
 async function startFight(id) {
+  if (isProcessing) return;
+  isProcessing = true;
   try {
     const res = await api(`/peleas/${id}/iniciar`, 'POST');
     resetFightTimer();
@@ -2302,7 +2324,7 @@ async function startFight(id) {
     startFightTimerTick();
     toast('¡Pelea iniciada!');
     showEventDetail(currentEventId);
-  } catch (e) { toast(e.message, true); }
+  } catch (e) { toast(e.message, true); } finally { isProcessing = false; }
 }
 
 function showResultModal(peleaId, numero) {
@@ -2310,6 +2332,19 @@ function showResultModal(peleaId, numero) {
   selectedResult = null;
   document.querySelectorAll('.result-option').forEach(el => el.classList.remove('selected'));
   document.getElementById('result-fight-info').textContent = `Pelea #${numero}`;
+  // Show fight context (partido names, anillos, pesos) from cache
+  const fightData = _peleasCache[peleaId] || null;
+  const ctx = document.getElementById('result-fight-context');
+  if (fightData && ctx) {
+    ctx.innerHTML =
+      `<div style="display:flex; gap:16px; justify-content:center; align-items:center;">` +
+      `<span style="color:var(--rojo); font-weight:700;">ROJO: ${escapeHtml(fightData.placa_rojo || '---')} — ${escapeHtml(fightData.anillo_rojo || '---')} — ${escapeHtml(fightData.peso_rojo || '?')}kg</span>` +
+      `<span style="color:var(--text-secondary); font-weight:700;">VS</span>` +
+      `<span style="color:var(--verde); font-weight:700;">VERDE: ${escapeHtml(fightData.placa_verde || '---')} — ${escapeHtml(fightData.anillo_verde || '---')} — ${escapeHtml(fightData.peso_verde || '?')}kg</span>` +
+      `</div>`;
+  } else if (ctx) {
+    ctx.innerHTML = '';
+  }
   document.getElementById('result-duracion').value = '';
   document.getElementById('result-tipo').value = '';
   document.getElementById('motivo-group').style.display = 'none';
@@ -2327,6 +2362,8 @@ function selectResult(result) {
 
 async function submitResult() {
   if (!selectedResult) { toast('Selecciona un resultado', true); return; }
+  if (isProcessing) return;
+  isProcessing = true;
   try {
     // Auto-fill duration from fight timer if not manually entered
     let duracionMin = parseInt(document.getElementById('result-duracion').value) || null;
@@ -2344,7 +2381,7 @@ async function submitResult() {
     const resultNames = {rojo:'Gana Rojo',verde:'Gana Verde',tabla:'Tablas'};
     toast(`Resultado registrado: ${resultNames[selectedResult] || selectedResult}`);
     showEventDetail(currentEventId);
-  } catch (e) { toast(e.message, true); }
+  } catch (e) { toast(e.message, true); } finally { isProcessing = false; }
 }
 
 // ─── CORREGIR RESULTADO ───
@@ -3306,10 +3343,10 @@ function renderApuestasSection(ev, apuestas, balance, peleas) {
             ${apuestas.map(a => `
               <tr>
                 <td>#${a.numero_pelea || '?'}</td>
-                <td><strong>${a.apostador_nombre}</strong></td>
-                <td><span class="badge badge-${a.a_favor_de === 'rojo' ? 'en_curso' : 'programado'}" style="background:${a.a_favor_de === 'rojo' ? 'var(--rojo)' : 'var(--verde)'}; color:white;">${a.a_favor_de}</span></td>
+                <td><strong>${escapeHtml(a.apostador_nombre)}</strong></td>
+                <td><span class="badge badge-${a.a_favor_de === 'rojo' ? 'en_curso' : 'programado'}" style="background:${a.a_favor_de === 'rojo' ? 'var(--rojo)' : 'var(--verde)'}; color:white;">${escapeHtml(a.a_favor_de)}</span></td>
                 <td style="font-weight:700;">$${Number(a.monto).toLocaleString()}</td>
-                <td>${a.contraparte_nombre || '—'}</td>
+                <td>${escapeHtml(a.contraparte_nombre || '—')}</td>
                 <td><span class="badge badge-${a.estado === 'ganada' || a.estado === 'cobrada' ? 'programado' : a.estado === 'perdida' ? 'finalizado' : 'pausado'}">${a.estado}</span></td>
                 ${ev.estado !== 'finalizado' ? `
                   <td>
@@ -3335,7 +3372,7 @@ function showApuestaModal() {
   const select = document.getElementById('ap-pelea');
   select.innerHTML = apuestasPeleas
     .filter(p => p.estado !== 'finalizada')
-    .map(p => `<option value="${p.id}">#${p.numero_pelea} - ${p.placa_rojo || p.anillo_rojo || '?'} vs ${p.placa_verde || p.anillo_verde || '?'}</option>`)
+    .map(p => `<option value="${p.id}">#${p.numero_pelea} - ${escapeHtml(p.placa_rojo || p.anillo_rojo || '?')} vs ${escapeHtml(p.placa_verde || p.anillo_verde || '?')}</option>`)
     .join('');
   document.getElementById('ap-apostador').value = '';
   document.getElementById('ap-contraparte').value = '';
@@ -3733,10 +3770,10 @@ async function exportarResultadosPDF() {
             <tr style="background:${p.resultado === 'rojo' ? '#FEF2F2' : p.resultado === 'verde' ? '#F0FDF4' : '#fff'};">
               <td style="padding:6px; border-bottom:1px solid #E2E8F0; font-weight:700;">${p.numero_pelea}</td>
               <td style="padding:6px; border-bottom:1px solid #E2E8F0;">${ronda ? ronda.numero_ronda : '-'}</td>
-              <td style="padding:6px; border-bottom:1px solid #E2E8F0;">${p.placa_rojo || p.anillo_rojo || '---'}</td>
-              <td style="padding:6px; border-bottom:1px solid #E2E8F0; text-align:center;">${p.peso_rojo || '-'}</td>
-              <td style="padding:6px; border-bottom:1px solid #E2E8F0;">${p.placa_verde || p.anillo_verde || '---'}</td>
-              <td style="padding:6px; border-bottom:1px solid #E2E8F0; text-align:center;">${p.peso_verde || '-'}</td>
+              <td style="padding:6px; border-bottom:1px solid #E2E8F0;">${escapeHtml(p.placa_rojo || p.anillo_rojo || '---')}</td>
+              <td style="padding:6px; border-bottom:1px solid #E2E8F0; text-align:center;">${escapeHtml(p.peso_rojo || '-')}</td>
+              <td style="padding:6px; border-bottom:1px solid #E2E8F0;">${escapeHtml(p.placa_verde || p.anillo_verde || '---')}</td>
+              <td style="padding:6px; border-bottom:1px solid #E2E8F0; text-align:center;">${escapeHtml(p.peso_verde || '-')}</td>
               <td style="padding:6px; border-bottom:1px solid #E2E8F0; text-align:center; font-weight:700; color:${resColor};">${resultLabel(p.resultado || '-')}${p.tipo_victoria ? ' (' + motivoLabel(p.tipo_victoria) + ')' : ''}</td>
               <td style="padding:6px; border-bottom:1px solid #E2E8F0; text-align:center;">${p.duracion_minutos ? p.duracion_minutos + ' min' : '-'}</td>
             </tr>`;

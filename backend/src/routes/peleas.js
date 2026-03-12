@@ -148,7 +148,7 @@ router.get('/publico/evento/:eventoId',
         p.id, p.numero_pelea, p.estado, p.resultado,
         p.peso_rojo, p.peso_verde, p.placa_rojo, p.placa_verde,
         p.anillo_rojo, p.anillo_verde, p.duracion_minutos,
-        p.tipo_victoria, p.notas, p.ronda_id,
+        p.tipo_victoria, p.notas, p.ronda_id, p.hora_inicio,
         rd.numero_ronda,
         ur.nombre AS partido_rojo_nombre,
         ua.nombre AS partido_verde_nombre

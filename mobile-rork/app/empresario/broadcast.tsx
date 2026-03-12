@@ -449,7 +449,7 @@ export default function BroadcastScreen() {
         style: 'destructive',
         onPress: async () => {
           // Tell WebView to stop
-          webViewRef.current?.injectJavaScript('stopStream(); true;');
+          webViewRef.current?.injectJavaScript('stopStreaming(); true;');
           try {
             if (resolvedEventoId) await api.stopStream(resolvedEventoId);
           } catch { /* ignore */ }
@@ -510,7 +510,7 @@ export default function BroadcastScreen() {
     if (!zoomSupported) return;
     const step = (zoomMax - zoomMin) / 8;
     const newZoom = Math.min(zoomMax, zoomLevel + step);
-    setZoomLevel(newZoom);
+    // Don't set zoomLevel optimistically — wait for zoom_changed callback from WebView
     webViewRef.current?.injectJavaScript(`setZoom(${newZoom}); true;`);
   };
 
@@ -518,13 +518,13 @@ export default function BroadcastScreen() {
     if (!zoomSupported) return;
     const step = (zoomMax - zoomMin) / 8;
     const newZoom = Math.max(zoomMin, zoomLevel - step);
-    setZoomLevel(newZoom);
+    // Don't set zoomLevel optimistically — wait for zoom_changed callback from WebView
     webViewRef.current?.injectJavaScript(`setZoom(${newZoom}); true;`);
   };
 
   const handleZoomReset = () => {
     if (!zoomSupported) return;
-    setZoomLevel(zoomMin);
+    // Don't set zoomLevel optimistically — wait for zoom_changed callback from WebView
     webViewRef.current?.injectJavaScript(`animateZoomTo(${zoomMin}); true;`);
   };
 

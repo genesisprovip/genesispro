@@ -690,6 +690,12 @@
         }
 
         // ─── ZOOM CONTROL ───
+        // Stored handler references for cleanup on camera switch
+        let _zoomSliderHandler = null;
+        let _zoomTouchStartHandler = null;
+        let _zoomTouchMoveHandler = null;
+        let _tapToFocusHandler = null;
+
         function reportZoomInfo() {
             sendToApp('zoom_info', {
                 supported: supportsZoom,
@@ -703,6 +709,14 @@
             const videoTrack = localStream ? localStream.getVideoTracks()[0] : null;
             if (!videoTrack) return;
 
+            const slider = document.getElementById('zoomSlider');
+            const container = document.getElementById('videoContainer');
+
+            // Remove previously added listeners to prevent accumulation
+            if (_zoomSliderHandler) slider.removeEventListener('input', _zoomSliderHandler);
+            if (_zoomTouchStartHandler) container.removeEventListener('touchstart', _zoomTouchStartHandler);
+            if (_zoomTouchMoveHandler) container.removeEventListener('touchmove', _zoomTouchMoveHandler);
+
             // Check if camera supports zoom
             const capabilities = videoTrack.getCapabilities ? videoTrack.getCapabilities() : {};
             if (capabilities.zoom) {
@@ -711,7 +725,6 @@
                 zoomMax = capabilities.zoom.max || 1;
                 currentZoom = videoTrack.getSettings().zoom || 1;
 
-                const slider = document.getElementById('zoomSlider');
                 const label = document.getElementById('zoomLabel');
                 const control = document.getElementById('zoomControl');
 
@@ -722,11 +735,12 @@
                 label.textContent = currentZoom.toFixed(1) + 'x';
                 control.classList.remove('hidden');
 
-                slider.addEventListener('input', (e) => {
+                _zoomSliderHandler = function(e) {
                     applyZoom(parseFloat(e.target.value));
                     // Auto-focus center when using slider
                     applyFocusPoint(0.5, 0.5);
-                });
+                };
+                slider.addEventListener('input', _zoomSliderHandler);
 
                 log('Zoom disponible: ' + zoomMin.toFixed(1) + 'x - ' + zoomMax.toFixed(1) + 'x');
             } else {
@@ -734,16 +748,14 @@
             }
 
             // Pinch-to-zoom on video container
-            const container = document.getElementById('videoContainer');
-            container.addEventListener('touchstart', (e) => {
+            _zoomTouchStartHandler = function(e) {
                 if (e.touches.length === 2 && supportsZoom) {
                     e.preventDefault();
                     pinchStartDist = getPinchDist(e.touches);
                     pinchStartZoom = currentZoom;
                 }
-            }, { passive: false });
-
-            container.addEventListener('touchmove', (e) => {
+            };
+            _zoomTouchMoveHandler = function(e) {
                 if (e.touches.length === 2 && supportsZoom) {
                     e.preventDefault();
                     const dist = getPinchDist(e.touches);
@@ -751,7 +763,9 @@
                     const newZoom = Math.min(zoomMax, Math.max(zoomMin, pinchStartZoom * scale));
                     applyZoom(newZoom);
                 }
-            }, { passive: false });
+            };
+            container.addEventListener('touchstart', _zoomTouchStartHandler, { passive: false });
+            container.addEventListener('touchmove', _zoomTouchMoveHandler, { passive: false });
         }
 
         function getPinchDist(touches) {
@@ -779,7 +793,10 @@
             let focusTimeout = null;
             let lastTapTime = 0;
 
-            container.addEventListener('click', async (e) => {
+            // Remove previously added listener to prevent accumulation
+            if (_tapToFocusHandler) container.removeEventListener('click', _tapToFocusHandler);
+
+            _tapToFocusHandler = async (e) => {
                 if (e.target.closest('.zoom-control')) return;
 
                 const now = Date.now();
@@ -809,7 +826,8 @@
                     const step = (zoomMax - zoomMin) / 6;
                     animateZoomTo(Math.min(zoomMax, currentZoom + step));
                 }
-            });
+            };
+            container.addEventListener('click', _tapToFocusHandler);
 
             function showFocusRing(x, y) {
                 focusRing.style.left = x + 'px';
@@ -910,7 +928,7 @@
                     handleFocusCommand(cmd.x, cmd.y);
                 }
                 if (cmd.action === 'getZoomInfo') reportZoomInfo();
-            } catch(ex) {}
+            } catch(ex) { console.warn('handleRNCommand error:', ex); }
         }
         window.addEventListener('message', handleRNCommand);
         // Also for Android
