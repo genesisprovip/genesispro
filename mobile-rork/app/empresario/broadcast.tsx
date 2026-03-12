@@ -33,6 +33,7 @@ import {
   AlertCircle,
   ZoomIn,
   ZoomOut,
+  Shuffle,
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS } from '@/constants/theme';
@@ -97,6 +98,8 @@ export default function BroadcastScreen() {
   const [zoomMin, setZoomMin] = useState(1);
   const [zoomMax, setZoomMax] = useState(1);
   const [zoomSupported, setZoomSupported] = useState(false);
+
+  const [isSorteando, setIsSorteando] = useState(false);
 
   const [resolvedEventoId, setResolvedEventoId] = useState(eventoId || '');
   const [resolvedEventoNombre, setResolvedEventoNombre] = useState(eventoNombre || '');
@@ -409,6 +412,25 @@ export default function BroadcastScreen() {
     setCurrentPeleaIndex(idx);
     setFightTimerSeconds(0);
     setFightTimerRunning(false);
+  };
+
+  // Sorteo: generate next round pairings
+  const handleSorteo = async () => {
+    if (!resolvedEventoId || isSorteando) return;
+    setIsSorteando(true);
+    try {
+      const res = await api.ejecutarSorteo(resolvedEventoId);
+      if (res.success) {
+        const ronda = res.data?.ronda?.numero_ronda || '?';
+        const numPeleas = res.data?.peleas?.length || 0;
+        Alert.alert('Sorteo Ronda ' + ronda, `${numPeleas} peleas generadas`);
+        await loadPeleas();
+      }
+    } catch (error: any) {
+      Alert.alert('Error Sorteo', error.message || 'No se pudo ejecutar el sorteo');
+    } finally {
+      setIsSorteando(false);
+    }
   };
 
   const requestCameraPermissions = async (): Promise<boolean> => {
@@ -903,11 +925,33 @@ export default function BroadcastScreen() {
             </View>
           )}
 
-          {currentPelea.estado === 'finalizada' && (
+          {currentPelea.estado === 'finalizada' && hasMoreFights && (
             <TouchableOpacity style={styles.siguientePeleaBtn} onPress={handleSiguientePelea} activeOpacity={0.7}>
-              <Text style={styles.siguientePeleaBtnText}>
-                {hasMoreFights ? 'SIGUIENTE PELEA >' : 'VER RESULTADOS'}
-              </Text>
+              <Text style={styles.siguientePeleaBtnText}>SIGUIENTE PELEA &gt;</Text>
+            </TouchableOpacity>
+          )}
+
+          {currentPelea.estado === 'finalizada' && !hasMoreFights && !isManual && (
+            <TouchableOpacity
+              style={[styles.siguientePeleaBtn, { backgroundColor: '#F59E0B' }]}
+              onPress={handleSorteo}
+              disabled={isSorteando}
+              activeOpacity={0.7}
+            >
+              {isSorteando ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Shuffle size={18} color="#fff" />
+                  <Text style={styles.siguientePeleaBtnText}>SORTEO SIGUIENTE RONDA</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
+
+          {currentPelea.estado === 'finalizada' && !hasMoreFights && isManual && (
+            <TouchableOpacity style={styles.siguientePeleaBtn} onPress={loadPeleas} activeOpacity={0.7}>
+              <Text style={styles.siguientePeleaBtnText}>VER RESULTADOS</Text>
             </TouchableOpacity>
           )}
         </View>

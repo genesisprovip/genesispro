@@ -626,6 +626,23 @@ router.post('/:eventoId/sorteo',
     );
     const siguienteRonda = rondas.length > 0 ? rondas[0].numero_ronda + 1 : 1;
 
+    // CRITICAL: Verify all fights from previous round are finalized
+    if (siguienteRonda > 1) {
+      const { rows: pendientes } = await db.query(
+        `SELECT p.id, p.numero_pelea, p.estado
+         FROM peleas p
+         JOIN rondas_derby rd ON rd.id = p.ronda_id
+         WHERE rd.evento_id = $1 AND rd.numero_ronda = $2
+           AND p.estado NOT IN ('finalizada', 'cancelada')`,
+        [eventoId, siguienteRonda - 1]
+      );
+      if (pendientes.length > 0) {
+        throw Errors.badRequest(
+          `No se puede sortear la ronda ${siguienteRonda}: la ronda ${siguienteRonda - 1} tiene ${pendientes.length} pelea(s) sin finalizar`
+        );
+      }
+    }
+
     // Get available aves (not yet fought in this round concept: disponible state)
     const { rows: aves } = await db.query(
       `SELECT a.*, p.nombre AS partido_nombre, p.numero_partido, p.puntos AS partido_puntos,

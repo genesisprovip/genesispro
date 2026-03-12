@@ -608,6 +608,13 @@ class ApiService {
     return this.request<{ success: boolean; data: any }>(`/derby/${eventoId}/partido-por-codigo/${codigo.toUpperCase()}`);
   }
 
+  async ejecutarSorteo(eventoId: string, margenPeso: number = 80) {
+    return this.request<{ success: boolean; data: any }>(`/derby/${eventoId}/sorteo`, {
+      method: 'POST',
+      body: JSON.stringify({ margen_peso: margenPeso }),
+    });
+  }
+
   async getAvisosEvento(eventoId: string) {
     return this.request<{ success: boolean; data: any[] }>(`/eventos/${eventoId}/avisos`);
   }
