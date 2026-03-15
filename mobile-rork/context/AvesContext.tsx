@@ -15,7 +15,7 @@ interface AvesState {
     totalPages: number;
   };
   fetchAves: (params?: { page?: number; sexo?: string; estado?: string }) => Promise<void>;
-  addAve: (ave: Omit<Ave, 'id' | 'created_at' | 'updated_at'>) => Promise<{ success: boolean; error?: string }>;
+  addAve: (ave: Omit<Ave, 'id' | 'created_at' | 'updated_at'>) => Promise<{ success: boolean; error?: string; data?: any }>;
   updateAve: (id: string, data: Partial<Ave>) => Promise<{ success: boolean; error?: string }>;
   deleteAve: (id: string) => Promise<{ success: boolean; error?: string }>;
   getAveById: (id: string) => Ave | undefined;
@@ -74,7 +74,7 @@ export const [AvesProvider, useAves] = createContextHook<AvesState>(() => {
 
       if (response.success) {
         setAves(prev => [response.data, ...prev]);
-        return { success: true };
+        return { success: true, data: response.data };
       }
       return { success: false, error: 'Error al crear el ave' };
     } catch (err: any) {

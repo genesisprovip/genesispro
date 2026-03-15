@@ -27,8 +27,11 @@ import {
   Activity,
   AlertTriangle,
   Ticket,
+  ScanLine,
+  X,
 } from 'lucide-react-native';
 import { Cloud, CloudOff } from 'lucide-react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAuth } from '@/context/AuthContext';
 import { useAves } from '@/context/AvesContext';
 import { useCombates } from '@/context/CombatesContext';
@@ -54,6 +57,9 @@ export default function HomeScreen() {
   const [pendingSync, setPendingSync] = React.useState(0);
   const [codigoEvento, setCodigoEvento] = React.useState('');
   const [joiningEvento, setJoiningEvento] = React.useState(false);
+  const [qrModalVisible, setQrModalVisible] = React.useState(false);
+  const [scanned, setScanned] = React.useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const isEmpresario = !!user?.plan_empresario;
 
   React.useEffect(() => {
@@ -203,6 +209,61 @@ export default function HomeScreen() {
     }
   };
 
+  const extractCodeFromQR = (data: string): string | null => {
+    const urlMatch = data.match(/[?&]code=([A-Za-z0-9]+)/);
+    if (urlMatch) return urlMatch[1].toUpperCase();
+    const clean = data.trim().toUpperCase();
+    if (/^[A-Z0-9]{4,8}$/.test(clean)) return clean;
+    return null;
+  };
+
+  const handleBarCodeScanned = async ({ data }: { type: string; data: string }) => {
+    if (scanned) return;
+    setScanned(true);
+    const code = extractCodeFromQR(data);
+    if (!code) {
+      Alert.alert('QR no válido', 'Este QR no contiene un código de evento');
+      setScanned(false);
+      return;
+    }
+    setQrModalVisible(false);
+    setCodigoEvento(code);
+    // Auto-join
+    setJoiningEvento(true);
+    try {
+      const res = await api.getEventoByCodigo(code);
+      if (res.success && res.data?.id) {
+        if (res.data.usuario_id) api.setReferralContext(res.data.usuario_id, res.data.id);
+        setCodigoEvento('');
+        router.push(`/palenque/live?eventoId=${res.data.id}&code=${code}`);
+      } else {
+        Alert.alert('No encontrado', 'No se encontró ningún evento con ese código');
+      }
+    } catch (error: any) {
+      const msg = error?.message || '';
+      if (msg.includes('finalizó') || msg.includes('cancelado')) {
+        Alert.alert('Evento no disponible', msg);
+      } else {
+        Alert.alert('Error', 'No se pudo buscar el evento');
+      }
+    } finally {
+      setJoiningEvento(false);
+      setTimeout(() => setScanned(false), 2000);
+    }
+  };
+
+  const openQrScanner = async () => {
+    if (!cameraPermission?.granted) {
+      const result = await requestCameraPermission();
+      if (!result.granted) {
+        Alert.alert('Permiso requerido', 'Necesitas permitir acceso a la cámara para escanear QR');
+        return;
+      }
+    }
+    setScanned(false);
+    setQrModalVisible(true);
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -304,6 +365,12 @@ export default function HomeScreen() {
                 maxLength={8}
               />
               <TouchableOpacity
+                style={styles.qrScanButton}
+                onPress={openQrScanner}
+              >
+                <ScanLine size={20} color={COLORS.textLight} />
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={styles.joinEventButton}
                 onPress={handleJoinEvento}
                 disabled={joiningEvento}
@@ -314,10 +381,48 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.joinEventHint}>
-              Ingresa el codigo que te compartio el organizador del evento
+              Ingresa el codigo o escanea el QR del evento
             </Text>
           </View>
         )}
+
+        {/* QR Scanner Modal */}
+        <Modal
+          visible={qrModalVisible}
+          animationType="slide"
+          transparent={false}
+          onRequestClose={() => setQrModalVisible(false)}
+        >
+          <View style={styles.qrModalContainer}>
+            <CameraView
+              style={StyleSheet.absoluteFillObject}
+              facing="back"
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+              onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+            />
+            <View style={styles.qrOverlay}>
+              <View style={styles.qrOverlayTop} />
+              <View style={styles.qrOverlayMiddle}>
+                <View style={styles.qrOverlaySide} />
+                <View style={styles.qrViewfinder}>
+                  <View style={[styles.qrCorner, { top: 0, left: 0, borderTopWidth: 3, borderLeftWidth: 3 }]} />
+                  <View style={[styles.qrCorner, { top: 0, right: 0, borderTopWidth: 3, borderRightWidth: 3 }]} />
+                  <View style={[styles.qrCorner, { bottom: 0, left: 0, borderBottomWidth: 3, borderLeftWidth: 3 }]} />
+                  <View style={[styles.qrCorner, { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3 }]} />
+                </View>
+                <View style={styles.qrOverlaySide} />
+              </View>
+              <View style={styles.qrOverlayBottom}>
+                <Text style={styles.qrTitle}>Escanea el QR del evento</Text>
+                <Text style={styles.qrSubtitle}>Apunta la cámara al código QR que te compartió el organizador</Text>
+                <TouchableOpacity style={styles.qrCancelBtn} onPress={() => setQrModalVisible(false)}>
+                  <X size={20} color={COLORS.textLight} />
+                  <Text style={styles.qrCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* Evento en curso banner */}
         {eventoActivo && (
@@ -1136,6 +1241,78 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: SPACING.xs,
     textAlign: 'center',
+  },
+  qrScanButton: {
+    width: 44,
+    height: 44,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  qrModalContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  qrOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+  },
+  qrOverlayTop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  qrOverlayMiddle: {
+    flexDirection: 'row',
+  },
+  qrOverlaySide: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  qrViewfinder: {
+    width: 250,
+    height: 250,
+  },
+  qrCorner: {
+    position: 'absolute',
+    width: 30,
+    height: 30,
+    borderColor: '#10B981',
+  },
+  qrOverlayBottom: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    paddingTop: SPACING.lg,
+  },
+  qrTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: SPACING.xs,
+  },
+  qrSubtitle: {
+    fontSize: 13,
+    color: '#94A3B8',
+    textAlign: 'center',
+    paddingHorizontal: SPACING.xl,
+    marginBottom: SPACING.lg,
+  },
+  qrCancelBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  qrCancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
   },
   // Alert Modal
   alertModalOverlay: {

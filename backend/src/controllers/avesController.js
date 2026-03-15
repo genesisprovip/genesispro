@@ -6,6 +6,8 @@ const db = require('../config/database');
 const { Errors, asyncHandler } = require('../middleware/errorHandler');
 const QRCode = require('qrcode');
 const logger = require('../config/logger');
+const fs = require('fs');
+const path = require('path');
 
 /**
  * Auto-calculate composicion_genetica from parents
@@ -162,18 +164,10 @@ const list = asyncHandler(async (req, res) => {
       a.id, a.codigo_identidad, a.sexo, a.fecha_nacimiento,
       a.peso_actual, a.linea_genetica, a.color, a.estado,
       a.disponible_venta, a.disponible_cruces,
+      a.anillo_metalico, a.anillo_color, a.anillo_codigo, a.anillo_pata,
       a.created_at,
       f.ruta_archivo as foto_principal,
-      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN
-        CASE
-          WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento)) >= 1 THEN
-            EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' año(s), ' || EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' mes(es)'
-          WHEN EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento)) >= 1 THEN
-            EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' mes(es), ' || EXTRACT(DAY FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' día(s)'
-          ELSE
-            EXTRACT(DAY FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' día(s)'
-        END
-      ELSE NULL END as edad
+      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN (calcular_edad_ave(a.fecha_nacimiento)).descripcion ELSE NULL END as edad
     FROM aves a
     LEFT JOIN fotos f ON a.id = f.ave_id AND f.es_principal = true
     WHERE ${whereClause}
@@ -213,7 +207,9 @@ const search = asyncHandler(async (req, res) => {
       a.codigo_identidad ILIKE $${paramIndex} OR
       a.linea_genetica ILIKE $${paramIndex} OR
       a.color ILIKE $${paramIndex} OR
-      a.notas ILIKE $${paramIndex}
+      a.notas ILIKE $${paramIndex} OR
+      a.anillo_metalico ILIKE $${paramIndex} OR
+      a.anillo_codigo ILIKE $${paramIndex}
     )`);
     params.push(`%${q}%`);
     paramIndex++;
@@ -246,16 +242,8 @@ const search = asyncHandler(async (req, res) => {
     `SELECT
       a.id, a.codigo_identidad, a.sexo, a.fecha_nacimiento,
       a.linea_genetica, a.color, a.estado,
-      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN
-        CASE
-          WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento)) >= 1 THEN
-            EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' año(s), ' || EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' mes(es)'
-          WHEN EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento)) >= 1 THEN
-            EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' mes(es), ' || EXTRACT(DAY FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' día(s)'
-          ELSE
-            EXTRACT(DAY FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' día(s)'
-        END
-      ELSE NULL END as edad
+      a.anillo_metalico, a.anillo_color, a.anillo_codigo, a.anillo_pata,
+      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN (calcular_edad_ave(a.fecha_nacimiento)).descripcion ELSE NULL END as edad
     FROM aves a
     WHERE ${whereClause}
     ORDER BY a.codigo_identidad
@@ -291,18 +279,9 @@ const getById = asyncHandler(async (req, res) => {
       madre.codigo_identidad as madre_codigo,
       madre.color as madre_color,
       madre.linea_genetica as madre_linea,
-      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN
-        CASE
-          WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento)) >= 1 THEN
-            EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' año(s), ' || EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' mes(es)'
-          WHEN EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento)) >= 1 THEN
-            EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' mes(es), ' || EXTRACT(DAY FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' día(s)'
-          ELSE
-            EXTRACT(DAY FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' día(s)'
-        END
-      ELSE NULL END as edad,
-      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN (EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER * 12 + EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER) ELSE NULL END as total_meses,
-      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN (CURRENT_DATE - a.fecha_nacimiento::DATE)::INTEGER ELSE NULL END as total_dias
+      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN (calcular_edad_ave(a.fecha_nacimiento)).descripcion ELSE NULL END as edad,
+      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN (calcular_edad_ave(a.fecha_nacimiento)).total_meses ELSE NULL END as total_meses,
+      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN (calcular_edad_ave(a.fecha_nacimiento)).total_dias ELSE NULL END as total_dias
     FROM aves a
     LEFT JOIN aves padre ON a.padre_id = padre.id
     LEFT JOIN aves madre ON a.madre_id = madre.id
@@ -368,16 +347,8 @@ const getByCodigo = asyncHandler(async (req, res) => {
     `SELECT
       a.id, a.codigo_identidad, a.sexo, a.fecha_nacimiento,
       a.linea_genetica, a.color, a.estado, a.usuario_id,
-      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN
-        CASE
-          WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento)) >= 1 THEN
-            EXTRACT(YEAR FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' año(s), ' || EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' mes(es)'
-          WHEN EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento)) >= 1 THEN
-            EXTRACT(MONTH FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' mes(es), ' || EXTRACT(DAY FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' día(s)'
-          ELSE
-            EXTRACT(DAY FROM AGE(CURRENT_DATE, a.fecha_nacimiento))::INTEGER || ' día(s)'
-        END
-      ELSE NULL END as edad,
+      a.anillo_metalico, a.anillo_color, a.anillo_codigo, a.anillo_pata,
+      CASE WHEN a.fecha_nacimiento IS NOT NULL THEN (calcular_edad_ave(a.fecha_nacimiento)).descripcion ELSE NULL END as edad,
       u.nombre as propietario_nombre
     FROM aves a
     JOIN usuarios u ON a.usuario_id = u.id
@@ -434,7 +405,11 @@ const create = asyncHandler(async (req, res) => {
     notas_origen,
     zona,
     sub_zona,
-    lote
+    lote,
+    anillo_metalico,
+    anillo_color,
+    anillo_codigo,
+    anillo_pata
   } = req.body;
 
   // Validate parent sexes if provided
@@ -491,8 +466,9 @@ const create = asyncHandler(async (req, res) => {
       color, precio_compra, notas,
       composicion_genetica, es_puro, criadero_origen, criador_nombre,
       fecha_adquisicion, tipo_adquisicion, notas_origen,
-      zona, sub_zona, lote
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+      zona, sub_zona, lote,
+      anillo_metalico, anillo_color, anillo_codigo, anillo_pata
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
     RETURNING *`,
     [
       codigoIdentidad, req.userId, sexo, fecha_nacimiento,
@@ -501,7 +477,8 @@ const create = asyncHandler(async (req, res) => {
       JSON.stringify(finalComposicion), es_puro || false,
       criadero_origen || null, criador_nombre || null,
       fecha_adquisicion || null, tipo_adquisicion || 'cria_propia', notas_origen || null,
-      zona || null, sub_zona || null, lote || null
+      zona || null, sub_zona || null, lote || null,
+      anillo_metalico || null, anillo_color || null, anillo_codigo || null, anillo_pata || null
     ]
   );
 
@@ -544,7 +521,8 @@ const update = asyncHandler(async (req, res) => {
     'es_puro', 'criadero_origen', 'criador_nombre',
     'fecha_adquisicion', 'tipo_adquisicion', 'notas_origen',
     'zona', 'sub_zona', 'lote',
-    'motivo_baja', 'fecha_baja', 'observaciones_combate'
+    'motivo_baja', 'fecha_baja', 'observaciones_combate',
+    'anillo_metalico', 'anillo_color', 'anillo_codigo', 'anillo_pata'
   ];
 
   // Handle JSONB field separately
@@ -1036,6 +1014,92 @@ const getPedigree = asyncHandler(async (req, res) => {
   doc.end();
 });
 
+// ============================================================
+// FOTOS
+// ============================================================
+
+const uploadFoto = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const { rows: [ave] } = await db.query(
+    'SELECT id FROM aves WHERE id = $1 AND usuario_id = $2 AND deleted_at IS NULL',
+    [id, req.userId]
+  );
+  if (!ave) throw Errors.notFound('Ave');
+
+  if (!req.file) {
+    return res.status(400).json({ success: false, error: { message: 'No se envió ninguna foto' } });
+  }
+
+  const { rows: existing } = await db.query(
+    'SELECT COUNT(*) as count FROM fotos WHERE ave_id = $1', [id]
+  );
+  const esPrincipal = parseInt(existing[0].count) === 0;
+
+  const rutaArchivo = `/uploads/${req.file.filename}`;
+
+  const { rows: [foto] } = await db.query(
+    `INSERT INTO fotos (ave_id, ruta_archivo, es_principal, descripcion)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id, ruta_archivo, es_principal, created_at`,
+    [id, rutaArchivo, esPrincipal, req.body.descripcion || null]
+  );
+
+  logger.info(`[Aves] Photo uploaded for ave ${id}: ${rutaArchivo}`);
+
+  res.json({ success: true, data: foto });
+});
+
+const deleteFoto = asyncHandler(async (req, res) => {
+  const { id, fotoId } = req.params;
+
+  const { rows: [ave] } = await db.query(
+    'SELECT id FROM aves WHERE id = $1 AND usuario_id = $2 AND deleted_at IS NULL',
+    [id, req.userId]
+  );
+  if (!ave) throw Errors.notFound('Ave');
+
+  const { rows: [foto] } = await db.query(
+    'SELECT id, ruta_archivo, es_principal FROM fotos WHERE id = $1 AND ave_id = $2',
+    [fotoId, id]
+  );
+  if (!foto) throw Errors.notFound('Foto');
+
+  const filePath = path.join(__dirname, '../../', foto.ruta_archivo);
+  try { fs.unlinkSync(filePath); } catch (e) { /* file may not exist */ }
+
+  await db.query('DELETE FROM fotos WHERE id = $1', [fotoId]);
+
+  if (foto.es_principal) {
+    await db.query(
+      `UPDATE fotos SET es_principal = true
+       WHERE ave_id = $1 AND id = (SELECT id FROM fotos WHERE ave_id = $1 ORDER BY created_at LIMIT 1)`,
+      [id]
+    );
+  }
+
+  res.json({ success: true, data: { message: 'Foto eliminada' } });
+});
+
+const setFotoPrincipal = asyncHandler(async (req, res) => {
+  const { id, fotoId } = req.params;
+
+  const { rows: [ave] } = await db.query(
+    'SELECT id FROM aves WHERE id = $1 AND usuario_id = $2 AND deleted_at IS NULL',
+    [id, req.userId]
+  );
+  if (!ave) throw Errors.notFound('Ave');
+
+  await db.query('UPDATE fotos SET es_principal = false WHERE ave_id = $1', [id]);
+  const { rows: [foto] } = await db.query(
+    'UPDATE fotos SET es_principal = true WHERE id = $1 AND ave_id = $2 RETURNING id',
+    [fotoId, id]
+  );
+  if (!foto) throw Errors.notFound('Foto');
+
+  res.json({ success: true, data: { message: 'Foto principal actualizada' } });
+});
+
 module.exports = {
   list,
   search,
@@ -1049,5 +1113,8 @@ module.exports = {
   getMediciones,
   addMedicion,
   getQRCode,
-  getPedigree
+  getPedigree,
+  uploadFoto,
+  deleteFoto,
+  setFotoPrincipal
 };

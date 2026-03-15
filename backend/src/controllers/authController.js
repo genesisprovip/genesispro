@@ -180,7 +180,8 @@ const login = asyncHandler(async (req, res) => {
   // Find user
   const { rows } = await db.query(
     `SELECT id, email, password_hash, nombre, telefono, ubicacion,
-            plan_actual, plan_elegido, plan_empresario, email_verificado, foto_perfil, activo, estado_cuenta, trial_inicio, trial_fin, created_at
+            plan_actual, plan_elegido, plan_empresario, email_verificado, foto_perfil, activo, estado_cuenta, trial_inicio, trial_fin,
+            nombre_gallera, logo_gallera_url, created_at
      FROM usuarios
      WHERE email = $1 AND deleted_at IS NULL`,
     [email.toLowerCase()]
@@ -258,6 +259,8 @@ const login = asyncHandler(async (req, res) => {
         estado_cuenta: user.estado_cuenta,
         trial_inicio: user.trial_inicio,
         trial_fin: user.trial_fin,
+        nombre_gallera: user.nombre_gallera || null,
+        logo_gallera_url: user.logo_gallera_url || null,
         created_at: user.created_at
       },
       tokens
@@ -346,6 +349,7 @@ const getProfile = asyncHandler(async (req, res) => {
       u.foto_perfil, u.email_verificado, u.plan_actual, u.plan_elegido,
       u.plan_empresario, u.rol, u.estado_cuenta, u.trial_inicio, u.trial_fin,
       u.suscripcion_activa_id, u.created_at, u.ultimo_acceso,
+      u.nombre_gallera, u.logo_gallera_url,
       l.max_aves, l.aves_actuales, l.max_fotos_por_ave,
       l.profundidad_genealogia, l.analytics_avanzado,
       l.multi_usuario, l.exportacion, l.api_access,
@@ -400,6 +404,8 @@ const getProfile = asyncHandler(async (req, res) => {
         has_subscription: !!user.suscripcion_activa_id,
         plan_empresario: user.plan_empresario || null,
         rol: user.rol || 'usuario',
+        nombre_gallera: user.nombre_gallera || null,
+        logo_gallera_url: user.logo_gallera_url || null,
         created_at: user.created_at,
         ultimo_acceso: user.ultimo_acceso
       },
@@ -423,17 +429,18 @@ const getProfile = asyncHandler(async (req, res) => {
  * PUT /api/v1/auth/me
  */
 const updateProfile = asyncHandler(async (req, res) => {
-  const { nombre, telefono, ubicacion } = req.body;
+  const { nombre, telefono, ubicacion, nombre_gallera } = req.body;
 
   const { rows } = await db.query(
     `UPDATE usuarios
      SET nombre = COALESCE($2, nombre),
          telefono = COALESCE($3, telefono),
          ubicacion = COALESCE($4, ubicacion),
+         nombre_gallera = COALESCE($5, nombre_gallera),
          updated_at = NOW()
      WHERE id = $1
-     RETURNING id, email, nombre, telefono, ubicacion, foto_perfil, plan_actual`,
-    [req.userId, nombre, telefono, ubicacion]
+     RETURNING id, email, nombre, telefono, ubicacion, foto_perfil, plan_actual, nombre_gallera, logo_gallera_url`,
+    [req.userId, nombre, telefono, ubicacion, nombre_gallera]
   );
 
   res.json({
@@ -810,6 +817,34 @@ const resendVerification = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Upload gallera logo (Pro+ only)
+ * POST /api/v1/auth/profile/logo
+ */
+const uploadLogo = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw Errors.badRequest('No se envió ninguna imagen');
+  }
+
+  const logoUrl = `/uploads/logos/${req.file.filename}`;
+
+  const { rows } = await db.query(
+    `UPDATE usuarios
+     SET logo_gallera_url = $2, updated_at = NOW()
+     WHERE id = $1
+     RETURNING id, nombre_gallera, logo_gallera_url`,
+    [req.userId, logoUrl]
+  );
+
+  logger.info(`Logo uploaded for user: ${req.userId}`);
+
+  res.json({
+    success: true,
+    message: 'Logo actualizado',
+    data: { logo_gallera_url: rows[0].logo_gallera_url }
+  });
+});
+
+/**
  * Delete account
  * DELETE /api/v1/auth/account
  */
@@ -851,5 +886,6 @@ module.exports = {
   resetPassword,
   verifyEmail,
   resendVerification,
+  uploadLogo,
   deleteAccount
 };

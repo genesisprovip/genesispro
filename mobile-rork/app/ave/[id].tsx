@@ -39,6 +39,17 @@ import api from '@/services/api';
 
 const GENETIC_COLORS = ['#10B981', '#F59E0B', '#6366F1', '#EF4444', '#3B82F6', '#EC4899', '#14B8A6', '#8B5CF6'];
 
+const ANILLO_COLOR_MAP: Record<string, string> = {
+  rojo: '#EF4444',
+  azul: '#3B82F6',
+  verde: '#22C55E',
+  amarillo: '#EAB308',
+  naranja: '#F97316',
+  blanco: '#F8FAFC',
+  negro: '#1E293B',
+  morado: '#A855F7',
+};
+
 const TIPO_ADQUISICION_LABELS: Record<string, string> = {
   'cria_propia': 'Cría Propia',
   'compra': 'Compra',
@@ -155,7 +166,7 @@ export default function AveDetailScreen() {
         <View style={styles.heroContent}>
           <View style={styles.avatarContainer}>
             <Image
-              source={{ uri: ave.foto_principal || 'https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=400' }}
+              source={{ uri: ave.foto_principal ? (ave.foto_principal.startsWith('http') ? ave.foto_principal : `https://api.genesispro.vip${ave.foto_principal}`) : 'https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=400' }}
               style={styles.avatar}
               contentFit="cover"
             />
@@ -165,7 +176,17 @@ export default function AveDetailScreen() {
           </View>
 
           <View style={styles.heroInfo}>
-            <Text style={styles.heroCode}>{ave.codigo_identidad}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={styles.heroCode}>{ave.codigo_identidad}</Text>
+              {(ave as any).anillo_color && (
+                <View style={[
+                  styles.anilloColorBadge,
+                  { backgroundColor: ANILLO_COLOR_MAP[(ave as any).anillo_color] || COLORS.textSecondary },
+                  (ave as any).anillo_color === 'negro' && { borderWidth: 1.5, borderColor: '#475569' },
+                  (ave as any).anillo_color === 'blanco' && { borderWidth: 1.5, borderColor: '#CBD5E1' },
+                ]} />
+              )}
+            </View>
             <View style={styles.heroMeta}>
               {ave.linea_genetica && (
                 <View style={styles.metaChip}>
@@ -259,6 +280,52 @@ export default function AveDetailScreen() {
             />
           )}
         </View>
+
+        {/* Anillos e Identificación */}
+        {((ave as any).anillo_metalico || (ave as any).anillo_color || (ave as any).anillo_codigo || (ave as any).anillo_pata) && (
+          <View style={[styles.section, SHADOWS.sm]}>
+            <View style={styles.sectionHeader}>
+              <Tag size={18} color={COLORS.secondary} />
+              <Text style={styles.sectionTitle}>Anillos</Text>
+            </View>
+            {(ave as any).anillo_metalico && (
+              <View style={styles.origenRow}>
+                <Text style={styles.origenLabel}>Metalico</Text>
+                <Text style={styles.origenValue}>{(ave as any).anillo_metalico}</Text>
+              </View>
+            )}
+            {(ave as any).anillo_color && (
+              <View style={styles.origenRow}>
+                <Text style={styles.origenLabel}>Color</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={[
+                    styles.anilloColorBadge,
+                    { backgroundColor: ANILLO_COLOR_MAP[(ave as any).anillo_color] || COLORS.textSecondary },
+                    (ave as any).anillo_color === 'negro' && { borderWidth: 1.5, borderColor: '#475569' },
+                    (ave as any).anillo_color === 'blanco' && { borderWidth: 1.5, borderColor: '#CBD5E1' },
+                  ]} />
+                  <Text style={styles.origenValue}>
+                    {(ave as any).anillo_color.charAt(0).toUpperCase() + (ave as any).anillo_color.slice(1)}
+                  </Text>
+                </View>
+              </View>
+            )}
+            {(ave as any).anillo_codigo && (
+              <View style={styles.origenRow}>
+                <Text style={styles.origenLabel}>Codigo</Text>
+                <Text style={styles.origenValue}>{(ave as any).anillo_codigo}</Text>
+              </View>
+            )}
+            {(ave as any).anillo_pata && (
+              <View style={[styles.origenRow, { borderBottomWidth: 0 }]}>
+                <Text style={styles.origenLabel}>Pata</Text>
+                <Text style={styles.origenValue}>
+                  {(ave as any).anillo_pata.charAt(0).toUpperCase() + (ave as any).anillo_pata.slice(1)}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Notas */}
         {ave.notas && (
@@ -765,6 +832,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.accent,
     letterSpacing: 1,
+  },
+  // Anillo color badge
+  anilloColorBadge: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
   },
   // Origen
   origenRow: {

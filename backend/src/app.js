@@ -34,6 +34,7 @@ const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const logger = require('./config/logger');
 const { startDataRetentionCron } = require('./cron/dataRetention');
 const { startHealthRemindersCron } = require('./cron/healthReminders');
+const { startSmartAlertsCron } = require('./cron/smartAlerts');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -59,6 +60,7 @@ const genesisRoutes = require('./routes/genesis');
 const formulasRoutes = require('./routes/formulas');
 const observacionesRoutes = require('./routes/observaciones');
 const comisionesRoutes = require('./routes/comisiones');
+const assistantRoutes = require('./routes/assistant');
 
 const app = express();
 
@@ -311,7 +313,7 @@ app.get('/resultado/:eventoCode/:numeroPelea', async (req, res) => {
     else if (p.estado === 'programada') { resultLabel = 'PROXIMA'; resultColor = '#3B82F6'; resultEmoji = ''; }
 
     const ogTitle = `${resultEmoji} Pelea ${p.numero_pelea} - ${p.evento_nombre}`;
-    const ogDesc = `${rojoName} (${p.peso_rojo || '?'}kg) vs ${verdeName} (${p.peso_verde || '?'}kg) - ${resultLabel}`;
+    const ogDesc = `${rojoName} (${p.peso_rojo || '?'}g) vs ${verdeName} (${p.peso_verde || '?'}g) - ${resultLabel}`;
 
     res.send(`<!DOCTYPE html>
 <html lang="es">
@@ -358,13 +360,13 @@ app.get('/resultado/:eventoCode/:numeroPelea', async (req, res) => {
       <div class="corner">
         <span class="corner-dot" style="background:#EF4444"></span>
         <span class="corner-name ${p.resultado === 'rojo' ? 'winner' : ''}" style="color:#EF4444">${rojoName}</span>
-        ${p.peso_rojo ? `<span class="corner-peso">${p.peso_rojo}kg</span>` : ''}
+        ${p.peso_rojo ? `<span class="corner-peso">${p.peso_rojo}g</span>` : ''}
       </div>
       <span class="vs">VS</span>
       <div class="corner">
         <span class="corner-dot" style="background:#10B981"></span>
         <span class="corner-name ${p.resultado === 'verde' ? 'winner' : ''}" style="color:#10B981">${verdeName}</span>
-        ${p.peso_verde ? `<span class="corner-peso">${p.peso_verde}kg</span>` : ''}
+        ${p.peso_verde ? `<span class="corner-peso">${p.peso_verde}g</span>` : ''}
       </div>
     </div>
     <div class="result-badge">${resultLabel}</div>
@@ -426,6 +428,7 @@ app.use('/api/v1/genesis', genesisRoutes);
 app.use('/api/v1/formulas', formulasRoutes);
 app.use('/api/v1/observaciones', observacionesRoutes);
 app.use('/api/v1/comisiones', comisionesRoutes);
+app.use('/api/v1/assistant', assistantRoutes);
 
 // API info
 app.get('/api/v1', (req, res) => {
@@ -476,6 +479,7 @@ if (process.env.NODE_ENV !== 'test') {
     logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
     startDataRetentionCron();
     startHealthRemindersCron();
+    startSmartAlertsCron();
   });
 }
 

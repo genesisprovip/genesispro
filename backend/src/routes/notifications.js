@@ -81,7 +81,7 @@ async function sendPushNotification(tokens, title, body, data = {}) {
   const isFightAlert = data?.tipo === 'pelea_proxima';
   const messages = tokens.map(token => ({
     to: token,
-    sound: 'default',
+    sound: isFightAlert ? 'fight_alert.wav' : 'default',
     title,
     body,
     data,

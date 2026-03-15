@@ -30,6 +30,8 @@ import {
   MessageCircle,
   Beaker,
   ClipboardList,
+  Share2,
+  Sparkles,
 } from 'lucide-react-native';
 import { useAuth } from '@/context/AuthContext';
 import { COLORS } from '@/constants/colors';
@@ -81,6 +83,20 @@ export default function MoreScreen() {
   const isEmpresario = !!user?.plan_empresario;
 
   const menuSections: MenuSection[] = [
+    {
+      title: 'Asistente',
+      items: [
+        {
+          icon: <Sparkles size={20} color={COLORS.primary} />,
+          label: 'Asistente GenesisPro',
+          subtitle: 'Consulta sobre tus aves, stats y más',
+          onPress: () => router.push('/assistant' as any),
+          showBadge: true,
+          badgeText: 'Nuevo',
+          badgeColor: COLORS.primary,
+        },
+      ],
+    },
     ...(isEmpresario ? [{
       title: 'Empresario',
       items: [
@@ -142,6 +158,17 @@ export default function MoreScreen() {
             onPress: () => router.push('/observaciones' as any),
           },
         ] : []),
+      ],
+    },
+    {
+      title: 'Comunidad',
+      items: [
+        {
+          icon: <Share2 size={20} color={COLORS.primary} />,
+          label: 'Compartir',
+          subtitle: 'Comparte fotos con marca GenesisPro',
+          onPress: () => router.push('/compartir' as any),
+        },
       ],
     },
     {

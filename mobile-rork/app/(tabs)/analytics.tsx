@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -79,6 +79,75 @@ export default function AnalyticsScreen() {
     vendidos: dashboard.vendidos ?? aves.filter(a => a.estado === 'vendido').length,
     retirados: dashboard.retirados ?? aves.filter(a => a.estado === 'retirado').length,
   };
+
+  // === Bajas y Mortalidad ===
+  const bajasData = useMemo(() => {
+    const bajas = aves.filter(a => a.estado !== 'activo');
+    const motivoCounts: Record<string, number> = {};
+    bajas.forEach(a => {
+      const motivo = a.motivo_baja || a.estado || 'Sin especificar';
+      motivoCounts[motivo] = (motivoCounts[motivo] || 0) + 1;
+    });
+
+    const motivoCategories = [
+      { key: 'Muerte en combate', aliases: ['Murió en combate', 'Muerte en combate', 'muerte en combate', 'muerto'], color: COLORS.error },
+      { key: 'Enfermedad', aliases: ['Enfermedad', 'enfermedad', 'enfermo'], color: '#DC2626' },
+      { key: 'Vendido', aliases: ['Vendido', 'vendido', 'venta'], color: COLORS.info },
+      { key: 'Retirado', aliases: ['Retirado', 'retirado', 'retiro'], color: COLORS.warning },
+    ];
+
+    const categorized: { label: string; count: number; color: string }[] = [];
+    const counted = new Set<string>();
+
+    motivoCategories.forEach(cat => {
+      let count = 0;
+      cat.aliases.forEach(alias => {
+        if (motivoCounts[alias]) {
+          count += motivoCounts[alias];
+          counted.add(alias);
+        }
+      });
+      if (count > 0) {
+        categorized.push({ label: cat.key, count, color: cat.color });
+      }
+    });
+
+    // "Otros" bucket
+    let otrosCount = 0;
+    Object.entries(motivoCounts).forEach(([key, val]) => {
+      if (!counted.has(key)) otrosCount += val;
+    });
+    if (otrosCount > 0) {
+      categorized.push({ label: 'Otros', count: otrosCount, color: COLORS.textSecondary });
+    }
+
+    return { total: bajas.length, categories: categorized };
+  }, [aves]);
+
+  // === Rendimiento por Línea Genética ===
+  const lineaData = useMemo(() => {
+    const lineaStats: Record<string, { victorias: number; derrotas: number; empates: number; total: number }> = {};
+    combates.forEach(c => {
+      const ave = aves.find(a => a.id === (c as any).macho_id || a.id === (c as any).ave_id);
+      if (!ave || !ave.linea_genetica) return;
+      const linea = ave.linea_genetica;
+      if (!lineaStats[linea]) lineaStats[linea] = { victorias: 0, derrotas: 0, empates: 0, total: 0 };
+      lineaStats[linea].total++;
+      if (c.resultado === 'victoria') lineaStats[linea].victorias++;
+      else if (c.resultado === 'derrota') lineaStats[linea].derrotas++;
+      else lineaStats[linea].empates++;
+    });
+
+    const sorted = Object.entries(lineaStats)
+      .map(([name, s]) => ({
+        name,
+        ...s,
+        winPct: s.total > 0 ? Math.round((s.victorias / s.total) * 100) : 0,
+      }))
+      .sort((a, b) => b.winPct - a.winPct || b.victorias - a.victorias);
+
+    return sorted;
+  }, [aves, combates]);
 
   const tabs = [
     { key: 'general' as const, label: 'General', icon: ChartPie },
@@ -197,6 +266,32 @@ export default function AnalyticsScreen() {
               </View>
             </View>
 
+            {bajasData.total > 0 && (
+              <View style={[styles.sectionCard, SHADOWS.md]}>
+                <Text style={styles.cardTitle}>Bajas y Mortalidad</Text>
+                <View style={styles.bajasHeader}>
+                  <Text style={styles.bajasTotal}>{bajasData.total}</Text>
+                  <Text style={styles.bajasTotalLabel}>aves no activas</Text>
+                </View>
+                {bajasData.categories.map((cat, i) => {
+                  const pct = bajasData.total > 0 ? (cat.count / bajasData.total) * 100 : 0;
+                  return (
+                    <View key={i} style={styles.bajaRow}>
+                      <View style={styles.bajaLabelRow}>
+                        <View style={[styles.distDot, { backgroundColor: cat.color }]} />
+                        <Text style={styles.bajaLabel}>{cat.label}</Text>
+                        <Text style={styles.bajaCount}>{cat.count}</Text>
+                      </View>
+                      <View style={styles.bajaBarTrack}>
+                        <View style={[styles.bajaBarFill, { width: `${pct}%`, backgroundColor: cat.color }]} />
+                      </View>
+                      <Text style={[styles.bajaPct, { color: cat.color }]}>{Math.round(pct)}%</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
             {topAves.length > 0 && (
               <View style={[styles.sectionCard, SHADOWS.md]}>
                 <Text style={styles.cardTitle}>Top Aves por Victorias</Text>
@@ -223,6 +318,21 @@ export default function AnalyticsScreen() {
 
         {activeTab === 'combates' && (
           <>
+            {lineaData.length >= 2 && (
+              <View style={styles.kpiRow}>
+                <View style={[styles.highlightCard, SHADOWS.md, { borderLeftColor: COLORS.success }]}>
+                  <Text style={styles.highlightLabel}>Linea Top</Text>
+                  <Text style={styles.highlightName} numberOfLines={1}>{lineaData[0].name}</Text>
+                  <Text style={[styles.highlightPct, { color: COLORS.success }]}>{lineaData[0].winPct}% win</Text>
+                </View>
+                <View style={[styles.highlightCard, SHADOWS.md, { borderLeftColor: COLORS.error }]}>
+                  <Text style={styles.highlightLabel}>Linea a Mejorar</Text>
+                  <Text style={styles.highlightName} numberOfLines={1}>{lineaData[lineaData.length - 1].name}</Text>
+                  <Text style={[styles.highlightPct, { color: COLORS.error }]}>{lineaData[lineaData.length - 1].winPct}% win</Text>
+                </View>
+              </View>
+            )}
+
             <View style={styles.kpiRow}>
               <KPICard
                 icon={<Activity size={22} color={COLORS.success} />}
@@ -254,6 +364,58 @@ export default function AnalyticsScreen() {
                 </View>
               </View>
             </View>
+
+            {lineaData.length > 0 && (
+              <View style={[styles.sectionCard, SHADOWS.md]}>
+                <Text style={styles.cardTitle}>Rendimiento por Linea Genetica</Text>
+                {lineaData.map((linea, i) => {
+                  const isTop = i === 0 && lineaData.length > 1;
+                  const isWorst = i === lineaData.length - 1 && lineaData.length > 1;
+                  return (
+                    <View
+                      key={linea.name}
+                      style={[
+                        styles.lineaRow,
+                        isTop && styles.lineaTop,
+                        isWorst && styles.lineaWorst,
+                        i < lineaData.length - 1 && { borderBottomWidth: 1, borderBottomColor: COLORS.divider },
+                      ]}
+                    >
+                      <View style={styles.lineaHeader}>
+                        <View style={styles.lineaNameRow}>
+                          {isTop && <Award size={14} color={COLORS.secondary} style={{ marginRight: 4 }} />}
+                          <Text style={[styles.lineaName, isTop && { color: COLORS.secondary }]} numberOfLines={1}>
+                            {linea.name}
+                          </Text>
+                        </View>
+                        <Text style={styles.lineaRecord}>
+                          {linea.victorias}V-{linea.derrotas}D-{linea.empates}E
+                        </Text>
+                      </View>
+                      <View style={styles.lineaBarRow}>
+                        <View style={styles.resultBarBg}>
+                          <View style={[
+                            styles.resultBarFill,
+                            {
+                              width: `${linea.winPct}%`,
+                              backgroundColor: isTop ? COLORS.success : isWorst ? COLORS.error : COLORS.primary,
+                            }
+                          ]} />
+                        </View>
+                        <Text style={[
+                          styles.lineaPct,
+                          { color: isTop ? COLORS.success : isWorst ? COLORS.error : COLORS.primary }
+                        ]}>
+                          {linea.winPct}%
+                        </Text>
+                      </View>
+                      {isTop && <Text style={styles.lineaBadgeText}>Linea Mas Ganadora</Text>}
+                      {isWorst && <Text style={[styles.lineaBadgeText, { color: COLORS.error }]}>Linea con Mas Derrotas</Text>}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
 
             <View style={[styles.sectionCard, SHADOWS.md]}>
               <Text style={styles.cardTitle}>Historial Reciente</Text>
@@ -762,5 +924,139 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     paddingVertical: SPACING.lg,
+  },
+  // Bajas y Mortalidad
+  bajasHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  bajasTotal: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: COLORS.error,
+  },
+  bajasTotalLabel: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  bajaRow: {
+    marginBottom: SPACING.sm,
+  },
+  bajaLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: 4,
+  },
+  bajaLabel: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.text,
+    fontWeight: '500',
+  },
+  bajaCount: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  bajaBarTrack: {
+    height: 6,
+    backgroundColor: COLORS.divider,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 2,
+  },
+  bajaBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  bajaPct: {
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'right',
+  },
+  // Highlight cards (Linea Top / Linea a Mejorar)
+  highlightCard: {
+    flex: 1,
+    backgroundColor: COLORS.card,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    borderLeftWidth: 4,
+  },
+  highlightLabel: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  highlightName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  highlightPct: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  // Rendimiento por Linea Genetica
+  lineaRow: {
+    paddingVertical: SPACING.sm + 2,
+  },
+  lineaTop: {
+    backgroundColor: COLORS.secondary + '08',
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.sm,
+    marginHorizontal: -SPACING.sm,
+  },
+  lineaWorst: {
+    backgroundColor: COLORS.error + '06',
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.sm,
+    marginHorizontal: -SPACING.sm,
+  },
+  lineaHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  lineaNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: SPACING.sm,
+  },
+  lineaName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
+    flexShrink: 1,
+  },
+  lineaRecord: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+  lineaBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  lineaPct: {
+    fontSize: 13,
+    fontWeight: '700',
+    width: 36,
+    textAlign: 'right',
+  },
+  lineaBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: COLORS.secondary,
+    marginTop: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 });

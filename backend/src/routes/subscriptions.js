@@ -112,8 +112,30 @@ router.post('/portal', authenticateJWT, asyncHandler(async (req, res) => {
     throw Errors.badRequest('No tienes una suscripción para gestionar');
   }
 
+  // Validate customer exists in current Stripe mode (test vs live)
+  let customerId = user.stripe_customer_id;
+  try {
+    await stripe.customers.retrieve(customerId);
+  } catch (err) {
+    logger.warn(`[Stripe] Invalid customer ${customerId} for user ${userId} in /portal: ${err.message}. Creating new customer.`);
+    const { rows: [fullUser] } = await db.query(
+      'SELECT email, nombre FROM usuarios WHERE id = $1',
+      [userId]
+    );
+    const customer = await stripe.customers.create({
+      email: fullUser.email,
+      name: fullUser.nombre,
+      metadata: { userId },
+    });
+    customerId = customer.id;
+    await db.query(
+      'UPDATE usuarios SET stripe_customer_id = $1 WHERE id = $2',
+      [customerId, userId]
+    );
+  }
+
   const session = await stripe.billingPortal.sessions.create({
-    customer: user.stripe_customer_id,
+    customer: customerId,
     return_url: `https://api.genesispro.vip/pago/exitoso`,
   });
 
@@ -192,8 +214,17 @@ router.get('/invoices', authenticateJWT, asyncHandler(async (req, res) => {
     return res.json({ success: true, data: { invoices: [] } });
   }
 
+  // Validate customer exists in current Stripe mode (test vs live)
+  let customerId = user.stripe_customer_id;
+  try {
+    await stripe.customers.retrieve(customerId);
+  } catch (err) {
+    logger.warn(`[Stripe] Invalid customer ${customerId} for user ${userId} in /invoices: ${err.message}. Returning empty invoices.`);
+    return res.json({ success: true, data: { invoices: [] } });
+  }
+
   const stripeInvoices = await stripe.invoices.list({
-    customer: user.stripe_customer_id,
+    customer: customerId,
     limit: 12,
   });
 

@@ -27,6 +27,7 @@ import {
   Dna
 } from 'lucide-react-native';
 import { useAves } from '@/context/AvesContext';
+import api from '@/services/api';
 import { Ave, ComposicionGenetica } from '@/types';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
@@ -164,6 +165,10 @@ export default function AveFormScreen() {
     padre_id: '',
     madre_id: '',
     marca_nariz: '',
+    anillo_metalico: '',
+    anillo_color: '',
+    anillo_codigo: '',
+    anillo_pata: '',
   });
 
   const [marcasPata, setMarcasPata] = useState<MarcasPata>({
@@ -276,6 +281,10 @@ export default function AveFormScreen() {
         padre_id: existingAve.padre_id || '',
         madre_id: existingAve.madre_id || '',
         marca_nariz: (existingAve as any).marca_nariz || '',
+        anillo_metalico: (existingAve as any).anillo_metalico || '',
+        anillo_color: (existingAve as any).anillo_color || '',
+        anillo_codigo: (existingAve as any).anillo_codigo || '',
+        anillo_pata: (existingAve as any).anillo_pata || '',
       });
 
       // Cargar marcas de patas desde el número de lote guardado
@@ -322,17 +331,40 @@ export default function AveFormScreen() {
     }
   };
 
-  const pickImage = async () => {
+  const takePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso requerido', 'Necesitas permitir acceso a la cámara para tomar fotos');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      updateField('foto_principal', result.assets[0].uri);
+    }
+  };
+
+  const pickFromGallery = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
     });
-
     if (!result.canceled && result.assets[0]) {
       updateField('foto_principal', result.assets[0].uri);
     }
+  };
+
+  const pickImage = () => {
+    Alert.alert('Foto del ave', '¿Cómo quieres agregar la foto?', [
+      { text: 'Tomar foto', onPress: takePhoto },
+      { text: 'Elegir de galería', onPress: pickFromGallery },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
   };
 
   const validateForm = () => {
@@ -380,6 +412,11 @@ export default function AveFormScreen() {
         // Marcas de patas
         marca_pata_izquierda: numeroLote > 0 ? String(numeroLote) : undefined,
         marca_pata_derecha: numeroLote > 0 ? `Lote ${numeroLote}` : undefined,
+        // Anillos
+        anillo_metalico: formData.anillo_metalico || undefined,
+        anillo_color: formData.anillo_color || undefined,
+        anillo_codigo: formData.anillo_codigo || undefined,
+        anillo_pata: formData.anillo_pata || undefined,
         // Precio de compra
         precio_compra: formData.precio_compra ? parseFloat(formData.precio_compra) : undefined,
         // Composición genética
@@ -400,6 +437,14 @@ export default function AveFormScreen() {
       if (isEditing && existingAve) {
         result = await updateAve(existingAve.id, aveData);
         if (result.success) {
+          // Upload photo if selected and it's a new local file
+          if (formData.foto_principal && formData.foto_principal.startsWith('file')) {
+            try {
+              await api.uploadAveFoto(existingAve.id, formData.foto_principal);
+            } catch (e) {
+              console.warn('Photo upload failed:', e);
+            }
+          }
           Alert.alert('Éxito', 'Ave actualizada correctamente', [
             { text: 'OK', onPress: () => router.back() }
           ]);
@@ -409,6 +454,15 @@ export default function AveFormScreen() {
       } else {
         result = await addAve(aveData);
         if (result.success) {
+          // Upload photo if selected
+          const aveId = result.data?.id;
+          if (aveId && formData.foto_principal && formData.foto_principal.startsWith('file')) {
+            try {
+              await api.uploadAveFoto(aveId, formData.foto_principal);
+            } catch (e) {
+              console.warn('Photo upload failed:', e);
+            }
+          }
           Alert.alert('Éxito', 'Ave registrada correctamente', [
             { text: 'OK', onPress: () => router.back() }
           ]);
@@ -720,6 +774,107 @@ export default function AveFormScreen() {
                   </View>
                   <Text style={[styles.narizLabel, formData.marca_nariz === 'ambas' && styles.narizLabelActive]}>Ambas</Text>
                 </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          {/* Anillos e Identificación */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Anillos e Identificacion</Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Anillo metalico (numero grabado)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ej: 2847"
+                placeholderTextColor={COLORS.placeholder}
+                value={formData.anillo_metalico}
+                onChangeText={(v) => updateField('anillo_metalico', v)}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Color del anillo</Text>
+              <View style={styles.anilloColorContainer}>
+                {[
+                  { label: 'Rojo', value: 'rojo', hex: '#EF4444' },
+                  { label: 'Azul', value: 'azul', hex: '#3B82F6' },
+                  { label: 'Verde', value: 'verde', hex: '#22C55E' },
+                  { label: 'Amarillo', value: 'amarillo', hex: '#EAB308' },
+                  { label: 'Naranja', value: 'naranja', hex: '#F97316' },
+                  { label: 'Blanco', value: 'blanco', hex: '#F8FAFC' },
+                  { label: 'Negro', value: 'negro', hex: '#1E293B' },
+                  { label: 'Morado', value: 'morado', hex: '#A855F7' },
+                ].map((color) => (
+                  <TouchableOpacity
+                    key={color.value}
+                    style={[
+                      styles.anilloColorBtn,
+                      formData.anillo_color === color.value && styles.anilloColorBtnActive,
+                    ]}
+                    onPress={() => updateField('anillo_color', formData.anillo_color === color.value ? '' : color.value)}
+                  >
+                    <View style={[
+                      styles.anilloColorDot,
+                      { backgroundColor: color.hex },
+                      color.value === 'negro' && { borderWidth: 1, borderColor: '#475569' },
+                      color.value === 'blanco' && { borderWidth: 1, borderColor: '#CBD5E1' },
+                    ]} />
+                    <Text style={[
+                      styles.anilloColorLabel,
+                      formData.anillo_color === color.value && styles.anilloColorLabelActive,
+                    ]}>{color.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput
+                style={[styles.input, { marginTop: SPACING.sm }]}
+                placeholder="O escribe un color personalizado..."
+                placeholderTextColor={COLORS.placeholder}
+                value={['rojo','azul','verde','amarillo','naranja','blanco','negro','morado'].includes(formData.anillo_color) ? '' : formData.anillo_color}
+                onChangeText={(v) => updateField('anillo_color', v)}
+              />
+            </View>
+
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, styles.halfInput]}>
+                <Text style={styles.inputLabel}>Codigo del anillo</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ej: A-15"
+                  placeholderTextColor={COLORS.placeholder}
+                  value={formData.anillo_codigo}
+                  onChangeText={(v) => updateField('anillo_codigo', v)}
+                />
+              </View>
+              <View style={[styles.inputGroup, styles.halfInput]}>
+                <Text style={styles.inputLabel}>Pata del anillo</Text>
+                <View style={styles.segmentedControl}>
+                  <TouchableOpacity
+                    style={[
+                      styles.segmentButton,
+                      formData.anillo_pata === 'izquierda' && styles.segmentButtonActive,
+                    ]}
+                    onPress={() => updateField('anillo_pata', formData.anillo_pata === 'izquierda' ? '' : 'izquierda')}
+                  >
+                    <Text style={[
+                      styles.segmentButtonText,
+                      formData.anillo_pata === 'izquierda' && styles.segmentButtonTextActive,
+                    ]}>Izquierda</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.segmentButton,
+                      formData.anillo_pata === 'derecha' && styles.segmentButtonActive,
+                    ]}
+                    onPress={() => updateField('anillo_pata', formData.anillo_pata === 'derecha' ? '' : 'derecha')}
+                  >
+                    <Text style={[
+                      styles.segmentButtonText,
+                      formData.anillo_pata === 'derecha' && styles.segmentButtonTextActive,
+                    ]}>Derecha</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
           </View>
@@ -1731,5 +1886,41 @@ const styles = StyleSheet.create({
   },
   adquisicionTextActive: {
     color: COLORS.textLight,
+  },
+  // Anillos
+  anilloColorContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  anilloColorBtn: {
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    minWidth: 64,
+  },
+  anilloColorBtnActive: {
+    borderColor: COLORS.primary,
+    borderWidth: 2,
+    backgroundColor: COLORS.primary + '10',
+  },
+  anilloColorDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginBottom: 4,
+  },
+  anilloColorLabel: {
+    fontSize: 10,
+    fontWeight: '500' as const,
+    color: COLORS.textSecondary,
+  },
+  anilloColorLabelActive: {
+    color: COLORS.primary,
+    fontWeight: '700' as const,
   },
 });

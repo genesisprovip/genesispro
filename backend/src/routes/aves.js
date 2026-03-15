@@ -4,12 +4,35 @@
 
 const express = require('express');
 const { body, param, query } = require('express-validator');
+const multer = require('multer');
+const path = require('path');
 const router = express.Router();
 
 const avesController = require('../controllers/avesController');
 const { authenticateJWT } = require('../middleware/auth');
 const { checkPlanLimits } = require('../middleware/planLimits');
 const { validateRequest } = require('../middleware/validator');
+
+// Multer config for ave photos
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, '../../uploads'));
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, `ave_${req.params.id}_${Date.now()}${ext}`);
+  },
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|webp/;
+    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
+    const mime = allowed.test(file.mimetype);
+    cb(null, ext && mime);
+  },
+});
 
 // All routes require authentication
 router.use(authenticateJWT);
@@ -261,11 +284,41 @@ router.get('/:id/qr',
   avesController.getQRCode
 );
 
-// Pedigree PDF
+// Pedigree PDF (Premium only)
 router.get('/:id/pedigree',
   uuidValidation,
   validateRequest,
+  checkPlanLimits('pedigree'),
   avesController.getPedigree
+);
+
+// Upload photo for ave
+router.post('/:id/fotos',
+  uuidValidation,
+  validateRequest,
+  checkPlanLimits('foto'),
+  upload.single('foto'),
+  avesController.uploadFoto
+);
+
+// Delete photo
+router.delete('/:id/fotos/:fotoId',
+  [
+    param('id').isUUID(),
+    param('fotoId').isUUID(),
+  ],
+  validateRequest,
+  avesController.deleteFoto
+);
+
+// Set photo as principal
+router.patch('/:id/fotos/:fotoId/principal',
+  [
+    param('id').isUUID(),
+    param('fotoId').isUUID(),
+  ],
+  validateRequest,
+  avesController.setFotoPrincipal
 );
 
 module.exports = router;

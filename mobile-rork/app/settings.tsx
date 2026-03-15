@@ -10,12 +10,15 @@ import {
   Platform,
   Linking,
   TextInput,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
+import * as ImagePicker from 'expo-image-picker';
 import {
   ChevronLeft,
   Bell,
@@ -27,6 +30,9 @@ import {
   Wifi,
   Mail,
   CheckCircle,
+  Home,
+  Camera,
+  Lock,
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
@@ -49,10 +55,22 @@ export default function SettingsScreen() {
   const [offlineMode, setOfflineMode] = useState(true);
   const [loaded, setLoaded] = useState(false);
 
+  // Gallera state
+  const [nombreGallera, setNombreGallera] = useState(user?.nombre_gallera || '');
+  const [galleraSaving, setGalleraSaving] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+
   // Load preferences on mount
   useEffect(() => {
     loadPreferences();
   }, []);
+
+  // Sync gallera name when user data loads
+  useEffect(() => {
+    if (user?.nombre_gallera) {
+      setNombreGallera(user.nombre_gallera);
+    }
+  }, [user?.nombre_gallera]);
 
   const loadPreferences = async () => {
     try {
@@ -151,6 +169,61 @@ export default function SettingsScreen() {
     savePreferences('offline_mode', value);
   };
 
+  const handleSaveGallera = async () => {
+    if (!nombreGallera.trim()) return;
+    setGalleraSaving(true);
+    try {
+      const res = await api.updateProfile({ nombre_gallera: nombreGallera.trim() });
+      if (res.success) {
+        refreshProfile();
+        Alert.alert('Guardado', 'Nombre de gallera actualizado');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'No se pudo guardar');
+    } finally {
+      setGalleraSaving(false);
+    }
+  };
+
+  const handlePickLogo = async () => {
+    const userPlan = user?.plan || user?.plan_actual || 'basico';
+    if (userPlan === 'basico') {
+      Alert.alert('Plan Pro requerido', 'Actualiza tu plan para subir el logo de tu gallera.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets?.[0]) return;
+
+    setLogoUploading(true);
+    try {
+      const res = await api.uploadGalleraLogo(result.assets[0].uri);
+      if (res.success) {
+        refreshProfile();
+        Alert.alert('Logo actualizado', 'El logo de tu gallera se ha guardado');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'No se pudo subir el logo');
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
+  const isProOrHigher = () => {
+    const p = user?.plan || user?.plan_actual || 'basico';
+    return p === 'pro' || p === 'premium';
+  };
+
+  const logoUrl = user?.logo_gallera_url
+    ? (user.logo_gallera_url.startsWith('http') ? user.logo_gallera_url : `https://api.genesispro.vip${user.logo_gallera_url}`)
+    : null;
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -172,6 +245,99 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Mi Gallera */}
+        <Text style={styles.sectionLabel}>MI GALLERA</Text>
+        <View style={[styles.card, SHADOWS.sm, { padding: SPACING.md }]}>
+          {/* Logo */}
+          <View style={{ alignItems: 'center', marginBottom: SPACING.md }}>
+            <TouchableOpacity
+              onPress={handlePickLogo}
+              activeOpacity={0.7}
+              disabled={logoUploading}
+              style={{
+                width: 90,
+                height: 90,
+                borderRadius: 45,
+                backgroundColor: COLORS.background,
+                borderWidth: 2,
+                borderColor: isProOrHigher() ? COLORS.primary : COLORS.border,
+                borderStyle: isProOrHigher() ? 'solid' : 'dashed',
+                justifyContent: 'center',
+                alignItems: 'center',
+                overflow: 'hidden',
+              }}
+            >
+              {logoUploading ? (
+                <ActivityIndicator color={COLORS.primary} />
+              ) : logoUrl ? (
+                <Image source={{ uri: logoUrl }} style={{ width: 86, height: 86, borderRadius: 43 }} />
+              ) : (
+                <View style={{ alignItems: 'center' }}>
+                  <Camera size={24} color={isProOrHigher() ? COLORS.textSecondary : COLORS.disabled} />
+                  <Text style={{ fontSize: 10, color: COLORS.textSecondary, marginTop: 4 }}>Logo</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            {!isProOrHigher() && (
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                marginTop: 8,
+                backgroundColor: COLORS.secondary + '15',
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderRadius: BORDER_RADIUS.sm,
+                gap: 4,
+              }}>
+                <Lock size={12} color={COLORS.secondary} />
+                <Text style={{ fontSize: 11, color: COLORS.secondary, fontWeight: '600' }}>
+                  Disponible en Plan Pro
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Nombre gallera */}
+          <Text style={{ fontSize: 13, color: COLORS.textSecondary, fontWeight: '600', marginBottom: 6 }}>
+            Nombre de la gallera
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TextInput
+              style={{
+                flex: 1,
+                backgroundColor: COLORS.background,
+                borderRadius: BORDER_RADIUS.md,
+                padding: 12,
+                fontSize: 15,
+                color: COLORS.text,
+                borderWidth: 1,
+                borderColor: COLORS.border,
+              }}
+              placeholder="Ej: Gallera Los Reyes"
+              placeholderTextColor={COLORS.placeholder}
+              value={nombreGallera}
+              onChangeText={setNombreGallera}
+              maxLength={100}
+            />
+            <TouchableOpacity
+              onPress={handleSaveGallera}
+              disabled={galleraSaving || !nombreGallera.trim() || nombreGallera.trim() === (user?.nombre_gallera || '')}
+              style={{
+                backgroundColor: (!nombreGallera.trim() || nombreGallera.trim() === (user?.nombre_gallera || ''))
+                  ? COLORS.disabled
+                  : COLORS.primary,
+                borderRadius: BORDER_RADIUS.md,
+                paddingHorizontal: 16,
+                justifyContent: 'center',
+              }}
+            >
+              <Text style={{ color: COLORS.textLight, fontWeight: '700', fontSize: 13 }}>
+                {galleraSaving ? '...' : 'Guardar'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Notifications */}
         <Text style={styles.sectionLabel}>NOTIFICACIONES</Text>
         <View style={[styles.card, SHADOWS.sm]}>

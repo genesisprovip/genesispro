@@ -4,12 +4,42 @@
 
 const express = require('express');
 const { body } = require('express-validator');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const router = express.Router();
 
 const rateLimit = require('express-rate-limit');
 const authController = require('../controllers/authController');
 const { authenticateJWT } = require('../middleware/auth');
+const { requirePlan } = require('../middleware/planLimits');
 const { validateRequest } = require('../middleware/validator');
+
+// Multer config for logo uploads
+const logosDir = path.join(__dirname, '../../uploads/logos');
+if (!fs.existsSync(logosDir)) {
+  fs.mkdirSync(logosDir, { recursive: true });
+}
+
+const logoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, logosDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, `logo_${req.userId}_${Date.now()}${ext}`);
+  },
+});
+const uploadLogo = multer({
+  storage: logoStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  fileFilter: (req, file, cb) => {
+    const allowed = /jpeg|jpg|png|webp/;
+    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
+    const mime = allowed.test(file.mimetype);
+    cb(null, ext && mime);
+  },
+});
 
 // Strict rate limiter for auth endpoints (5 attempts per 15 min)
 const authLimiter = rateLimit({
@@ -106,6 +136,7 @@ router.use(authenticateJWT);
 router.post('/logout', authController.logout);
 router.get('/me', authController.getProfile);
 router.put('/me', authController.updateProfile);
+router.post('/profile/logo', requirePlan('pro', 'premium'), uploadLogo.single('logo'), authController.uploadLogo);
 router.put('/change-password', changePasswordValidation, validateRequest, authController.changePassword);
 router.delete('/account', authController.deleteAccount);
 

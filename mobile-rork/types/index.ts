@@ -16,6 +16,8 @@ export interface User {
   has_subscription?: boolean;
   plan_empresario?: 'empresario_basico' | 'empresario_pro' | 'empresario_premium' | null;
   email_verificado?: boolean;
+  nombre_gallera?: string;
+  logo_gallera_url?: string;
 }
 
 export interface ComposicionGenetica {
@@ -45,6 +47,12 @@ export interface Ave {
   // Composición genética
   composicion_genetica?: ComposicionGenetica[];
   es_puro?: boolean;
+  // Origen
+  // Anillos e identificación
+  anillo_metalico?: string;
+  anillo_color?: string;
+  anillo_codigo?: string;
+  anillo_pata?: string;
   // Origen
   criadero_origen?: string;
   criador_nombre?: string;

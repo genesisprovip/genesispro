@@ -786,8 +786,8 @@ router.post('/:eventoId/sorteo',
         RETURNING *`,
         [
           eventoId, numPelea, ronda.id,
-          rojoP[0]?.usuario_id || null, par.rojo.id, par.rojo.anillo, par.rojo.peso / 1000, par.rojo.partido_nombre,
-          verdeP[0]?.usuario_id || null, par.verde.id, par.verde.anillo, par.verde.peso / 1000, par.verde.partido_nombre,
+          rojoP[0]?.usuario_id || null, par.rojo.id, par.rojo.anillo, par.rojo.peso, par.rojo.partido_nombre,
+          verdeP[0]?.usuario_id || null, par.verde.id, par.verde.anillo, par.verde.peso, par.verde.partido_nombre,
           par.navaja_derecha
         ]
       );
@@ -921,8 +921,8 @@ router.post('/:eventoId/comodin',
       RETURNING *`,
       [
         eventoId, maxPelea[0].n, ronda.id,
-        origP[0]?.usuario_id || null, aveOriginal.id, aveOriginal.anillo, aveOriginal.peso / 1000, aveOriginal.partido_nombre,
-        ave[0].id, anillo, peso / 1000, nombre + ' (Comodín)',
+        origP[0]?.usuario_id || null, aveOriginal.id, aveOriginal.anillo, aveOriginal.peso, aveOriginal.partido_nombre,
+        ave[0].id, anillo, peso, nombre + ' (Comodín)',
         navajaDerecha
       ]
     );

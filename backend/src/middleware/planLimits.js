@@ -55,6 +55,7 @@ const checkPlanLimits = (feature) => {
         break;
       }
 
+      case 'foto':
       case 'subir_foto': {
         if (limits.max_fotos_por_ave !== null) {
           const aveId = req.params.id || req.body.ave_id;
@@ -156,10 +157,21 @@ const checkPlanLimits = (feature) => {
 
       case 'salud':
       case 'finanzas':
-      case 'alimentacion': {
+      case 'alimentacion':
+      case 'formulas':
+      case 'observaciones': {
         // These features require at least Pro plan
         if (limits.plan_actual === 'basico') {
           throw Errors.subscriptionRequired('pro');
+        }
+        break;
+      }
+
+      case 'pedigree': {
+        // Pedigree PDF requires Premium plan
+        const planHierarchy = { basico: 0, pro: 1, premium: 2 };
+        if ((planHierarchy[limits.plan_actual] || 0) < 2) {
+          throw Errors.subscriptionRequired('premium');
         }
         break;
       }
@@ -174,14 +186,26 @@ const checkPlanLimits = (feature) => {
 };
 
 /**
- * Require specific plan
+ * Require minimum plan level (uses hierarchy: basico < pro < premium)
+ * Trial users already have plan_actual='premium' in DB, so they pass automatically.
+ * @param {string} minPlan - Minimum plan required: 'basico', 'pro', or 'premium'
  */
-const requirePlan = (...allowedPlans) => {
+const requirePlan = (minPlan) => {
+  const planHierarchy = { basico: 0, pro: 1, premium: 2 };
+
   return asyncHandler(async (req, res, next) => {
     const limits = req.userLimits || await getUserLimits(req.userId);
+    req.userLimits = limits;
 
-    if (!allowedPlans.includes(limits.plan_actual)) {
-      const minPlan = allowedPlans.includes('pro') ? 'pro' : 'premium';
+    // Verify subscription is valid
+    if (!limits.suscripcion_valida && limits.plan_actual !== 'basico') {
+      throw Errors.subscriptionExpired();
+    }
+
+    const userLevel = planHierarchy[limits.plan_actual] || 0;
+    const requiredLevel = planHierarchy[minPlan] || 0;
+
+    if (userLevel < requiredLevel) {
       throw Errors.subscriptionRequired(minPlan);
     }
 

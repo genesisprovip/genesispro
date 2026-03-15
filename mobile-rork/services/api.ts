@@ -214,11 +214,34 @@ class ApiService {
     return this.request<{ success: boolean; data: { user: any; limites: any } }>('/auth/me');
   }
 
-  async updateProfile(data: { nombre?: string; telefono?: string }) {
+  async updateProfile(data: { nombre?: string; telefono?: string; nombre_gallera?: string }) {
     return this.request<{ success: boolean; message: string; data: { user: any } }>('/auth/me', {
       method: 'PUT',
       body: JSON.stringify(data),
     });
+  }
+
+  async uploadGalleraLogo(imageUri: string): Promise<{ success: boolean; data: { logo_gallera_url: string } }> {
+    const formData = new FormData();
+    const filename = imageUri.split('/').pop() || 'logo.jpg';
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `image/${match[1]}` : 'image/jpeg';
+    formData.append('logo', { uri: imageUri, name: filename, type } as any);
+
+    const response = await fetch(`${API_URL}/auth/profile/logo`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.accessToken}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: { message: 'Error al subir logo' } }));
+      throw new Error(error.error?.message || 'Error al subir logo');
+    }
+
+    return response.json();
   }
 
   // Password Recovery
@@ -296,6 +319,47 @@ class ApiService {
     return this.request<{ success: boolean }>(`/aves/${id}`, {
       method: 'DELETE',
     }, 'Eliminar ave');
+  }
+
+  async uploadAveFoto(aveId: string, imageUri: string, descripcion?: string) {
+    if (!this.accessToken) await this.init();
+
+    const formData = new FormData();
+    const filename = imageUri.split('/').pop() || 'photo.jpg';
+    const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+    const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+
+    formData.append('foto', {
+      uri: imageUri,
+      name: filename,
+      type: mimeType,
+    } as any);
+
+    if (descripcion) formData.append('descripcion', descripcion);
+
+    const response = await fetch(`${API_URL}/aves/${aveId}/fotos`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.accessToken}`,
+      },
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error?.message || 'Error subiendo foto');
+    return data;
+  }
+
+  async deleteAveFoto(aveId: string, fotoId: string) {
+    return this.request<{ success: boolean }>(`/aves/${aveId}/fotos/${fotoId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async setAveFotoPrincipal(aveId: string, fotoId: string) {
+    return this.request<{ success: boolean }>(`/aves/${aveId}/fotos/${fotoId}/principal`, {
+      method: 'PATCH',
+    });
   }
 
   async getAvePedigreeUrl(id: string): Promise<string> {

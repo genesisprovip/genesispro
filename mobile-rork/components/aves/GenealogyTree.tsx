@@ -59,7 +59,7 @@ export default function GenealogyTree({ ave, onAvePress }: GenealogyTreeProps) {
             <Crown size={14} color={COLORS.secondary} />
           </View>
           <Image
-            source={{ uri: ave.foto_principal || 'https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=200' }}
+            source={{ uri: ave.foto_principal ? (ave.foto_principal.startsWith('http') ? ave.foto_principal : `https://api.genesispro.vip${ave.foto_principal}`) : 'https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=200' }}
             style={styles.currentAveImage}
             contentFit="cover"
           />
@@ -154,7 +154,7 @@ function AveNode({
     >
       <View style={styles.nodeImageWrapper}>
         <Image
-          source={{ uri: ave.foto_principal || 'https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=200' }}
+          source={{ uri: ave.foto_principal ? (ave.foto_principal.startsWith('http') ? ave.foto_principal : `https://api.genesispro.vip${ave.foto_principal}`) : 'https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=200' }}
           style={[styles.nodeImage, compact && styles.nodeImageCompact]}
           contentFit="cover"
         />

@@ -9,10 +9,13 @@ import {
   ActivityIndicator,
   TextInput,
   Alert,
+  Modal,
+  Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import {
   ChevronLeft,
   Plus,
@@ -25,12 +28,17 @@ import {
   Globe,
   Lock,
   Search,
+  ScanLine,
+  X,
 } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 import { api } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import LiveStreamBanner from '@/components/streaming/LiveStreamBanner';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const VIEWFINDER_SIZE = SCREEN_WIDTH * 0.65;
 
 type TabType = 'mis_eventos' | 'publicos';
 
@@ -72,8 +80,88 @@ export default function PalenqueScreen() {
   const [empresarioActivo, setEmpresarioActivo] = useState(false);
   const [liveEventIds, setLiveEventIds] = useState<Set<string>>(new Set());
   const [codigoAcceso, setCodigoAcceso] = useState('');
+  const [qrModalVisible, setQrModalVisible] = useState(false);
+  const [scanned, setScanned] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
   const eventos = activeTab === 'mis_eventos' ? misEventos : publicos;
+
+  const extractCodeFromQR = (data: string): string | null => {
+    // Try URL format: https://genesispro.vip/evento?code=XXXXXX
+    try {
+      const url = new URL(data);
+      const code = url.searchParams.get('code');
+      if (code) return code.trim().toUpperCase();
+    } catch {
+      // Not a URL — check if it's a plain code (4-8 alphanumeric chars)
+    }
+    const trimmed = data.trim().toUpperCase();
+    if (/^[A-Z0-9]{4,8}$/.test(trimmed)) {
+      return trimmed;
+    }
+    return null;
+  };
+
+  const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
+    if (scanned) return;
+    setScanned(true);
+
+    const code = extractCodeFromQR(data);
+    if (code) {
+      setQrModalVisible(false);
+      setCodigoAcceso(code);
+      // Auto-submit after a brief delay to let state update
+      setTimeout(() => {
+        handleCodigoAccesoWithCode(code);
+      }, 300);
+    } else {
+      Alert.alert('QR no valido', 'El codigo QR no contiene un codigo de acceso valido.');
+      // Allow scanning again after a moment
+      setTimeout(() => setScanned(false), 2000);
+    }
+  };
+
+  const openQrScanner = async () => {
+    if (!cameraPermission?.granted) {
+      const result = await requestCameraPermission();
+      if (!result.granted) {
+        Alert.alert(
+          'Permiso requerido',
+          'Se necesita acceso a la camara para escanear codigos QR.'
+        );
+        return;
+      }
+    }
+    setScanned(false);
+    setQrModalVisible(true);
+  };
+
+  const handleCodigoAccesoWithCode = async (code: string) => {
+    const cleanCode = code.trim().toUpperCase();
+    if (cleanCode.length < 4) {
+      Alert.alert('Error', 'Ingresa un codigo de acceso valido');
+      return;
+    }
+    try {
+      const res = await api.getEventoByCodigo(cleanCode);
+      if (res.success && res.data?.id) {
+        if (res.data.usuario_id) {
+          api.setReferralContext(res.data.usuario_id, res.data.id);
+        }
+        setCodigoAcceso('');
+        router.push(`/palenque/live?eventoId=${res.data.id}&code=${cleanCode}`);
+      } else {
+        Alert.alert('No encontrado', 'No se encontro ningun evento con ese codigo');
+      }
+    } catch (error: any) {
+      const msg = error?.message || '';
+      if (msg.includes('finalizó') || msg.includes('cancelado')) {
+        Alert.alert('Evento no disponible', msg);
+      } else {
+        Alert.alert('Error', 'No se pudo buscar el evento. Verifica el codigo e intenta de nuevo.');
+      }
+    }
+  };
 
   const handleCodigoAcceso = async () => {
     const code = codigoAcceso.trim().toUpperCase();
@@ -286,6 +374,9 @@ export default function PalenqueScreen() {
                 maxLength={8}
               />
             </View>
+            <TouchableOpacity style={styles.qrButton} onPress={openQrScanner}>
+              <ScanLine size={22} color={COLORS.textLight} />
+            </TouchableOpacity>
             <TouchableOpacity style={styles.codigoButton} onPress={handleCodigoAcceso}>
               <Text style={styles.codigoButtonText}>Entrar</Text>
             </TouchableOpacity>
@@ -371,6 +462,57 @@ export default function PalenqueScreen() {
           </LinearGradient>
         </TouchableOpacity>
       )}
+
+      <Modal
+        visible={qrModalVisible}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setQrModalVisible(false)}
+      >
+        <View style={styles.qrModalContainer}>
+          <CameraView
+            style={StyleSheet.absoluteFillObject}
+            facing="back"
+            onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+          />
+
+          {/* Overlay */}
+          <View style={styles.qrOverlay}>
+            {/* Top */}
+            <View style={styles.qrOverlayTop}>
+              <Text style={styles.qrTitle}>Escanea el QR del evento</Text>
+            </View>
+
+            {/* Middle row: left dark | viewfinder | right dark */}
+            <View style={styles.qrOverlayMiddle}>
+              <View style={styles.qrOverlaySide} />
+              <View style={styles.qrViewfinder}>
+                {/* Corner borders */}
+                <View style={[styles.qrCorner, styles.qrCornerTL]} />
+                <View style={[styles.qrCorner, styles.qrCornerTR]} />
+                <View style={[styles.qrCorner, styles.qrCornerBL]} />
+                <View style={[styles.qrCorner, styles.qrCornerBR]} />
+              </View>
+              <View style={styles.qrOverlaySide} />
+            </View>
+
+            {/* Bottom */}
+            <View style={styles.qrOverlayBottom}>
+              <Text style={styles.qrSubtitle}>
+                Apunta la camara al codigo QR del evento
+              </Text>
+              <TouchableOpacity
+                style={styles.qrCloseButton}
+                onPress={() => setQrModalVisible(false)}
+              >
+                <X size={24} color={COLORS.textLight} />
+                <Text style={styles.qrCloseText}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -528,6 +670,97 @@ const styles = StyleSheet.create({
   codigoButtonText: {
     fontSize: 15,
     fontWeight: '700',
+    color: COLORS.textLight,
+  },
+  qrButton: {
+    width: 44,
+    height: 44,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  qrModalContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  qrOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'space-between',
+  },
+  qrOverlayTop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingBottom: SPACING.lg,
+  },
+  qrOverlayMiddle: {
+    flexDirection: 'row',
+    height: VIEWFINDER_SIZE,
+  },
+  qrOverlaySide: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+  },
+  qrViewfinder: {
+    width: VIEWFINDER_SIZE,
+    height: VIEWFINDER_SIZE,
+  },
+  qrCorner: {
+    position: 'absolute',
+    width: 30,
+    height: 30,
+    borderColor: COLORS.primary,
+  },
+  qrCornerTL: {
+    top: 0, left: 0,
+    borderTopWidth: 3, borderLeftWidth: 3,
+    borderTopLeftRadius: 8,
+  },
+  qrCornerTR: {
+    top: 0, right: 0,
+    borderTopWidth: 3, borderRightWidth: 3,
+    borderTopRightRadius: 8,
+  },
+  qrCornerBL: {
+    bottom: 0, left: 0,
+    borderBottomWidth: 3, borderLeftWidth: 3,
+    borderBottomLeftRadius: 8,
+  },
+  qrCornerBR: {
+    bottom: 0, right: 0,
+    borderBottomWidth: 3, borderRightWidth: 3,
+    borderBottomRightRadius: 8,
+  },
+  qrOverlayBottom: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    alignItems: 'center',
+    paddingTop: SPACING.lg,
+  },
+  qrTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.textLight,
+  },
+  qrSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: SPACING.xl,
+  },
+  qrCloseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.round,
+  },
+  qrCloseText: {
+    fontSize: 16,
+    fontWeight: '600',
     color: COLORS.textLight,
   },
 });

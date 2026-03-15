@@ -14,7 +14,8 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronLeft, Trophy, Calendar, MapPin, Scale, Clock } from 'lucide-react-native';
+import * as Location from 'expo-location';
+import { ChevronLeft, Trophy, Calendar, MapPin, Scale, Clock, Search, X } from 'lucide-react-native';
 import { useAves } from '@/context/AvesContext';
 import { useCombates } from '@/context/CombatesContext';
 import { COLORS } from '@/constants/colors';
@@ -37,13 +38,74 @@ export default function NuevoCombateScreen() {
   const [pesoAve, setPesoAve] = useState('');
   const [pesoOponente, setPesoOponente] = useState('');
   const [resultado, setResultado] = useState<Resultado>('pendiente');
-  const [duracionMinutos, setDuracionMinutos] = useState('');
+  const [duracionMin, setDuracionMin] = useState('');
+  const [duracionSeg, setDuracionSeg] = useState('');
   const [tipoVictoria, setTipoVictoria] = useState('');
   const [notas, setNotas] = useState('');
   const [aveMurio, setAveMurio] = useState(false);
   const [motivoBaja, setMotivoBaja] = useState('Murio en combate');
+  const [loadingGPS, setLoadingGPS] = useState(false);
+
+  const [busquedaAve, setBusquedaAve] = useState('');
 
   const machos = aves.filter(ave => ave.sexo === 'M' && ave.estado === 'activo');
+
+  const machosFiltrados = busquedaAve.trim()
+    ? machos.filter(ave => {
+        const q = busquedaAve.toLowerCase();
+        return (
+          ave.codigo_identidad?.toLowerCase().includes(q) ||
+          ave.linea_genetica?.toLowerCase().includes(q) ||
+          ave.anillo_metalico?.toLowerCase().includes(q) ||
+          ave.anillo_codigo?.toLowerCase().includes(q) ||
+          ave.anillo_color?.toLowerCase().includes(q) ||
+          ave.color?.toLowerCase().includes(q)
+        );
+      })
+    : machos;
+
+  const getGPSLocation = async () => {
+    setLoadingGPS(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permiso requerido', 'Necesitas permitir acceso a la ubicación');
+        return;
+      }
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const { latitude, longitude } = location.coords;
+
+      // Reverse geocode using Google Maps API
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=AIzaSyCN3YaVIo381yI4PVlHLmCeC7At061sUNc&language=es`
+      );
+      const data = await response.json();
+
+      if (data.results && data.results.length > 0) {
+        const components = data.results[0].address_components;
+        const locality = components.find((c: any) => c.types.includes('locality'))?.long_name;
+        const sublocality = components.find((c: any) => c.types.includes('sublocality'))?.long_name;
+        const state = components.find((c: any) => c.types.includes('administrative_area_level_1'))?.short_name;
+
+        let address = '';
+        if (sublocality && locality) {
+          address = `${sublocality}, ${locality}, ${state}`;
+        } else if (locality) {
+          address = `${locality}, ${state}`;
+        } else {
+          address = data.results[0].formatted_address;
+        }
+
+        setLugar(address);
+      } else {
+        setLugar(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo obtener la ubicación. Ingresa manualmente.');
+    } finally {
+      setLoadingGPS(false);
+    }
+  };
 
   const resultados: { key: Resultado; label: string; color: string }[] = [
     { key: 'victoria', label: 'Victoria', color: COLORS.success },
@@ -84,7 +146,7 @@ export default function NuevoCombateScreen() {
         peso_combate: parseFloat(pesoAve),
         peso_oponente: pesoOponente ? parseFloat(pesoOponente) : undefined,
         resultado,
-        duracion_minutos: duracionMinutos ? parseInt(duracionMinutos) : undefined,
+        duracion_minutos: (duracionMin || duracionSeg) ? (parseInt(duracionMin || '0') + (parseInt(duracionSeg || '0') / 60)) : undefined,
         tipo_victoria: tipoVictoria.trim() || undefined,
         notas: notas.trim() || undefined,
         ave_murio: aveMurio,
@@ -137,44 +199,79 @@ export default function NuevoCombateScreen() {
           {/* Selección de Ave */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Seleccionar Gallo</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.avesRow}>
-                {machos.length === 0 ? (
-                  <Text style={styles.emptyText}>No hay gallos disponibles</Text>
-                ) : (
-                  machos.map(ave => (
-                    <TouchableOpacity
-                      key={ave.id}
-                      style={[
-                        styles.aveChip,
-                        selectedAveId === ave.id && styles.aveChipSelected
-                      ]}
-                      onPress={() => {
-                        setSelectedAveId(ave.id);
-                        if (ave.peso_actual) {
-                          setPesoAve(ave.peso_actual.toString());
-                        }
-                      }}
-                    >
-                      <Text style={[
-                        styles.aveChipText,
-                        selectedAveId === ave.id && styles.aveChipTextSelected
-                      ]}>
-                        {ave.codigo_identidad}
-                      </Text>
-                      {ave.linea_genetica && (
-                        <Text style={[
-                          styles.aveChipSubtext,
-                          selectedAveId === ave.id && styles.aveChipTextSelected
-                        ]}>
-                          {ave.linea_genetica}
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                  ))
-                )}
+
+            {/* Selected ave display */}
+            {selectedAveId ? (
+              <View style={styles.selectedAveCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.selectedAveName}>
+                    {machos.find(a => a.id === selectedAveId)?.codigo_identidad}
+                  </Text>
+                  <Text style={styles.selectedAveSub}>
+                    {[
+                      machos.find(a => a.id === selectedAveId)?.linea_genetica,
+                      machos.find(a => a.id === selectedAveId)?.anillo_metalico && `Anillo: ${machos.find(a => a.id === selectedAveId)?.anillo_metalico}`,
+                      machos.find(a => a.id === selectedAveId)?.peso_actual && `${machos.find(a => a.id === selectedAveId)?.peso_actual}g`,
+                    ].filter(Boolean).join(' · ')}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => { setSelectedAveId(''); setPesoAve(''); }}>
+                  <X size={20} color={COLORS.textSecondary} />
+                </TouchableOpacity>
               </View>
-            </ScrollView>
+            ) : (
+              <>
+                {/* Search input */}
+                <View style={styles.searchAveContainer}>
+                  <Search size={16} color={COLORS.textSecondary} />
+                  <TextInput
+                    style={styles.searchAveInput}
+                    placeholder="Buscar por nombre, placa, anillo, color..."
+                    placeholderTextColor={COLORS.placeholder}
+                    value={busquedaAve}
+                    onChangeText={setBusquedaAve}
+                    autoCapitalize="none"
+                  />
+                  {busquedaAve.length > 0 && (
+                    <TouchableOpacity onPress={() => setBusquedaAve('')}>
+                      <X size={16} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Filtered results */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.avesRow}>
+                    {machosFiltrados.length === 0 ? (
+                      <Text style={styles.emptyText}>
+                        {machos.length === 0 ? 'No hay gallos disponibles' : 'Sin resultados'}
+                      </Text>
+                    ) : (
+                      machosFiltrados.map(ave => (
+                        <TouchableOpacity
+                          key={ave.id}
+                          style={styles.aveChip}
+                          onPress={() => {
+                            setSelectedAveId(ave.id);
+                            setBusquedaAve('');
+                            if (ave.peso_actual) {
+                              setPesoAve(ave.peso_actual.toString());
+                            }
+                          }}
+                        >
+                          <Text style={styles.aveChipText}>
+                            {ave.codigo_identidad}
+                          </Text>
+                          <Text style={styles.aveChipSubtext}>
+                            {[ave.linea_genetica, ave.anillo_metalico].filter(Boolean).join(' · ') || ave.color || ''}
+                          </Text>
+                        </TouchableOpacity>
+                      ))
+                    )}
+                  </View>
+                </ScrollView>
+              </>
+            )}
           </View>
 
           {/* Información del Combate */}
@@ -187,17 +284,30 @@ export default function NuevoCombateScreen() {
               placeholder="Fecha del combate"
             />
 
-            <View style={styles.inputGroup}>
-              <View style={styles.inputIcon}>
-                <MapPin size={20} color={COLORS.textSecondary} />
+            <View style={styles.locationRow}>
+              <View style={[styles.inputGroup, { flex: 1, marginBottom: 0 }]}>
+                <View style={styles.inputIcon}>
+                  <MapPin size={20} color={COLORS.textSecondary} />
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Lugar del combate"
+                  placeholderTextColor={COLORS.textSecondary}
+                  value={lugar}
+                  onChangeText={setLugar}
+                />
               </View>
-              <TextInput
-                style={styles.input}
-                placeholder="Lugar del combate"
-                placeholderTextColor={COLORS.textSecondary}
-                value={lugar}
-                onChangeText={setLugar}
-              />
+              <TouchableOpacity
+                style={styles.gpsButton}
+                onPress={getGPSLocation}
+                disabled={loadingGPS}
+              >
+                {loadingGPS ? (
+                  <ActivityIndicator size="small" color={COLORS.primary} />
+                ) : (
+                  <MapPin size={22} color={COLORS.primary} />
+                )}
+              </TouchableOpacity>
             </View>
 
             <View style={styles.inputGroup}>
@@ -280,18 +390,36 @@ export default function NuevoCombateScreen() {
               />
             )}
 
-            <View style={styles.inputGroup}>
+            <View style={styles.durationRow}>
               <View style={styles.inputIcon}>
                 <Clock size={20} color={COLORS.textSecondary} />
               </View>
               <TextInput
-                style={styles.input}
-                placeholder="Duración (minutos)"
-                placeholderTextColor={COLORS.textSecondary}
-                value={duracionMinutos}
-                onChangeText={setDuracionMinutos}
+                style={styles.durationInput}
+                placeholder="00"
+                placeholderTextColor={COLORS.placeholder}
+                value={duracionMin}
+                onChangeText={(t) => setDuracionMin(t.replace(/[^0-9]/g, '').slice(0, 2))}
                 keyboardType="number-pad"
+                maxLength={2}
+                textAlign="center"
               />
+              <Text style={styles.durationSeparator}>:</Text>
+              <TextInput
+                style={styles.durationInput}
+                placeholder="00"
+                placeholderTextColor={COLORS.placeholder}
+                value={duracionSeg}
+                onChangeText={(t) => {
+                  const clean = t.replace(/[^0-9]/g, '').slice(0, 2);
+                  if (parseInt(clean) > 59) return;
+                  setDuracionSeg(clean);
+                }}
+                keyboardType="number-pad"
+                maxLength={2}
+                textAlign="center"
+              />
+              <Text style={styles.durationLabel}>min : seg</Text>
             </View>
           </View>
 
@@ -413,6 +541,68 @@ const styles = StyleSheet.create({
   avesRow: {
     flexDirection: 'row',
     gap: SPACING.sm,
+  },
+  durationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  durationInput: {
+    width: 50,
+    height: 48,
+    backgroundColor: COLORS.card,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.text,
+  },
+  durationSeparator: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  durationLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginLeft: SPACING.xs,
+  },
+  searchAveContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.card,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: SPACING.sm,
+    marginBottom: SPACING.sm,
+    gap: SPACING.xs,
+  },
+  searchAveInput: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.text,
+    paddingVertical: SPACING.sm,
+  },
+  selectedAveCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary + '15',
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '40',
+    padding: SPACING.md,
+  },
+  selectedAveName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  selectedAveSub: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
   },
   aveChip: {
     paddingHorizontal: SPACING.md,
@@ -543,5 +733,21 @@ const styles = StyleSheet.create({
   },
   deathToggleTextActive: {
     color: COLORS.error,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: SPACING.sm,
+  },
+  gpsButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
 });

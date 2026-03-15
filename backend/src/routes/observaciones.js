@@ -8,8 +8,17 @@ const router = express.Router();
 const db = require('../config/database');
 const { authenticateJWT } = require('../middleware/auth');
 const { asyncHandler, Errors } = require('../middleware/errorHandler');
+const { checkPlanLimits } = require('../middleware/planLimits');
 
 router.use(authenticateJWT);
+
+// All write operations require at least Pro plan
+router.use((req, res, next) => {
+  if (['POST', 'PUT', 'DELETE'].includes(req.method)) {
+    return checkPlanLimits('observaciones')(req, res, next);
+  }
+  next();
+});
 
 // GET / - List observations (paginated, newest first)
 router.get('/', asyncHandler(async (req, res) => {

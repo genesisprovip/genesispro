@@ -14,10 +14,13 @@ import {
   PanResponder,
   Dimensions,
 } from 'react-native';
-import { MessageCircle, X, Send } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { MessageCircle, X, Send, Sparkles } from 'lucide-react-native';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+
+const API_URL = 'https://api.genesispro.vip/api/v1';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
@@ -37,7 +40,7 @@ const KB: { patterns: string[]; answer: string }[] = [
   { patterns: ['evento', 'palenque', 'crear evento'],
     answer: 'En "Mas" > "Eventos/Palenque" puedes crear eventos. Necesitas ser Empresario para organizar eventos con streaming.' },
   { patterns: ['suscri', 'plan', 'premium', 'basico', 'pago'],
-    answer: 'Ve a "Mas" > "Suscripcion" para ver los planes: Basico ($299), Pro ($599) y Premium ($999) MXN mensuales.' },
+    answer: 'Ve a "Mas" > "Suscripcion" para ver los planes: Basico (Gratis, hasta 20 aves), Pro ($99 MXN/mes, hasta 100 aves) y Premium ($199 MXN/mes, aves ilimitadas).' },
   { patterns: ['alimenta', 'dieta', 'comida', 'alimento'],
     answer: 'En "Mas" > "Alimentacion" puedes manejar inventario de alimentos, registrar comidas y crear dietas.' },
   { patterns: ['contraseña', 'password', 'olvide', 'recuperar'],
@@ -70,7 +73,32 @@ export default function GenesisFloatingButton() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [suggestionsList, setSuggestionsList] = useState<string[]>([]);
+  const [alertCount, setAlertCount] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
+
+  // Fetch alerts on mount and periodically
+  const fetchAlerts = async () => {
+    try {
+      const token = await AsyncStorage.getItem('access_token');
+      if (!token) return;
+      const res = await fetch(`${API_URL}/assistant/alerts`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success) {
+          setAlertCount(json.data?.count || 0);
+        }
+      }
+    } catch {}
+  };
+
+  React.useEffect(() => {
+    fetchAlerts();
+    const interval = setInterval(fetchAlerts, 5 * 60 * 1000); // every 5 min
+    return () => clearInterval(interval);
+  }, []);
 
   // Draggable position
   const pan = useRef(new Animated.ValueXY({ x: SCREEN_W - 70, y: SCREEN_H - 200 })).current;
@@ -96,23 +124,73 @@ export default function GenesisFloatingButton() {
     const userMsg: Message = { role: 'user', text: q };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    setLoading(true);
 
-    // Try local KB first
+    try {
+      // Query backend assistant (real user data)
+      const token = await AsyncStorage.getItem('access_token');
+      if (token) {
+        const res = await fetch(`${API_URL}/assistant/query`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ message: q }),
+        });
+
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && json.data) {
+            const d = json.data;
+            let text = d.content || d.title || 'Sin resultados.';
+
+            // If there are items, format them
+            if (d.items && d.items.length > 0) {
+              if (d.type === 'bird_card' || d.type === 'bird_list') {
+                text += '\n\n' + d.items.map((ave: any) =>
+                  `🐓 ${ave.nombre || ave.codigo_identidad || 'Sin nombre'} — ${ave.linea_genetica || 'Sin línea'} | ${ave.estado || '?'} | ${ave.peso_actual ? ave.peso_actual + 'g' : '?'}`
+                ).join('\n');
+              } else if (d.type === 'combates') {
+                text += '\n\n' + d.items.slice(0, 5).map((c: any) =>
+                  `⚔️ ${c.fecha?.split('T')[0] || '?'} — ${c.resultado || '?'} en ${c.ubicacion || '?'}`
+                ).join('\n');
+              } else if (d.type === 'health') {
+                text += '\n\n' + d.items.slice(0, 5).map((h: any) =>
+                  `💊 ${h.nombre || h.descripcion || h.tipo || '?'} — ${h.fecha?.split('T')[0] || '?'}`
+                ).join('\n');
+              }
+            }
+
+            // Add suggestions as hints
+            if (d.suggestions && d.suggestions.length > 0) {
+              setSuggestionsList(d.suggestions);
+            }
+
+            setMessages(prev => [...prev, { role: 'assistant', text }]);
+            setLoading(false);
+            return;
+          }
+        }
+      }
+    } catch (err) {
+      // Backend not reachable, fall through to KB
+    }
+
+    // Fallback: local KB
     const kbAnswer = searchKB(q);
     if (kbAnswer) {
       setMessages(prev => [...prev, { role: 'assistant', text: kbAnswer }]);
+      setLoading(false);
       return;
     }
 
-    // Fallback: show helpful message since no AI endpoint for general users
-    setLoading(true);
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        text: 'No tengo una respuesta especifica para eso. Intenta preguntar sobre: registrar aves, vacunas, combates, alimentacion, eventos, planes o suscripciones. Para soporte directo escribe a soporte@genesispro.vip',
-      }]);
-      setLoading(false);
-    }, 500);
+    // Nothing found
+    setMessages(prev => [...prev, {
+      role: 'assistant',
+      text: 'No encontre informacion sobre eso. Intenta preguntar por el nombre de un ave, tus estadisticas, vacunas, combates, plan, finanzas o un resumen general.',
+    }]);
+    setLoading(false);
   };
 
   if (!user) return null;
@@ -126,18 +204,48 @@ export default function GenesisFloatingButton() {
       >
         <TouchableOpacity
           style={styles.fabButton}
-          onPress={() => {
+          onPress={async () => {
             if (messages.length === 0) {
-              setMessages([{
+              const welcomeMsg: Message = {
                 role: 'assistant',
-                text: 'Hola! Soy Genesis, tu asistente. Preguntame lo que necesites sobre la app.',
-              }]);
+                text: 'Hola! Soy Genesis, tu asistente. Puedo consultar tus aves, estadisticas, combates, genealogia, salud, plan y mas. Preguntame lo que necesites!',
+              };
+              // Load alerts as part of welcome
+              try {
+                const token = await AsyncStorage.getItem('access_token');
+                if (token && alertCount > 0) {
+                  const res = await fetch(`${API_URL}/assistant/alerts`, {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                  });
+                  if (res.ok) {
+                    const json = await res.json();
+                    if (json.success && json.data?.alerts?.length > 0) {
+                      const alertTexts = json.data.alerts.slice(0, 3).map((a: any) => {
+                        const icon = a.prioridad === 'alta' ? '🔴' : a.prioridad === 'media' ? '🟡' : '🟢';
+                        return `${icon} ${a.mensaje}`;
+                      }).join('\n\n');
+                      setMessages([
+                        welcomeMsg,
+                        { role: 'assistant', text: `Tienes ${json.data.count} alerta(s) pendiente(s):\n\n${alertTexts}` },
+                      ]);
+                      setVisible(true);
+                      return;
+                    }
+                  }
+                }
+              } catch {}
+              setMessages([welcomeMsg]);
             }
             setVisible(true);
           }}
           activeOpacity={0.8}
         >
-          <MessageCircle size={24} color="#fff" />
+          <Sparkles size={24} color="#fff" />
+          {alertCount > 0 && (
+            <View style={styles.alertBadge}>
+              <Text style={styles.alertBadgeText}>{alertCount > 9 ? '9+' : alertCount}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </Animated.View>
 
@@ -191,13 +299,22 @@ export default function GenesisFloatingButton() {
             </ScrollView>
 
             {/* Quick Suggestions */}
-            {messages.length <= 1 && (
+            {(messages.length <= 1 || suggestionsList.length > 0) && (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestions}>
-                {['Como registro un ave?', 'Como funciona la salud?', 'Planes disponibles'].map((s, i) => (
+                {(suggestionsList.length > 0 ? suggestionsList : [
+                  'Mi resumen general',
+                  'Mis aves activas',
+                  'Mi línea más ganadora',
+                  'Vacunas pendientes',
+                  'Mi plan actual',
+                ]).map((s, i) => (
                   <TouchableOpacity
                     key={i}
                     style={styles.suggestionChip}
-                    onPress={() => { setInput(s); }}
+                    onPress={() => {
+                      setInput(s);
+                      setSuggestionsList([]);
+                    }}
                   >
                     <Text style={styles.suggestionText}>{s}</Text>
                   </TouchableOpacity>
@@ -367,5 +484,24 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: {
     opacity: 0.5,
+  },
+  alertBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: COLORS.error,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: COLORS.background,
+  },
+  alertBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#fff',
   },
 });

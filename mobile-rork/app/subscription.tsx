@@ -47,46 +47,54 @@ const USER_PLANS: PlanInfo[] = [
   {
     id: 'basico',
     name: 'Basico',
-    price: 299,
+    price: 0,
     iconColor: COLORS.primary,
     features: [
-      'Hasta 10 aves',
-      '3 fotos por ave',
-      'Genealogia 2 generaciones',
-      'Salud basica',
-      'Soporte por email',
+      'Hasta 20 aves',
+      'Registro de combates',
+      'Estadísticas básicas',
+      'Genealogía (padre/madre)',
+      '1 foto por ave',
+      'Calendario y recordatorios',
+      'Entrar a eventos (360p)',
     ],
   },
   {
     id: 'pro',
     name: 'Pro',
-    price: 599,
+    price: 99,
     iconColor: COLORS.secondary,
     highlight: true,
     features: [
-      'Hasta 50 aves',
-      '10 fotos por ave',
-      'Genealogia 3 generaciones',
-      'Salud completa',
-      'Finanzas y alimentacion',
-      'Exportacion de datos',
-      'Soporte prioritario',
+      'Todo lo de Básico',
+      'Hasta 100 aves',
+      'Salud completa (vacunas, tratamientos)',
+      'Alimentación y fórmulas',
+      'Observaciones de gallera',
+      'Finanzas (ingresos/egresos)',
+      'Genealogía visual completa',
+      'Hasta 5 fotos por ave',
+      'Estadísticas avanzadas',
+      'Nombre y logo de gallera',
+      'Streaming 480p',
+      'Alertas de pelea con sonido',
     ],
   },
   {
     id: 'premium',
     name: 'Premium',
-    price: 999,
+    price: 199,
     iconColor: COLORS.accent,
     features: [
+      'Todo lo de Pro',
       'Aves ilimitadas',
       'Fotos ilimitadas',
-      'Genealogia completa',
-      'Analytics avanzado',
-      'Multi-usuario (3 colaboradores)',
-      'Exportacion de datos',
-      'API access',
-      'Soporte premium',
+      'Pedigree PDF profesional',
+      'Streaming HD (720p-1080p)',
+      'Videos de tus peleas',
+      'Logo en contenido compartido',
+      'Exportación CSV + PDF',
+      'Soporte prioritario',
     ],
   },
 ];
@@ -253,6 +261,18 @@ export default function SubscriptionScreen() {
       Alert.alert(
         `Cambiar a ${plan.name}`,
         `Tu plan cambiara a ${plan.name}. El cambio se aplicara al final del periodo actual.`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Confirmar', onPress: () => changePlanOnly(plan) },
+        ]
+      );
+      return;
+    }
+
+    if (plan.price === 0) {
+      Alert.alert(
+        `Cambiar a ${plan.name}`,
+        'Este plan es gratuito. Se aplicara inmediatamente.',
         [
           { text: 'Cancelar', style: 'cancel' },
           { text: 'Confirmar', onPress: () => changePlanOnly(plan) },
@@ -479,8 +499,12 @@ export default function SubscriptionScreen() {
                 <View style={styles.planTitleContainer}>
                   <Text style={styles.planName}>{plan.name}</Text>
                   <View style={styles.priceRow}>
-                    <Text style={styles.planPrice}>${plan.price.toLocaleString()}</Text>
-                    <Text style={styles.planPricePeriod}> MXN/mes</Text>
+                    <Text style={styles.planPrice}>
+                      {plan.price === 0 ? 'Gratis' : `$${plan.price.toLocaleString()}`}
+                    </Text>
+                    {plan.price > 0 && (
+                      <Text style={styles.planPricePeriod}> MXN/mes</Text>
+                    )}
                   </View>
                 </View>
               </View>

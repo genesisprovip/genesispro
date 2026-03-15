@@ -6,6 +6,17 @@ import { Ave } from '@/types';
 import { COLORS } from '@/constants/colors';
 import { SPACING, BORDER_RADIUS, SHADOWS } from '@/constants/theme';
 
+const ANILLO_COLOR_MAP: Record<string, string> = {
+  rojo: '#EF4444',
+  azul: '#3B82F6',
+  verde: '#22C55E',
+  amarillo: '#EAB308',
+  naranja: '#F97316',
+  blanco: '#F8FAFC',
+  negro: '#1E293B',
+  morado: '#A855F7',
+};
+
 interface AveCardProps {
   ave: Ave;
   onPress: () => void;
@@ -46,7 +57,7 @@ export default function AveCard({ ave, onPress }: AveCardProps) {
     >
       <View style={styles.imageContainer}>
         <Image
-          source={{ uri: ave.foto_principal || 'https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=200' }}
+          source={{ uri: ave.foto_principal ? (ave.foto_principal.startsWith('http') ? ave.foto_principal : `https://api.genesispro.vip${ave.foto_principal}`) : 'https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?w=200' }}
           style={styles.image}
           contentFit="cover"
           transition={200}
@@ -54,6 +65,14 @@ export default function AveCard({ ave, onPress }: AveCardProps) {
         <View style={[styles.genderBadge, { backgroundColor: genderColor }]}>
           <Text style={styles.genderText}>{ave.sexo}</Text>
         </View>
+        {ave.anillo_color && (
+          <View style={[
+            styles.anilloColorDot,
+            { backgroundColor: ANILLO_COLOR_MAP[ave.anillo_color] || COLORS.textSecondary },
+            ave.anillo_color === 'negro' && { borderWidth: 1.5, borderColor: '#475569' },
+            ave.anillo_color === 'blanco' && { borderWidth: 1.5, borderColor: '#CBD5E1' },
+          ]} />
+        )}
       </View>
 
       <View style={styles.content}>
@@ -143,6 +162,16 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: COLORS.textLight,
+  },
+  anilloColorDot: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: COLORS.card,
   },
   content: {
     flex: 1,
