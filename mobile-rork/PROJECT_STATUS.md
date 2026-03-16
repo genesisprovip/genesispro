@@ -49,7 +49,7 @@ GenesisPro es un sistema de gestión avícola especializado para criadores de ga
 - **Host:** localhost
 - **Database:** `genesispro_db`
 - **User:** `genesispro_user`
-- **Password:** `GenesisProDB2025`
+- **Password:** [REDACTED - see VPS .env]
 
 ### Tablas Principales
 
@@ -270,7 +270,7 @@ npx expo start --tunnel
 
 ### Base de Datos
 ```bash
-PGPASSWORD='GenesisProDB2025' psql -h localhost -U genesispro_user -d genesispro_db
+docker exec -it genesispro-db psql -U genesispro_user -d genesispro_db
 ```
 
 ---

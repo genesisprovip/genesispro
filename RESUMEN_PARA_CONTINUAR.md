@@ -7,9 +7,9 @@
 - **Branch:** master
 - **Último commit:** c173f7c
 
-### Servidor (15.1.1.30)
+### Servidor (147.93.181.75)
 - **Usuario:** genesispro
-- **Password:** 1234
+- **Password:** [REDACTED - stored securely on VPS]
 - **Servicios PM2:** genesispro-api, genesispro-expo, cloudflare-tunnel
 - **API:** https://api.genesispro.vip/api/v1
 
@@ -17,7 +17,7 @@
 - **Host:** localhost
 - **DB:** genesispro_db
 - **User:** genesispro_user
-- **Pass:** GenesisProDB2025
+- **Pass:** [REDACTED - see VPS .env]
 
 ---
 
@@ -28,7 +28,7 @@
 3. **Autenticación JWT** - Login/Registro funcionando
 4. **CRUD de Aves** - Crear, leer, actualizar, eliminar
 5. **Combates** - Registro y estadísticas
-6. **Usuario demo:** demo@genesispro.vip / Demo12345
+6. **Usuario demo:** demo@genesispro.vip / [REDACTED]
 
 ---
 
@@ -72,16 +72,16 @@ genesispro/
 
 ```bash
 # Conectar al servidor
-ssh genesispro@15.1.1.30
+ssh genesispro@147.93.181.75
 
 # Ver logs del backend
-pm2 logs genesispro-api --lines 50
+docker logs genesispro-api --tail 50
 
 # Reiniciar servicios
-pm2 restart all
+cd /opt/genesispro && docker compose restart api
 
 # Base de datos
-PGPASSWORD='GenesisProDB2025' psql -h localhost -U genesispro_user -d genesispro_db
+docker exec -it genesispro-db psql -U genesispro_user -d genesispro_db
 
 # Iniciar app móvil (en mobile-rork/)
 npm run start

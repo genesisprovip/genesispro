@@ -44,7 +44,7 @@
 
 ### Credenciales de Prueba
 - **Email:** demo@genesispro.vip
-- **Password:** Demo12345
+- **Password:** [REDACTED]
 
 ## Estructura del Proyecto en Servidor
 
